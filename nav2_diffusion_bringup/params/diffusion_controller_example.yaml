@@ -48,6 +48,9 @@ controller_server:
       # FanRolloutModel (requires the plugin's package, e.g. nav2_diffusion_onnx).
       # model_plugin: "nav2_diffusion_onnx::OnnxTrajectoryModel"
       # model_path: "/path/to/model.onnx"
+      # For a costmap-conditioned model (CostmapFlowPlanner), feed an egocentric
+      # costmap patch of this side length (cells); must match the model's input:
+      # costmap_patch_size: 32
       # Optional: delegate to a standard Nav2 controller when no safe generative
       # candidate exists (docs/safety.md 8.4). Empty disables it (stop instead).
       # fallback_controller_plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"

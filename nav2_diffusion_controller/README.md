@@ -54,6 +54,7 @@ Nav2 Controller Plugin integration。
 | `fallback_controller_plugin` | "" | 安全候補ゼロ時に委譲する Nav2 Controller plugin。空で無効（stop）。例: `nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController`。そのパラメータは `<name>.fallback.*` 名前空間に置く |
 | `model_plugin` | "" | 生成モデルの `TrajectoryModel` plugin 名。空で組み込み `FanRolloutModel`。例: `nav2_diffusion_onnx::OnnxTrajectoryModel`（controller は onnxruntime に直接依存せず、pluginlib で実行時ロード） |
 | `model_path` | "" | `model_plugin` の `configure()` に渡すモデルパス（例: ONNX ファイル） |
+| `costmap_patch_size` | 0 | costmap 条件付きモデル用に、ロボット中心の egocentric local costmap パッチ（正規化 [0,1]）を切り出して渡す一辺セル数。0 で無効（後方互換） |
 
 ## v0.1 スコープ
 

@@ -38,8 +38,24 @@ void OnnxTrajectoryModel::configure(const std::string & model_path)
   session_ = std::make_shared<Ort::Session>(*env_, model_path.c_str(), options);
 
   Ort::AllocatorWithDefaultOptions allocator;
-  input_name_ = session_->GetInputNameAllocated(0, allocator).get();
   output_name_ = session_->GetOutputNameAllocated(0, allocator).get();
+
+  // Identify the context input and an optional "costmap" input by name so that
+  // both context-only and costmap-conditioned models load through this backend.
+  input_name_ = session_->GetInputNameAllocated(0, allocator).get();
+  const std::size_t input_count = session_->GetInputCount();
+  for (std::size_t i = 0; i < input_count; ++i) {
+    const std::string name = session_->GetInputNameAllocated(i, allocator).get();
+    if (name == "context") {
+      input_name_ = name;
+    } else if (name == "costmap") {
+      has_costmap_input_ = true;
+      costmap_name_ = name;
+      const std::vector<int64_t> shape =
+        session_->GetInputTypeInfo(i).GetTensorTypeAndShapeInfo().GetShape();
+      costmap_dim_ = shape.empty() ? 0 : static_cast<int>(shape.back());
+    }
+  }
 }
 
 std::string OnnxTrajectoryModel::name() const
@@ -67,10 +83,31 @@ std::vector<nav2_diffusion_core::Trajectory> OnnxTrajectoryModel::generate(
     memory, input_values.data(), input_values.size(),
     input_shape.data(), input_shape.size());
 
-  const char * input_names[] = {input_name_.c_str()};
+  std::vector<const char *> input_names = {input_name_.c_str()};
+  std::vector<Ort::Value> inputs;
+  inputs.push_back(std::move(input));
+
+  // Feed the egocentric costmap patch when the model expects one and the context
+  // carries a matching square patch.
+  std::vector<float> costmap_values;
+  std::array<int64_t, 4> costmap_shape{1, 1, 0, 0};
+  if (has_costmap_input_ && context.costmap_size > 0 &&
+    static_cast<int>(context.costmap.size()) == context.costmap_size * context.costmap_size)
+  {
+    costmap_values = context.costmap;
+    costmap_shape[2] = context.costmap_size;
+    costmap_shape[3] = context.costmap_size;
+    inputs.push_back(
+      Ort::Value::CreateTensor<float>(
+        memory, costmap_values.data(), costmap_values.size(),
+        costmap_shape.data(), costmap_shape.size()));
+    input_names.push_back(costmap_name_.c_str());
+  }
+
   const char * output_names[] = {output_name_.c_str()};
   std::vector<Ort::Value> outputs = session_->Run(
-    Ort::RunOptions{nullptr}, input_names, &input, 1, output_names, 1);
+    Ort::RunOptions{nullptr}, input_names.data(), inputs.data(), inputs.size(),
+    output_names, 1);
 
   const Ort::Value & output = outputs.front();
   const std::vector<int64_t> shape = output.GetTensorTypeAndShapeInfo().GetShape();

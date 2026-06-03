@@ -20,6 +20,9 @@
 #ifndef ONNX_TEST_MODEL
 #define ONNX_TEST_MODEL ""
 #endif
+#ifndef ONNX_COSTMAP_MODEL
+#define ONNX_COSTMAP_MODEL ""
+#endif
 
 using nav2_diffusion_onnx::OnnxTrajectoryModel;
 
@@ -60,4 +63,25 @@ TEST(OnnxTrajectoryModelTest, IsDeterministic)
   ASSERT_FALSE(a.empty());
   EXPECT_DOUBLE_EQ(a[0].points[0].x, b[0].points[0].x);
   EXPECT_DOUBLE_EQ(a[0].points.back().y, b[0].points.back().y);
+}
+
+TEST(OnnxTrajectoryModelTest, CostmapConditionedModelRuns)
+{
+  // A model exporting a "costmap" input is fed the egocentric patch from the
+  // ModelContext and still produces the K x H x 3 candidate set.
+  OnnxTrajectoryModel model(ONNX_COSTMAP_MODEL);
+  nav2_diffusion_core::ModelContext context;
+  context.goal_x = 1.0;
+  context.time_step = 0.1;
+  context.costmap_size = 16;
+  context.costmap.assign(16 * 16, 0.0f);
+  for (int r = 4; r < 8; ++r) {
+    for (int c = 0; c < 8; ++c) {
+      context.costmap[r * 16 + c] = 1.0f;  // obstacle on one side
+    }
+  }
+
+  const auto candidates = model.generate(context);
+  ASSERT_EQ(candidates.size(), 3u);
+  EXPECT_EQ(candidates.front().points.size(), 10u);
 }

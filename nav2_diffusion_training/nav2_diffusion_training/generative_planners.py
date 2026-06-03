@@ -36,6 +36,8 @@ HORIZON = 10
 DIM = 3                       # x, y, yaw
 TRAJ = HORIZON * DIM
 DIFFUSION_STEPS = 16
+COSTMAP_SIZE = 32            # egocentric costmap patch side length [cells]
+COSTMAP_EMBED = 16
 
 
 class _MLP(nn.Module):
@@ -175,6 +177,119 @@ class ConsistencyPlanner(nn.Module):
             z = self.latents[k].unsqueeze(0).expand(context.shape[0], -1)
             outs.append(self.f(z, context, one).reshape(-1, 1, HORIZON, DIM))
         return torch.cat(outs, dim=1)
+
+
+class _CostmapEncoder(nn.Module):
+    """Small CNN encoding an egocentric costmap patch to an embedding vector."""
+
+    def __init__(self):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Conv2d(1, 8, 3, stride=2, padding=1), nn.SiLU(),
+            nn.Conv2d(8, 16, 3, stride=2, padding=1), nn.SiLU(),
+            nn.AdaptiveAvgPool2d(1), nn.Flatten(),
+            nn.Linear(16, COSTMAP_EMBED), nn.SiLU(),
+        )
+
+    def forward(self, costmap):
+        return self.net(costmap)
+
+
+class CostmapFlowPlanner(nn.Module):
+    """Costmap+goal conditioned flow matching (the surveyed OSS gap for Nav2)."""
+
+    def __init__(self, steps=2):
+        super().__init__()
+        self.encoder = _CostmapEncoder()
+        self.field = nn.Sequential(
+            nn.Linear(TRAJ + 4 + COSTMAP_EMBED + 1, 128), nn.SiLU(),
+            nn.Linear(128, 128), nn.SiLU(),
+            nn.Linear(128, TRAJ),
+        )
+        self.steps = steps
+        self.register_buffer('latents', _fixed_latents(7))
+
+    def velocity(self, x, context, embed, t):
+        return self.field(torch.cat([x, context, embed, t], dim=-1))
+
+    def flow_loss(self, context, costmap, target):
+        """Conditional flow-matching loss conditioned on the costmap patch."""
+        b = target.shape[0]
+        embed = self.encoder(costmap)
+        x1 = target.reshape(b, TRAJ)
+        x0 = torch.randn_like(x1)
+        t = torch.rand(b, 1)
+        xt = (1.0 - t) * x0 + t * x1
+        pred = self.velocity(xt, context, embed, t)
+        return ((pred - (x1 - x0)) ** 2).mean()
+
+    def forward(self, context, costmap):
+        embed = self.encoder(costmap)
+        outs = []
+        dt = 1.0 / self.steps
+        for k in range(NUM_CANDIDATES):
+            x = self.latents[k].unsqueeze(0).expand(context.shape[0], -1)
+            for i in range(self.steps):
+                t = torch.full((x.shape[0], 1), i * dt)
+                x = x + self.velocity(x, context, embed, t) * dt
+            outs.append(x.reshape(-1, 1, HORIZON, DIM))
+        return torch.cat(outs, dim=1)
+
+
+def make_costmap_dataset(num_samples):
+    """
+    Synthetic costmap patches with a side obstacle and an avoidance expert.
+
+    Obstacle on the left -> expert veers right and vice versa, so the model must
+    read the costmap to choose the avoidance direction.
+    """
+    contexts = []
+    patches = []
+    targets = []
+    for i in range(num_samples):
+        side = 1.0 if (i % 2 == 0) else -1.0  # +1 obstacle on left (+y)
+        patch = torch.zeros(1, COSTMAP_SIZE, COSTMAP_SIZE)
+        col0 = 0 if side > 0 else COSTMAP_SIZE // 2
+        patch[:, COSTMAP_SIZE // 3:2 * COSTMAP_SIZE // 3, col0:col0 + COSTMAP_SIZE // 2] = 1.0
+        rows = []
+        for h in range(HORIZON):
+            fwd = 0.3 * (h + 1) * 0.1
+            lat = -side * 0.15 * (h + 1) / HORIZON  # veer away from the obstacle
+            rows.append([fwd, lat, -side * 0.05])
+        contexts.append([1.0, 0.0, 0.3, 1.0])
+        patches.append(patch)
+        targets.append(rows)
+    return (
+        torch.tensor(contexts, dtype=torch.float32),
+        torch.stack(patches),
+        torch.tensor(targets, dtype=torch.float32),
+    )
+
+
+def train_and_export_costmap(path, num_samples=32, epochs=60, lr=0.01):
+    """Train the costmap-conditioned flow planner and export a 2-input ONNX model."""
+    torch.manual_seed(0)
+    model = CostmapFlowPlanner()
+    context, costmap, target = make_costmap_dataset(num_samples)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+
+    model.train()
+    loss = torch.tensor(0.0)
+    for _ in range(max(1, epochs)):
+        optimizer.zero_grad()
+        loss = model.flow_loss(context, costmap, target)
+        loss.backward()
+        optimizer.step()
+
+    model.eval()
+    dummy_ctx = torch.zeros(1, 4)
+    dummy_map = torch.zeros(1, 1, COSTMAP_SIZE, COSTMAP_SIZE)
+    torch.onnx.export(
+        model, (dummy_ctx, dummy_map), path,
+        input_names=['context', 'costmap'], output_names=['trajectories'],
+        opset_version=18)
+    onnx.save_model(onnx.load(path), path, save_as_external_data=False)
+    return float(loss.item())
 
 
 _LOSS = {

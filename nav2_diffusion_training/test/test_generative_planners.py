@@ -46,6 +46,26 @@ def test_train_export_load_contract(kind, tmp_path):
     assert np.isfinite(out).all()
 
 
+def test_costmap_conditioned_flow_exports_two_input_onnx(tmp_path):
+    """The costmap-conditioned flow planner exports a context+costmap ONNX model."""
+    from nav2_diffusion_training.generative_planners import (
+        train_and_export_costmap, COSTMAP_SIZE)
+
+    path = os.path.join(str(tmp_path), 'costmap_flow.onnx')
+    train_and_export_costmap(path, num_samples=8, epochs=3)
+
+    ort = pytest.importorskip('onnxruntime')
+    import numpy as np
+    session = ort.InferenceSession(path, providers=['CPUExecutionProvider'])
+    names = {i.name for i in session.get_inputs()}
+    assert names == {'context', 'costmap'}
+    ctx = np.zeros((1, 4), dtype=np.float32)
+    cm = np.zeros((1, 1, COSTMAP_SIZE, COSTMAP_SIZE), dtype=np.float32)
+    out = session.run(None, {'context': ctx, 'costmap': cm})[0]
+    assert out.shape == (1, 3, 10, 3)
+    assert np.isfinite(out).all()
+
+
 def test_flow_training_reduces_loss():
     """Flow-matching loss decreases over a short training run."""
     from nav2_diffusion_training.generative_planners import (

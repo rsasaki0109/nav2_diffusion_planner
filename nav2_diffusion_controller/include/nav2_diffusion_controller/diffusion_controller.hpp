@@ -126,6 +126,7 @@ protected:
   int num_candidates_{11};
   double score_progress_weight_{1.0};
   double score_smoothness_weight_{0.1};
+  int costmap_patch_size_{0};  // egocentric costmap patch side [cells]; 0 = off
 
   std::shared_ptr<nav2_diffusion_core::TrajectoryModel> model_;
   // Optional: load a TrajectoryModel via pluginlib (e.g. an ONNX backend)

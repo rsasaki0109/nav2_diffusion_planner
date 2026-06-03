@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "nav2_costmap_2d/cost_values.hpp"
 #include "nav2_costmap_2d/costmap_2d.hpp"
 #include "nav2_diffusion_core/fan_rollout_model.hpp"
 #include "nav2_diffusion_core/scoring.hpp"
@@ -80,6 +81,8 @@ void DiffusionController::configure(
     node, plugin_name_ + ".model_plugin", rclcpp::ParameterValue(std::string("")));
   declare_parameter_if_not_declared(
     node, plugin_name_ + ".model_path", rclcpp::ParameterValue(std::string("")));
+  declare_parameter_if_not_declared(
+    node, plugin_name_ + ".costmap_patch_size", rclcpp::ParameterValue(0));
 
   node->get_parameter(plugin_name_ + ".lookahead_distance", lookahead_distance_);
   node->get_parameter(plugin_name_ + ".desired_linear_speed", desired_linear_speed_);
@@ -97,6 +100,7 @@ void DiffusionController::configure(
   node->get_parameter(plugin_name_ + ".fallback_controller_plugin", fallback_plugin_);
   node->get_parameter(plugin_name_ + ".model_plugin", model_plugin_);
   node->get_parameter(plugin_name_ + ".model_path", model_path_);
+  node->get_parameter(plugin_name_ + ".costmap_patch_size", costmap_patch_size_);
   num_candidates_ = std::max(1, num_candidates_);
 
   // Generative model: a pluginlib-loaded TrajectoryModel (e.g. an ONNX backend)
@@ -354,6 +358,36 @@ geometry_msgs::msg::TwistStamped DiffusionController::computeVelocityCommands(
   context.horizon = horizon_;
   context.time_step = time_step_;
   context.num_candidates = num_candidates_;
+
+  // Optional: crop an egocentric local-costmap patch (normalized [0,1]) for
+  // costmap-conditioned models. Off by default (size 0); analytic and
+  // context-only models ignore it.
+  if (costmap_patch_size_ > 0) {
+    auto * costmap = costmap_ros_->getCostmap();
+    std::lock_guard<nav2_costmap_2d::Costmap2D::mutex_t> lock(*(costmap->getMutex()));
+    const int side = costmap_patch_size_;
+    const int half = side / 2;
+    const int sx = static_cast<int>(costmap->getSizeInCellsX());
+    const int sy = static_cast<int>(costmap->getSizeInCellsY());
+    context.costmap_size = side;
+    context.costmap.assign(static_cast<std::size_t>(side) * side, 0.0f);
+    unsigned int rmx = 0;
+    unsigned int rmy = 0;
+    if (costmap->worldToMap(pose.pose.position.x, pose.pose.position.y, rmx, rmy)) {
+      for (int r = 0; r < side; ++r) {
+        for (int c = 0; c < side; ++c) {
+          const int cx = static_cast<int>(rmx) - half + c;
+          const int cy = static_cast<int>(rmy) - half + r;
+          if (cx >= 0 && cy >= 0 && cx < sx && cy < sy) {
+            const unsigned char cost = costmap->getCost(cx, cy);
+            context.costmap[r * side + c] =
+              cost == nav2_costmap_2d::NO_INFORMATION ? 0.0f : cost / 254.0f;
+          }
+        }
+      }
+    }
+  }
+
   const std::vector<nav2_diffusion_core::Trajectory> candidates = model_->generate(context);
 
   std::vector<bool> safe_flags(candidates.size(), false);

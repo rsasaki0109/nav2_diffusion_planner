@@ -50,6 +50,10 @@ private:
   mutable std::shared_ptr<Ort::Session> session_;
   std::string input_name_;
   std::string output_name_;
+  // Optional second input for costmap-conditioned models (input named "costmap").
+  bool has_costmap_input_{false};
+  std::string costmap_name_;
+  int costmap_dim_{0};  // expected square patch side length
 };
 
 }  // namespace nav2_diffusion_onnx

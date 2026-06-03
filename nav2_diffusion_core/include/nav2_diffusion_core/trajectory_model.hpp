@@ -15,6 +15,7 @@
 #ifndef NAV2_DIFFUSION_CORE__TRAJECTORY_MODEL_HPP_
 #define NAV2_DIFFUSION_CORE__TRAJECTORY_MODEL_HPP_
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -36,6 +37,13 @@ struct ModelContext
   double horizon{0.0};           ///< prediction horizon [s]
   double time_step{0.1};         ///< rollout discretization [s]
   int num_candidates{1};         ///< number of trajectories to generate
+
+  /// Optional egocentric local costmap patch for costmap-conditioned models.
+  /// Row-major costmap_size x costmap_size, normalized to [0, 1] (1 = lethal),
+  /// robot-centered. Empty / costmap_size == 0 means "no costmap" — analytic
+  /// models and context-only ONNX models ignore it.
+  int costmap_size{0};
+  std::vector<float> costmap;
 };
 
 /// Abstract generative trajectory model: the "propose" stage of the pipeline.

@@ -32,6 +32,9 @@ colcon build --packages-select nav2_diffusion_onnx \
 | 項目 | 形 |
 |---|---|
 | input `context` | float `[1, 4]` = `[goal_x, goal_y, linear_speed, max_angular_speed]`（base frame の local goal） |
+| input `costmap`（任意） | float `[1, 1, S, S]` = ロボット中心の egocentric local costmap パッチ（正規化 [0,1]）。モデルがこの名前の入力を持つ場合のみ controller が `costmap_patch_size:=S` で供給する |
 | output `trajectories` | float `[1, K, H, 3]` = K 候補 × H ステップ × (x, y, yaw)、base frame |
+
+`costmap` 入力の有無は backend が自動検出する（無ければ context のみで動作＝後方互換）。costmap 条件付きモデルは `nav2_diffusion_training.generative_planners.CostmapFlowPlanner` で学習・export できる。
 
 各ステップの時刻は `time_step`（既定 0.1s）× index。学習側はこの契約に合わせて export する。
