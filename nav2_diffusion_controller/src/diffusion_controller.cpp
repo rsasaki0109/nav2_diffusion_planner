@@ -24,6 +24,7 @@
 
 #include "nav2_costmap_2d/cost_values.hpp"
 #include "nav2_costmap_2d/costmap_2d.hpp"
+#include "nav2_diffusion_controller/egocentric_patch.hpp"
 #include "nav2_diffusion_core/fan_rollout_model.hpp"
 #include "nav2_diffusion_core/scoring.hpp"
 #include "nav2_util/node_utils.hpp"
@@ -363,29 +364,15 @@ geometry_msgs::msg::TwistStamped DiffusionController::computeVelocityCommands(
   // costmap-conditioned models. Off by default (size 0); analytic and
   // context-only models ignore it.
   if (costmap_patch_size_ > 0) {
+    const auto & q = pose.pose.orientation;
+    const double yaw =
+      std::atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z));
     auto * costmap = costmap_ros_->getCostmap();
     std::lock_guard<nav2_costmap_2d::Costmap2D::mutex_t> lock(*(costmap->getMutex()));
-    const int side = costmap_patch_size_;
-    const int half = side / 2;
-    const int sx = static_cast<int>(costmap->getSizeInCellsX());
-    const int sy = static_cast<int>(costmap->getSizeInCellsY());
-    context.costmap_size = side;
-    context.costmap.assign(static_cast<std::size_t>(side) * side, 0.0f);
-    unsigned int rmx = 0;
-    unsigned int rmy = 0;
-    if (costmap->worldToMap(pose.pose.position.x, pose.pose.position.y, rmx, rmy)) {
-      for (int r = 0; r < side; ++r) {
-        for (int c = 0; c < side; ++c) {
-          const int cx = static_cast<int>(rmx) - half + c;
-          const int cy = static_cast<int>(rmy) - half + r;
-          if (cx >= 0 && cy >= 0 && cx < sx && cy < sy) {
-            const unsigned char cost = costmap->getCost(cx, cy);
-            context.costmap[r * side + c] =
-              cost == nav2_costmap_2d::NO_INFORMATION ? 0.0f : cost / 254.0f;
-          }
-        }
-      }
-    }
+    context.costmap_size = costmap_patch_size_;
+    context.costmap = cropEgocentricPatch(
+      *costmap, pose.pose.position.x, pose.pose.position.y, yaw,
+      costmap_patch_size_, costmap->getResolution());
   }
 
   const std::vector<nav2_diffusion_core::Trajectory> candidates = model_->generate(context);

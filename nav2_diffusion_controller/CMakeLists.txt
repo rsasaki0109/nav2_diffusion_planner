@@ -30,6 +30,7 @@ endforeach()
 
 add_library(${PROJECT_NAME} SHARED
   src/diffusion_controller.cpp
+  src/egocentric_patch.cpp
 )
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 target_include_directories(${PROJECT_NAME} PUBLIC
@@ -69,6 +70,10 @@ if(BUILD_TESTING)
     TIMEOUT 120)
   target_link_libraries(test_diffusion_controller_integration ${PROJECT_NAME})
   ament_target_dependencies(test_diffusion_controller_integration ${dependencies})
+
+  ament_add_gtest(test_egocentric_patch test/test_egocentric_patch.cpp)
+  target_link_libraries(test_egocentric_patch ${PROJECT_NAME})
+  ament_target_dependencies(test_egocentric_patch nav2_costmap_2d)
 endif()
 
 ament_package()
