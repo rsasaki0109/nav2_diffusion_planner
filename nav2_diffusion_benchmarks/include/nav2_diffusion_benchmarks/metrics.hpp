@@ -32,14 +32,21 @@ struct RunMetrics
   double path_length{0.0};    ///< total path length [m]
   double detour_ratio{1.0};   ///< path_length / straight-line(start, goal)
   double total_turning{0.0};  ///< sum of absolute heading changes [rad]
+  int oscillation_count{0};   ///< sign changes of angular velocity (wiggling)
+  int direction_changes{0};   ///< forward/backward reversals (cusps)
+  double stop_duration{0.0};  ///< time spent below stop_speed_threshold [s]
 };
 
 /// Evaluate an executed run against a goal. The trajectory is the path the robot
 /// actually drove (time-indexed SE(2) samples). Returns all-default metrics for
 /// an empty trajectory.
+///
+/// @param stop_speed_threshold Segments slower than this count toward
+///        stop_duration [m/s].
 RunMetrics evaluateRun(
   const nav2_diffusion_core::Trajectory & executed,
-  double goal_x, double goal_y, double goal_tolerance);
+  double goal_x, double goal_y, double goal_tolerance,
+  double stop_speed_threshold = 0.01);
 
 }  // namespace nav2_diffusion_benchmarks
 

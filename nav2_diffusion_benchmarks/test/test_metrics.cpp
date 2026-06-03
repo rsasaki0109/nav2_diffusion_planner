@@ -73,3 +73,54 @@ TEST(MetricsTest, RunStoppingShortDoesNotReachGoal)
   EXPECT_FALSE(m.reached_goal);
   EXPECT_DOUBLE_EQ(m.goal_distance, 1.0);
 }
+
+TEST(MetricsTest, SmoothForwardRunHasNoOscillationOrStops)
+{
+  Trajectory executed;
+  executed.points = {
+    TrajectoryPoint{0.0, 0.0, 0.0, 0.0},
+    TrajectoryPoint{1.0, 0.0, 0.0, 1.0},
+    TrajectoryPoint{2.0, 0.0, 0.0, 2.0},
+  };
+  const auto m = evaluateRun(executed, 2.0, 0.0, 0.25);
+  EXPECT_EQ(m.oscillation_count, 0);
+  EXPECT_EQ(m.direction_changes, 0);
+  EXPECT_DOUBLE_EQ(m.stop_duration, 0.0);
+}
+
+TEST(MetricsTest, StopDurationCountsStationarySegments)
+{
+  Trajectory executed;
+  executed.points = {
+    TrajectoryPoint{0.0, 0.0, 0.0, 0.0},
+    TrajectoryPoint{1.0, 0.0, 0.0, 1.0},  // moving
+    TrajectoryPoint{1.0, 0.0, 0.0, 2.0},  // stationary for 1 s
+    TrajectoryPoint{2.0, 0.0, 0.0, 3.0},  // moving
+  };
+  const auto m = evaluateRun(executed, 2.0, 0.0, 0.25);
+  EXPECT_DOUBLE_EQ(m.stop_duration, 1.0);
+}
+
+TEST(MetricsTest, DirectionChangeCountsForwardBackwardReversal)
+{
+  Trajectory executed;
+  executed.points = {
+    TrajectoryPoint{0.0, 0.0, 0.0, 0.0},
+    TrajectoryPoint{1.0, 0.0, 0.0, 1.0},  // forward
+    TrajectoryPoint{0.0, 0.0, 0.0, 2.0},  // backward (heading still 0)
+  };
+  const auto m = evaluateRun(executed, 0.0, 0.0, 0.25);
+  EXPECT_EQ(m.direction_changes, 1);
+}
+
+TEST(MetricsTest, OscillationCountsTurnSignReversal)
+{
+  Trajectory executed;
+  executed.points = {
+    TrajectoryPoint{0.0, 0.0, 0.0, 0.0},
+    TrajectoryPoint{1.0, 0.0, 0.3, 1.0},   // turn left
+    TrajectoryPoint{2.0, 0.0, 0.0, 2.0},   // turn right
+  };
+  const auto m = evaluateRun(executed, 2.0, 0.0, 0.25);
+  EXPECT_EQ(m.oscillation_count, 1);
+}

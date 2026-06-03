@@ -41,8 +41,8 @@ std::string toMarkdownTable(const std::vector<RunResult> & results)
 {
   std::ostringstream out;
   out << "| Scenario | Controller | Reached | Time [s] | Path [m] | Detour | "
-    "Collisions | Min clear [m] | Turning [rad] |\n";
-  out << "|---|---|---|---|---|---|---|---|---|\n";
+    "Collisions | Min clear [m] | Turning [rad] | Osc | Dir chg | Stop [s] |\n";
+  out << "|---|---|---|---|---|---|---|---|---|---|---|---|\n";
   for (const auto & result : results) {
     out << "| " << result.scenario
         << " | " << result.controller
@@ -53,6 +53,9 @@ std::string toMarkdownTable(const std::vector<RunResult> & results)
         << " | " << result.collision.collision_count
         << " | " << fixed(result.collision.min_clearance, 2)
         << " | " << fixed(result.metrics.total_turning, 2)
+        << " | " << result.metrics.oscillation_count
+        << " | " << result.metrics.direction_changes
+        << " | " << fixed(result.metrics.stop_duration, 2)
         << " |\n";
   }
   return out.str();

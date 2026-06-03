@@ -9,7 +9,8 @@ MPPI / RPP / Smac / DWB と公正に比較できる再現可能な benchmark sui
 ## 現状の実装
 
 - `nav2_diffusion_benchmarks/metrics.hpp`: 実行済み軌道（time-indexed SE(2) path）+ goal から §9.4 の geometry 系 metrics を算出する `evaluateRun()` / `RunMetrics`
-  - `reached_goal` / `goal_distance` / `time_to_goal` / `path_length` / `detour_ratio` / `total_turning`
+  - Task系: `reached_goal` / `goal_distance` / `time_to_goal` / `path_length` / `detour_ratio`
+  - Smoothness/Efficiency系: `total_turning` / `oscillation_count`（旋回方向の反転）/ `direction_changes`（前後反転=cusp）/ `stop_duration`
   - costmap 非依存（GPU/シム不要でユニットテスト可能）
 - `nav2_diffusion_benchmarks/collision_metrics.hpp`: costmap ベースの safety 系 metrics（§9.4 Safety）`evaluateCollisions()` / `CollisionMetrics`
   - `collision_count` / `collided`（footprint が障害物に当たった path pose 数）
@@ -23,10 +24,10 @@ MPPI / RPP / Smac / DWB と公正に比較できる再現可能な benchmark sui
 ### レポート出力例
 
 ```
-| Scenario | Controller | Reached | Time [s] | Path [m] | Detour | Collisions | Min clear [m] | Turning [rad] |
-|---|---|---|---|---|---|---|---|---|
-| narrow_doorway | DiffusionController | yes | 12.50 | 8.00 | 1.10 | 0 | 0.35 | 0.40 |
-| narrow_doorway | MPPI | no | 0.00 | 0.00 | 1.00 | 2 | 2.00 | 0.00 |
+| Scenario | Controller | Reached | Time [s] | Path [m] | Detour | Collisions | Min clear [m] | Turning [rad] | Osc | Dir chg | Stop [s] |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| narrow_doorway | DiffusionController | yes | 12.50 | 8.00 | 1.10 | 0 | 0.35 | 0.40 | 0 | 0 | 0.00 |
+| narrow_doorway | MPPI | no | 0.00 | 0.00 | 1.00 | 2 | 2.00 | 0.00 | 0 | 0 | 0.00 |
 ```
 
 social 系 metrics（personal-space 等）は人トラッキングのログがある場合に別途追加予定。実行を購読/rosbag から取り込み metrics を算出して本レポートを出力する **runner ノード**も今後追加予定。
