@@ -11,7 +11,7 @@ Nav2 Controller Plugin integration。
 `nav2_diffusion_controller::DiffusionController` がパイプラインを配線済み:
 
 1. **提案**: lookahead 点へ向かう候補軌道を生成（**生成モデルのプレースホルダ**。現状は pure-pursuit 風の単一候補で、後で学習モデルに差し替える）
-2. **検証**: `KinematicLimitsFilter`（速度上限）→ `FootprintCollisionFilter`（Local Costmap への footprint 衝突判定、costmap mutex を保持して実行）の 2 段ゲート
+2. **入力検証**: stale-data ゲート（robot pose/odom/TF の鮮度、costmap current。§7.4 Runtime Gating）→ `KinematicLimitsFilter`（速度上限）→ `FootprintCollisionFilter`（Local Costmap への footprint 衝突判定、costmap mutex を保持して実行）
 3. **抽出**: 安全なら `cmd_vel`、**安全候補が無ければ stop（fallback）**
 4. **可観測性**: 候補軌道（`TrajectoryCandidates`）と `SafetyState` を publish（RViz / rosbag 用）
 
@@ -24,6 +24,7 @@ Nav2 Controller Plugin integration。
 - クリアな costmap + 前方への global path → `cmd_vel.linear.x > 0`（前進）
 - 前方 ~0.4m に lethal 障害物 → footprint ゲートが発火し stop（`cmd_vel = 0`）
 - global path 無し → stop
+- robot pose が古い（`data_timeout` 超過）→ stale-data ゲートで stop
 
 ### 使い方（例）
 
@@ -41,6 +42,8 @@ Nav2 Controller Plugin integration。
 | `time_step` | 0.1 | 候補軌道の離散化刻み [s] |
 | `transform_tolerance` | 0.1 | TF 変換許容時間 [s] |
 | `consider_unknown_lethal` | false | costmap の unknown セルを衝突扱いするか |
+| `data_timeout` | 0.5 | robot pose（odom/TF）の鮮度タイムアウト [s]。超過で stop。0 で無効 |
+| `check_costmap_current` | false | costmap が current でない場合に stop（opt-in の多重防御） |
 
 ## v0.1 スコープ
 

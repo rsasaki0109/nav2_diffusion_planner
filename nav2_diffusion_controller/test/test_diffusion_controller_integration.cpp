@@ -196,3 +196,18 @@ TEST_F(DiffusionControllerIntegrationTest, StopsWhenNoPlan)
 
   EXPECT_DOUBLE_EQ(cmd.twist.linear.x, 0.0);
 }
+
+TEST_F(DiffusionControllerIntegrationTest, StopsOnStalePose)
+{
+  clearCostmap();
+  controller_->setPlan(straightPlan());
+
+  // A pose timestamped well beyond the default data_timeout (0.5 s).
+  geometry_msgs::msg::PoseStamped stale = robotPose();
+  stale.header.stamp = rclcpp::Time(node_->now()) - rclcpp::Duration::from_seconds(5.0);
+
+  const auto cmd = controller_->computeVelocityCommands(
+    stale, geometry_msgs::msg::Twist(), nullptr);
+
+  EXPECT_DOUBLE_EQ(cmd.twist.linear.x, 0.0);
+}

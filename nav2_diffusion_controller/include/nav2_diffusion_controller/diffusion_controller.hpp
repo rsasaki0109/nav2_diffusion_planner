@@ -113,6 +113,8 @@ protected:
   double transform_tolerance_{0.1};
   double speed_limit_scale_{1.0};
   bool consider_unknown_lethal_{false};
+  double data_timeout_{0.5};
+  bool check_costmap_current_{false};
 
   std::shared_ptr<nav2_diffusion_safety::KinematicLimitsFilter> kinematic_filter_;
   std::shared_ptr<nav2_diffusion_safety::FootprintCollisionFilter> footprint_filter_;

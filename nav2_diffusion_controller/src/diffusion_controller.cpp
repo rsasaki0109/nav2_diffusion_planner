@@ -60,6 +60,10 @@ void DiffusionController::configure(
     node, plugin_name_ + ".transform_tolerance", rclcpp::ParameterValue(0.1));
   declare_parameter_if_not_declared(
     node, plugin_name_ + ".consider_unknown_lethal", rclcpp::ParameterValue(false));
+  declare_parameter_if_not_declared(
+    node, plugin_name_ + ".data_timeout", rclcpp::ParameterValue(0.5));
+  declare_parameter_if_not_declared(
+    node, plugin_name_ + ".check_costmap_current", rclcpp::ParameterValue(false));
 
   node->get_parameter(plugin_name_ + ".lookahead_distance", lookahead_distance_);
   node->get_parameter(plugin_name_ + ".desired_linear_speed", desired_linear_speed_);
@@ -69,6 +73,8 @@ void DiffusionController::configure(
   node->get_parameter(plugin_name_ + ".time_step", time_step_);
   node->get_parameter(plugin_name_ + ".transform_tolerance", transform_tolerance_);
   node->get_parameter(plugin_name_ + ".consider_unknown_lethal", consider_unknown_lethal_);
+  node->get_parameter(plugin_name_ + ".data_timeout", data_timeout_);
+  node->get_parameter(plugin_name_ + ".check_costmap_current", check_costmap_current_);
 
   kinematic_filter_ = std::make_shared<nav2_diffusion_safety::KinematicLimitsFilter>(
     max_linear_speed_, max_angular_speed_);
@@ -207,6 +213,27 @@ geometry_msgs::msg::TwistStamped DiffusionController::computeVelocityCommands(
 {
   if (global_plan_.poses.empty()) {
     publishSafetyState(nav2_diffusion_msgs::msg::SafetyState::FALLBACK, "no global plan");
+    return makeStopCommand();
+  }
+
+  // Input-validity / stale-data gate (docs/architecture.md 7.4 Runtime Gating,
+  // docs/safety.md 8.2 Input Validity Layer). A timestamped-but-stale robot pose
+  // means odom/TF are no longer trustworthy, so we stop rather than act on it.
+  if (data_timeout_ > 0.0) {
+    const rclcpp::Time stamp(pose.header.stamp, clock_->get_clock_type());
+    if (stamp.nanoseconds() > 0) {
+      const double age = (clock_->now() - stamp).seconds();
+      if (age > data_timeout_) {
+        RCLCPP_WARN(logger_, "Robot pose is stale (%.3fs > %.3fs); stopping", age, data_timeout_);
+        publishSafetyState(nav2_diffusion_msgs::msg::SafetyState::DEGRADED, "stale pose");
+        return makeStopCommand();
+      }
+    }
+  }
+
+  if (check_costmap_current_ && !costmap_ros_->isCurrent()) {
+    RCLCPP_WARN(logger_, "Costmap is not current; stopping");
+    publishSafetyState(nav2_diffusion_msgs::msg::SafetyState::DEGRADED, "costmap not current");
     return makeStopCommand();
   }
 
