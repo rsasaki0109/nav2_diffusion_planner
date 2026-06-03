@@ -236,6 +236,94 @@ class CostmapFlowPlanner(nn.Module):
         return torch.cat(outs, dim=1)
 
 
+def _cond_field():
+    """Conditioned trajectory net: (traj + context + costmap embed + time) -> traj."""
+    return nn.Sequential(
+        nn.Linear(TRAJ + 4 + COSTMAP_EMBED + 1, 128), nn.SiLU(),
+        nn.Linear(128, 128), nn.SiLU(),
+        nn.Linear(128, TRAJ),
+    )
+
+
+class CostmapDiffusionPlanner(nn.Module):
+    """Costmap+goal conditioned diffusion planner (DDPM train, DDIM sample)."""
+
+    def __init__(self, sample_steps=4):
+        super().__init__()
+        self.encoder = _CostmapEncoder()
+        self.eps = _cond_field()
+        self.sample_steps = sample_steps
+        self.register_buffer('alpha_bar', _alpha_bar(DIFFUSION_STEPS))
+        self.register_buffer('latents', _fixed_latents(8))
+
+    def diffusion_loss(self, context, costmap, target):
+        """Predict the added noise, conditioned on the costmap patch."""
+        b = target.shape[0]
+        embed = self.encoder(costmap)
+        x0 = target.reshape(b, TRAJ)
+        ti = torch.randint(0, DIFFUSION_STEPS, (b,))
+        ab = self.alpha_bar[ti].unsqueeze(-1)
+        noise = torch.randn_like(x0)
+        xt = ab.sqrt() * x0 + (1 - ab).sqrt() * noise
+        t = (ti.float() / DIFFUSION_STEPS).unsqueeze(-1)
+        pred = self.eps(torch.cat([xt, context, embed, t], dim=-1))
+        return ((pred - noise) ** 2).mean()
+
+    def forward(self, context, costmap):
+        embed = self.encoder(costmap)
+        idx = torch.linspace(DIFFUSION_STEPS - 1, 0, self.sample_steps).long()
+        outs = []
+        for k in range(NUM_CANDIDATES):
+            x = self.latents[k].unsqueeze(0).expand(context.shape[0], -1)
+            for j in range(self.sample_steps):
+                i = int(idx[j])
+                ab = self.alpha_bar[i]
+                t = torch.full((x.shape[0], 1), float(i) / DIFFUSION_STEPS)
+                eps = self.eps(torch.cat([x, context, embed, t], dim=-1))
+                x0 = (x - (1 - ab).sqrt() * eps) / ab.sqrt()
+                if j + 1 < self.sample_steps:
+                    ab_n = self.alpha_bar[int(idx[j + 1])]
+                    x = ab_n.sqrt() * x0 + (1 - ab_n).sqrt() * eps
+                else:
+                    x = x0
+            outs.append(x.reshape(-1, 1, HORIZON, DIM))
+        return torch.cat(outs, dim=1)
+
+
+class CostmapConsistencyPlanner(nn.Module):
+    """Costmap+goal conditioned one-step distilled (consistency-style) planner."""
+
+    def __init__(self):
+        super().__init__()
+        self.encoder = _CostmapEncoder()
+        self.f = _cond_field()
+        self.register_buffer('alpha_bar', _alpha_bar(DIFFUSION_STEPS))
+        self.register_buffer('latents', _fixed_latents(9))
+
+    def distill_loss(self, context, costmap, target):
+        """Map a noised target back to x0, conditioned on the costmap patch."""
+        b = target.shape[0]
+        embed = self.encoder(costmap)
+        x0 = target.reshape(b, TRAJ)
+        ti = torch.randint(0, DIFFUSION_STEPS, (b,))
+        ab = self.alpha_bar[ti].unsqueeze(-1)
+        noise = torch.randn_like(x0)
+        xt = ab.sqrt() * x0 + (1 - ab).sqrt() * noise
+        t = (ti.float() / DIFFUSION_STEPS).unsqueeze(-1)
+        pred = self.f(torch.cat([xt, context, embed, t], dim=-1))
+        return ((pred - x0) ** 2).mean()
+
+    def forward(self, context, costmap):
+        embed = self.encoder(costmap)
+        one = torch.ones(context.shape[0], 1)
+        outs = []
+        for k in range(NUM_CANDIDATES):
+            z = self.latents[k].unsqueeze(0).expand(context.shape[0], -1)
+            outs.append(
+                self.f(torch.cat([z, context, embed, one], dim=-1)).reshape(-1, 1, HORIZON, DIM))
+        return torch.cat(outs, dim=1)
+
+
 def make_costmap_dataset(num_samples):
     """
     Synthetic costmap patches with a side obstacle and an avoidance expert.
@@ -266,10 +354,22 @@ def make_costmap_dataset(num_samples):
     )
 
 
-def train_and_export_costmap(path, num_samples=32, epochs=60, lr=0.01):
-    """Train the costmap-conditioned flow planner and export a 2-input ONNX model."""
+_COSTMAP_BUILD = {
+    'flow': CostmapFlowPlanner,
+    'diffusion': CostmapDiffusionPlanner,
+    'consistency': CostmapConsistencyPlanner,
+}
+_COSTMAP_LOSS = {
+    'flow': lambda m, c, cm, t: m.flow_loss(c, cm, t),
+    'diffusion': lambda m, c, cm, t: m.diffusion_loss(c, cm, t),
+    'consistency': lambda m, c, cm, t: m.distill_loss(c, cm, t),
+}
+
+
+def train_and_export_costmap(path, kind='flow', num_samples=32, epochs=60, lr=0.01):
+    """Train a costmap-conditioned planner (flow/diffusion/consistency) -> 2-input ONNX."""
     torch.manual_seed(0)
-    model = CostmapFlowPlanner()
+    model = _COSTMAP_BUILD[kind]()
     context, costmap, target = make_costmap_dataset(num_samples)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
@@ -277,7 +377,7 @@ def train_and_export_costmap(path, num_samples=32, epochs=60, lr=0.01):
     loss = torch.tensor(0.0)
     for _ in range(max(1, epochs)):
         optimizer.zero_grad()
-        loss = model.flow_loss(context, costmap, target)
+        loss = _COSTMAP_LOSS[kind](model, context, costmap, target)
         loss.backward()
         optimizer.step()
 

@@ -46,13 +46,14 @@ def test_train_export_load_contract(kind, tmp_path):
     assert np.isfinite(out).all()
 
 
-def test_costmap_conditioned_flow_exports_two_input_onnx(tmp_path):
-    """The costmap-conditioned flow planner exports a context+costmap ONNX model."""
+@pytest.mark.parametrize('kind', ['flow', 'diffusion', 'consistency'])
+def test_costmap_conditioned_exports_two_input_onnx(kind, tmp_path):
+    """Each costmap-conditioned family exports a context+costmap ONNX model."""
     from nav2_diffusion_training.generative_planners import (
         train_and_export_costmap, COSTMAP_SIZE)
 
-    path = os.path.join(str(tmp_path), 'costmap_flow.onnx')
-    train_and_export_costmap(path, num_samples=8, epochs=3)
+    path = os.path.join(str(tmp_path), 'costmap_' + kind + '.onnx')
+    train_and_export_costmap(path, kind=kind, num_samples=8, epochs=3)
 
     ort = pytest.importorskip('onnxruntime')
     import numpy as np

@@ -38,11 +38,11 @@ ONNX は重みインラインの単一ファイルで出力（配布容易）。
 
 ### costmap 条件付き（研究の本丸・OSS ギャップ）
 
-`CostmapFlowPlanner` / `train_and_export_costmap()` は、**egocentric local costmap パッチ + goal** を条件に flow matching で K 候補を生成し、**2 入力 ONNX**（`context [1,4]` + `costmap [1,1,S,S]` → `[1,K,H,3]`）を export する。controller 側は `costmap_patch_size:=S` でパッチを供給し、`OnnxTrajectoryModel` が自動で costmap 入力を検出して渡す。合成データは「障害物が左→右へ回避」のように costmap と expert を相関させる。
+`CostmapFlowPlanner` / `CostmapDiffusionPlanner` / `CostmapConsistencyPlanner` と `train_and_export_costmap(path, kind=...)` は、**egocentric local costmap パッチ + goal** を条件に K 候補を生成し、**2 入力 ONNX**（`context [1,4]` + `costmap [1,1,S,S]` → `[1,K,H,3]`）を export する。controller 側は `costmap_patch_size:=S` でパッチを供給し、`OnnxTrajectoryModel` が自動で costmap 入力を検出して渡す。合成データは「障害物が左→右へ回避」のように costmap と expert を相関させる。
 
 ```python
 from nav2_diffusion_training.generative_planners import train_and_export_costmap
-train_and_export_costmap('costmap_flow.onnx')   # context+costmap -> [1,K,H,3]
+train_and_export_costmap('costmap_flow.onnx', kind='flow')         # or 'diffusion' / 'consistency'
 ```
 
 ### 学習↔推論の一周（検証済み）
