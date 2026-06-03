@@ -85,6 +85,6 @@ Nav2 は ROS 2 移動ロボット開発の事実上の実用基盤であり、Sm
 
 ## Status
 
-**GitHub 公開前アーキテクチャ設計版。** 実装はこれからです。直近の主軸は v0.1（Nav2 Controller Plugin モード / costmap-conditioned generative local controller）です。Roadmap は [docs/roadmap.md](docs/roadmap.md) を参照してください。
+**v0.1.0** — Nav2 Controller Plugin モード（costmap-conditioned generative local controller）+ 決定論的安全層 + benchmark suite。変更履歴は [CHANGELOG.md](CHANGELOG.md)、今後の計画は [docs/roadmap.md](docs/roadmap.md) を参照してください。API は 1.0.0 まで安定化されていません。
 
 > ⚠️ この OSS は安全認証済み製品ではありません。実機導入者は hardware EStop、速度制限、ODD（Operational Design Domain）定義、現場 risk assessment を必ず行ってください。詳細は [docs/safety.md](docs/safety.md) を参照。
