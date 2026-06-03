@@ -4,7 +4,7 @@ project(nav2_diffusion_bringup)
 find_package(ament_cmake REQUIRED)
 
 install(
-  DIRECTORY launch params
+  DIRECTORY launch params foxglove
   DESTINATION share/${PROJECT_NAME}
 )
 

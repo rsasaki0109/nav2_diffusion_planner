@@ -14,6 +14,8 @@ example launch/config for Nav2。
 | `params/diffusion_controller_example.yaml` | controller_server ブロックのみの最小スニペット（ドキュメント用） |
 | `launch/tb3_loopback_diffusion.launch.py` | loopback シムでの closed-loop demo |
 | `launch/tb3_gazebo_diffusion.launch.py` | Gazebo での closed-loop demo |
+| `launch/foxglove.launch.py` | Foxglove 可視化（`foxglove_bridge` + 候補/安全状態 marker 変換ノード） |
+| `foxglove/nav2_diffusion_layout.json` | Foxglove Studio レイアウト（3D 候補軌道 / 安全状態 / cmd_vel） |
 
 ## 実行
 
@@ -26,6 +28,14 @@ ros2 launch nav2_diffusion_bringup tb3_gazebo_diffusion.launch.py headless:=True
 ```
 
 RViz の "2D Pose Estimate" で初期姿勢を、"Nav2 Goal" でゴールを与えると、`DiffusionController` が走行する。
+
+### Foxglove 可視化
+
+```bash
+ros2 launch nav2_diffusion_bringup foxglove.launch.py
+```
+
+Foxglove Studio で `ws://<host>:8765` に接続し、`foxglove/nav2_diffusion_layout.json` を Import すると、候補軌道・安全状態・cmd_vel のパネルが揃う。詳細は [../docs/visualization.md](../docs/visualization.md)。
 
 ## 前提条件と検証状況（重要）
 

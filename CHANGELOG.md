@@ -37,6 +37,12 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
   `costmap-consistency` (1-step) wins.
 - **Costmap-conditioned avoidance demo GIF** (`docs/costmap_demo.gif`,
   `tools/costmap_demo.py`) rendered from the real `CostmapFlowPlanner`.
+- **Foxglove visualization** — `nav2_diffusion_bringup/launch/foxglove.launch.py`
+  (starts `foxglove_bridge` + the candidate/safety marker converter) and a
+  ready-to-import Foxglove Studio layout
+  (`foxglove/nav2_diffusion_layout.json`: 3D candidates/costmap/plan, SafetyState
+  raw + state-transitions, cmd_vel plot). New `docs/visualization.md` covering
+  both Foxglove and RViz.
 
 ### Changed
 

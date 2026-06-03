@@ -1,0 +1,69 @@
+{
+  "configById": {
+    "3D!main": {
+      "cameraState": {
+        "distance": 12,
+        "perspective": true,
+        "phi": 55,
+        "thetaOffset": 45,
+        "targetOffset": [0, 0, 0],
+        "fovy": 45,
+        "near": 0.5,
+        "far": 5000
+      },
+      "followMode": "follow-pose",
+      "followTf": "base_link",
+      "scene": {},
+      "transforms": {},
+      "topics": {
+        "/global_costmap/costmap": { "visible": true },
+        "/local_costmap/costmap": { "visible": true },
+        "/plan": { "visible": true },
+        "/candidate_markers": { "visible": true },
+        "/safety_state_marker": { "visible": true },
+        "/scan": { "visible": true }
+      },
+      "layers": {},
+      "publish": { "type": "point", "poseTopic": "/move_base_simple/goal" }
+    },
+    "RawMessages!safety": {
+      "topicPath": "/safety_state"
+    },
+    "StateTransitions!safety": {
+      "paths": [
+        { "value": "/safety_state.state", "timestampMethod": "receiveTime" }
+      ],
+      "isSynced": true
+    },
+    "Plot!cmdvel": {
+      "paths": [
+        { "value": "/cmd_vel.linear.x", "enabled": true, "timestampMethod": "receiveTime" },
+        { "value": "/cmd_vel.angular.z", "enabled": true, "timestampMethod": "receiveTime" }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "xAxisVal": "timestamp"
+    }
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "playbackConfig": { "speed": 1 },
+  "layout": {
+    "first": "3D!main",
+    "second": {
+      "first": "RawMessages!safety",
+      "second": {
+        "first": "StateTransitions!safety",
+        "second": "Plot!cmdvel",
+        "direction": "column",
+        "splitPercentage": 40
+      },
+      "direction": "column",
+      "splitPercentage": 30
+    },
+    "direction": "row",
+    "splitPercentage": 62
+  }
+}

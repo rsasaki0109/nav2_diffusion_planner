@@ -136,6 +136,7 @@ flowchart LR
 | [docs/contributing.md](docs/contributing.md) | 貢献ガイド（plugin / model / benchmark 追加） |
 | [docs/model_zoo.md](docs/model_zoo.md) | Model Zoo（model card / manifest 一覧） |
 | [docs/model_comparison.md](docs/model_comparison.md) | 6生成系のオフライン比較 leaderboard（`tools/benchmark_models.py` 自動生成） |
+| [docs/visualization.md](docs/visualization.md) | RViz / Foxglove 可視化（候補軌道・安全状態・cmd_vel、Foxglove レイアウト同梱） |
 
 ---
 
