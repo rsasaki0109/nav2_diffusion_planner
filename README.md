@@ -91,6 +91,19 @@ flowchart LR
 > **Learned models propose. Classical safety disposes. Nav2 executes.**
 > 学習モデル（`TrajectoryModel` の裏）を差し替えても、安全層・scoring・fallback・可視化はそのまま再利用できます。
 
+データ生成から実行までの一周（各段ユニットテスト済み）:
+
+```mermaid
+flowchart LR
+  EX["Rule-based expert<br/>unicycle_to_goal"] --> DS["build_samples<br/>(base-frame future traj)"]
+  BAG["rosbag /odom"] --> RB["track_from_bag"] --> DS
+  DS --> TR["PyTorch train + ONNX export<br/>(train_and_export)"]
+  TR --> MD["model.onnx"]
+  MD --> OB["OnnxTrajectoryModel<br/>(pluginlib)"]
+  OB --> CT["DiffusionController<br/>(model_plugin)"]
+  CT --> RUN["safety gate → scoring → cmd_vel"]
+```
+
 ## ドキュメント地図
 
 | ドキュメント | 内容 |
@@ -111,6 +124,6 @@ flowchart LR
 
 ## Status
 
-**v0.1.0** — Nav2 Controller Plugin モード（costmap-conditioned generative local controller）+ 決定論的安全層 + benchmark suite。変更履歴は [CHANGELOG.md](CHANGELOG.md)、今後の計画は [docs/roadmap.md](docs/roadmap.md) を参照してください。API は 1.0.0 まで安定化されていません。
+**v0.2.0** — Nav2 Controller Plugin（generative local controller）+ 決定論的安全層 + **ONNX 推論バックエンド（pluginlib）** + **学習パイプライン（rosbag/expert→dataset→PyTorch→ONNX）** + RViz 可視化 + benchmark suite。変更履歴は [CHANGELOG.md](CHANGELOG.md)、今後の計画は [docs/roadmap.md](docs/roadmap.md)。API は 1.0.0 まで安定化されていません。
 
 > ⚠️ この OSS は安全認証済み製品ではありません。実機導入者は hardware EStop、速度制限、ODD（Operational Design Domain）定義、現場 risk assessment を必ず行ってください。詳細は [docs/safety.md](docs/safety.md) を参照。
