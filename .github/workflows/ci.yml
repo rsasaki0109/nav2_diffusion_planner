@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    name: build & test (${{ matrix.ros_distro }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        ros_distro: [jazzy]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup ROS 2
+        uses: ros-tooling/setup-ros@v0.7
+        with:
+          required-ros-distributions: ${{ matrix.ros_distro }}
+
+      # Builds the C++/msgs packages with colcon and runs colcon test, which
+      # includes the ament lints (copyright, cpplint, uncrustify, lint_cmake,
+      # xmllint) and the gtest suites. See docs/architecture.md section 12.4.
+      - name: Build and test
+        uses: ros-tooling/action-ros-ci@v0.4
+        with:
+          target-ros2-distro: ${{ matrix.ros_distro }}
+          package-name: |
+            nav2_diffusion_msgs
+            nav2_diffusion_core
+            nav2_diffusion_safety

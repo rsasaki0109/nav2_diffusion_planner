@@ -2,9 +2,15 @@
 
 safety gate, collision validation integration。
 
-**Status: 未実装（スケルトン）。最重要・GPU 非依存。**
+**Status: 最小実装あり（ビルド & テスト通過）。最重要・GPU 非依存。**
 
 決定論的な安全層。生成モデルの候補軌道を検証し、安全でないものを棄却する。安全判定は **GPU 非依存** で動くこと（[../docs/deployment.md](../docs/deployment.md) §11.3）。
+
+## 現状の実装
+
+- `safety_filter.hpp`: `SafetyFilter` 抽象インターフェースと `SafetyResult`（safe / rejection_reason）
+- `kinematic_limits_filter.hpp/.cpp`: 線速度・角速度の上限超過を棄却する `KinematicLimitsFilter`（Kinematic Safety Layer、[../docs/safety.md](../docs/safety.md) §8.2）
+- gtest（`test/test_kinematic_limits_filter.cpp`）
 
 > **The learned planner is never the final authority.**（[../docs/safety.md](../docs/safety.md) §8.1）
 

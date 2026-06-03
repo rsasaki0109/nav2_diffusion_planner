@@ -2,9 +2,15 @@
 
 ROS 非依存に近い trajectory schema, scoring concept, shared utilities。
 
-**Status: 未実装（スケルトン）。**
+**Status: 最小実装あり（ビルド & テスト通過）。**
 
 生成モデル・Nav2・安全層が共有する、ROS にできるだけ依存しないコアロジックを置く。ユニットテストしやすく、runtime / training の両方から参照できることを狙う。
+
+## 現状の実装
+
+- `nav2_diffusion_core/trajectory.hpp`: `TrajectoryPoint`（time-indexed SE(2) サンプル）と `Trajectory`（pose 列 + `model_score`）
+- `pathLength()` / `duration()` ユーティリティ
+- gtest（`test/test_trajectory.cpp`）
 
 ## 想定する責務
 
