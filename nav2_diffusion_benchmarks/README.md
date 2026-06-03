@@ -14,8 +14,11 @@ MPPI / RPP / Smac / DWB と公正に比較できる再現可能な benchmark sui
 - `nav2_diffusion_benchmarks/collision_metrics.hpp`: costmap ベースの safety 系 metrics（§9.4 Safety）`evaluateCollisions()` / `CollisionMetrics`
   - `collision_count` / `collided`（footprint が障害物に当たった path pose 数）
   - `min_clearance`（robot 中心から最近傍 lethal セルまでの距離 [m]、探索半径で saturate）
-- `nav2_diffusion_benchmarks/report.hpp`: `RunResult` と `toMarkdownTable()`。複数の scenario/controller 実行結果を **markdown 比較テーブル**に整形（§9.5）。同一 scenario で controller を横並び比較できる。
-- gtest（`test/test_metrics.cpp`, `test/test_collision_metrics.cpp`, `test/test_report.cpp`）
+- `nav2_diffusion_benchmarks/run_result.hpp`: `RunResult`（scenario/controller + metrics）
+- `nav2_diffusion_benchmarks/scores.hpp`: **safety 最重視の複合スコア**（§9.6）`computeScores()` / `Scores` / `ScoreWeights`
+  - `safety`（衝突で 0、それ以外は clearance/参照値）/ `progress`（未到達で 0、それ以外は 1/detour）/ `comfort`（1/(1+turning)）/ `overall`（重み正規化和、既定 safety 0.5 / progress 0.3 / comfort 0.2）
+- `nav2_diffusion_benchmarks/report.hpp`: `toMarkdownTable()`（生 metrics 比較表、§9.5）と `toMarkdownLeaderboard()`（overall 降順の leaderboard、§9.6）
+- gtest（`test/test_metrics.cpp`, `test/test_collision_metrics.cpp`, `test/test_scores.cpp`, `test/test_report.cpp`）
 
 ### レポート出力例
 

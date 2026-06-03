@@ -14,10 +14,13 @@
 
 #include "nav2_diffusion_benchmarks/report.hpp"
 
+#include <algorithm>
 #include <iomanip>
 #include <sstream>
 #include <string>
 #include <vector>
+
+#include "nav2_diffusion_benchmarks/scores.hpp"
 
 namespace nav2_diffusion_benchmarks
 {
@@ -50,6 +53,41 @@ std::string toMarkdownTable(const std::vector<RunResult> & results)
         << " | " << result.collision.collision_count
         << " | " << fixed(result.collision.min_clearance, 2)
         << " | " << fixed(result.metrics.total_turning, 2)
+        << " |\n";
+  }
+  return out.str();
+}
+
+std::string toMarkdownLeaderboard(
+  const std::vector<RunResult> & results, const ScoreWeights & weights)
+{
+  struct Ranked
+  {
+    const RunResult * run;
+    Scores scores;
+  };
+
+  std::vector<Ranked> ranked;
+  ranked.reserve(results.size());
+  for (const auto & result : results) {
+    ranked.push_back({&result, computeScores(result, weights)});
+  }
+  std::stable_sort(
+    ranked.begin(), ranked.end(),
+    [](const Ranked & a, const Ranked & b) {return a.scores.overall > b.scores.overall;});
+
+  std::ostringstream out;
+  out << "| Rank | Controller | Scenario | Overall | Safety | Progress | Comfort |\n";
+  out << "|---|---|---|---|---|---|---|\n";
+  int rank = 1;
+  for (const auto & entry : ranked) {
+    out << "| " << rank++
+        << " | " << entry.run->controller
+        << " | " << entry.run->scenario
+        << " | " << fixed(entry.scores.overall, 3)
+        << " | " << fixed(entry.scores.safety, 3)
+        << " | " << fixed(entry.scores.progress, 3)
+        << " | " << fixed(entry.scores.comfort, 3)
         << " |\n";
   }
   return out.str();

@@ -18,25 +18,22 @@
 #include <string>
 #include <vector>
 
-#include "nav2_diffusion_benchmarks/collision_metrics.hpp"
-#include "nav2_diffusion_benchmarks/metrics.hpp"
+#include "nav2_diffusion_benchmarks/run_result.hpp"
+#include "nav2_diffusion_benchmarks/scores.hpp"
 
 namespace nav2_diffusion_benchmarks
 {
-
-/// One scenario/controller run with its computed metrics, ready for reporting.
-struct RunResult
-{
-  std::string scenario;
-  std::string controller;
-  RunMetrics metrics;
-  CollisionMetrics collision;
-};
 
 /// Render a Markdown comparison table over runs (docs/benchmarking.md section
 /// 9.5). Each row is one scenario/controller pair; columns cover the task and
 /// safety metrics so different controllers can be compared on the same scenario.
 std::string toMarkdownTable(const std::vector<RunResult> & results);
+
+/// Render a Markdown leaderboard sorted by the safety-first composite score
+/// (docs/benchmarking.md section 9.6). Highest overall score ranks first.
+std::string toMarkdownLeaderboard(
+  const std::vector<RunResult> & results,
+  const ScoreWeights & weights = ScoreWeights());
 
 }  // namespace nav2_diffusion_benchmarks
 

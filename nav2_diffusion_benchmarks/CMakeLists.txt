@@ -13,6 +13,7 @@ find_package(geometry_msgs REQUIRED)
 add_library(${PROJECT_NAME} SHARED
   src/metrics.cpp
   src/collision_metrics.cpp
+  src/scores.cpp
   src/report.cpp
 )
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
@@ -49,6 +50,9 @@ if(BUILD_TESTING)
   ament_add_gtest(test_collision_metrics test/test_collision_metrics.cpp)
   target_link_libraries(test_collision_metrics ${PROJECT_NAME})
   ament_target_dependencies(test_collision_metrics nav2_costmap_2d geometry_msgs)
+
+  ament_add_gtest(test_scores test/test_scores.cpp)
+  target_link_libraries(test_scores ${PROJECT_NAME})
 
   ament_add_gtest(test_report test/test_report.cpp)
   target_link_libraries(test_report ${PROJECT_NAME})

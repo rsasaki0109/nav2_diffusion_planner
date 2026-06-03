@@ -21,6 +21,7 @@
 #include "nav2_diffusion_benchmarks/report.hpp"
 
 using nav2_diffusion_benchmarks::RunResult;
+using nav2_diffusion_benchmarks::toMarkdownLeaderboard;
 using nav2_diffusion_benchmarks::toMarkdownTable;
 
 namespace
@@ -72,4 +73,31 @@ TEST(ReportTest, RendersOneRowPerRun)
   // One header row, one separator row, and two data rows.
   const auto newlines = std::count(table.begin(), table.end(), '\n');
   EXPECT_EQ(newlines, 4);
+}
+
+TEST(ReportTest, LeaderboardRanksSaferRunFirst)
+{
+  // A reckless run that reached the goal but collided.
+  RunResult reckless;
+  reckless.scenario = "crowded_hallway";
+  reckless.controller = "Reckless";
+  reckless.metrics.reached_goal = true;
+  reckless.metrics.detour_ratio = 1.0;
+  reckless.collision.collided = true;
+  reckless.collision.collision_count = 2;
+
+  // A cautious run that also reached the goal without collision -> ranks first.
+  RunResult cautious;
+  cautious.scenario = "crowded_hallway";
+  cautious.controller = "Cautious";
+  cautious.metrics.reached_goal = true;
+  cautious.metrics.detour_ratio = 1.0;
+  cautious.collision.collided = false;
+  cautious.collision.min_clearance = 1.0;
+
+  const std::string board = toMarkdownLeaderboard({reckless, cautious});
+
+  EXPECT_TRUE(contains(board, "| Rank | Controller |"));
+  // The cautious controller should appear before the reckless one in the ranking.
+  EXPECT_LT(board.find("Cautious"), board.find("Reckless"));
 }
