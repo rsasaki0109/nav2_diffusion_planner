@@ -2,7 +2,7 @@
   <img src="docs/demo.gif" width="640" alt="DiffusionController: multimodal candidates (best=green / safe=blue / rejected=red) navigating around an obstacle">
 </p>
 
-<p align="center"><em>実際のパイプライン出力: 生成モデルが multimodal 候補を提案し、footprint 安全層が衝突候補（赤）を棄却し、scorer が最良候補（緑）を選んで障害物を回避。</em></p>
+<p align="center"><em>実際のパイプライン出力: 生成モデルが multimodal 候補を提案し、footprint 安全層が障害物 inflation 帯（赤い領域）に入る候補（赤線）を棄却し、scorer が最良候補（緑）を選んでクリアランスを保ちつつ回避。</em></p>
 
 # nav2_diffusion_planner
 
