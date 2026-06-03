@@ -1,6 +1,31 @@
 # Training Architecture
 
-> 関連: [architecture.md](architecture.md) §7 Inference / §12.2 Runtime/Training Separation、[simulation.md](simulation.md)
+> 関連: [architecture.md](architecture.md) §7 Inference / §12.2 Runtime/Training Separation、[simulation.md](simulation.md)、[../nav2_diffusion_training/README.md](../nav2_diffusion_training/README.md)
+
+## データセット生成（実装済み）
+
+`nav2_diffusion_training`（ament_python）で、以下 3 経路から学習サンプル（base frame の未来軌道ラベル、§6.3）を生成できる。いずれも `build_samples()` に集約され、`save_jsonl()` で書き出す。
+
+```python
+from nav2_diffusion_training import build_samples, save_jsonl, TrackState, unicycle_to_goal
+from nav2_diffusion_training.rosbag_io import track_from_bag
+
+# 1) 実機/sim の rosbag から（§6.2）
+track = track_from_bag('my_run_bag', topic='/odom')
+
+# 2) rule-based expert から sim 無しで合成（§6.5）
+track = unicycle_to_goal(TrackState(0.0, 0.0, 0.0, 0.0), goal_x=3.0, goal_y=1.0)
+
+# 3) 任意の TrackState 列から
+track = [TrackState(time=t * 0.1, x=t * 0.03, y=0.0, yaw=0.0) for t in range(100)]
+
+samples = build_samples(track, history=4, horizon=20)
+save_jsonl(samples, 'dataset.jsonl')
+```
+
+各サンプルは `observation_window`（過去の絶対 pose 列）と `action_label`（anchor の base frame に変換した未来軌道）を持ち、[architecture.md](architecture.md) §4.4 の SE(2) 表現に一致する。学習モデルはこのデータで `nav2_diffusion_core::TrajectoryModel`（§5.2 seam）の裏に実装する。
+
+> 注: 学習ループ本体（PyTorch 等）と実推論バックエンド（ONNX/TensorRT）は依存が重いため、本パッケージの dataset 層とは分離して追加する（§12.2）。
 
 ## 6.1 Training Pipeline Overview
 
