@@ -1,0 +1,8 @@
+# Golden scenario (docs/simulation.md section 10.2): narrow-passage performance.
+name: narrow_doorway
+map: tb3_sandbox
+robot: turtlebot3_waffle
+start: {x: 0.0, y: 0.0, yaw: 0.0}
+goal: {x: 2.5, y: -1.5, yaw: 1.5708}
+goal_tolerance: 0.2
+seed: 0

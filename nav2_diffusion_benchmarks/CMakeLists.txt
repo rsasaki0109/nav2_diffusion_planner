@@ -12,6 +12,8 @@ find_package(geometry_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
+find_package(yaml_cpp_vendor REQUIRED)
+find_package(yaml-cpp REQUIRED)
 
 add_library(${PROJECT_NAME} SHARED
   src/metrics.cpp
@@ -19,6 +21,7 @@ add_library(${PROJECT_NAME} SHARED
   src/scores.cpp
   src/report.cpp
   src/run_recorder.cpp
+  src/scenario.cpp
 )
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 target_include_directories(${PROJECT_NAME} PUBLIC
@@ -26,6 +29,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
   "$<INSTALL_INTERFACE:include>"
 )
 ament_target_dependencies(${PROJECT_NAME} nav2_diffusion_core nav2_costmap_2d geometry_msgs)
+target_link_libraries(${PROJECT_NAME} yaml-cpp)
 
 install(
   DIRECTORY include/
@@ -45,6 +49,10 @@ ament_target_dependencies(benchmark_runner rclcpp nav_msgs std_srvs)
 install(
   TARGETS benchmark_runner
   DESTINATION lib/${PROJECT_NAME}
+)
+install(
+  DIRECTORY scenarios
+  DESTINATION share/${PROJECT_NAME}
 )
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
@@ -68,6 +76,9 @@ if(BUILD_TESTING)
 
   ament_add_gtest(test_run_recorder test/test_run_recorder.cpp)
   target_link_libraries(test_run_recorder ${PROJECT_NAME})
+
+  ament_add_gtest(test_scenario test/test_scenario.cpp)
+  target_link_libraries(test_scenario ${PROJECT_NAME})
 
   ament_add_gtest(test_report test/test_report.cpp)
   target_link_libraries(test_report ${PROJECT_NAME})

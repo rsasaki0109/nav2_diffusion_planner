@@ -1,0 +1,8 @@
+# Golden scenario (docs/simulation.md section 10.2): install confirmation.
+name: simple_corridor
+map: tb3_sandbox
+robot: turtlebot3_waffle
+start: {x: 0.0, y: 0.0, yaw: 0.0}
+goal: {x: 3.0, y: 0.0, yaw: 0.0}
+goal_tolerance: 0.25
+seed: 0
