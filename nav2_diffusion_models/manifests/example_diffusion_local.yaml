@@ -1,0 +1,70 @@
+# Example model manifest (docs/architecture.md section 5.4).
+#
+# A manifest travels WITH every model artifact and is separate from code. It is
+# what the Model Registry, CI artifact checks, and runtime backend read to decide
+# whether/how a model may be loaded. The values below are an illustrative
+# template for a hypothetical learned diffusion local planner; replace them with
+# your model's real values. The built-in FanRolloutModel is analytic and ships
+# no artifact, so it needs no manifest.
+
+model_name: diffusion_local_v0
+model_family: diffusion            # diffusion / flow / consistency / transformer / world_model
+
+# Sensor / context inputs the model consumes.
+input_modalities:
+  - local_costmap
+  - odometry
+  - global_path_snippet
+  - local_goal
+  # camera is optional and NOT required for this model
+
+output_type: trajectory_candidates  # trajectory_candidates / subgoals / velocity_sequence
+frame_convention: base_link         # base_link or map; candidates are in this frame
+horizon: 2.0                        # seconds of future predicted per trajectory
+robot_kinematics: diff             # diff / omni / ackermann / generic
+
+speed_range:
+  min_linear: 0.0                  # m/s
+  max_linear: 0.5                  # m/s
+  max_angular: 1.0                 # rad/s
+
+runtime: onnx                      # pytorch / onnx / tensorrt
+precision: fp16                    # fp32 / fp16 / int8
+
+training_data:
+  datasets:
+    - name: gazebo_tb3_expert
+      source: sim                  # sim / real / teleop / expert_planner
+      fraction: 0.7
+    - name: warehouse_rosbags
+      source: real
+      fraction: 0.3
+  robot_types:
+    - turtlebot3_waffle
+
+# pass/fail against the benchmark suite plus headline numbers (section 9.4).
+benchmark_results:
+  passed: true
+  suite_version: "0.0.0"
+  success_rate: 0.94
+  collision_count: 0
+  min_clearance_m: 0.22
+  latency_p99_ms: 18.0
+
+# Conditions under which this model must NOT be used (section 5.5).
+limitations:
+  - "Indoor flat-floor only; not validated outdoors or on slopes."
+  - "Max human density ~0.3 people/m^2; not validated in dense crowds."
+  - "Requires LiDAR-based local costmap; degrades without it."
+
+# Licenses are tracked separately for model / data / code (section 5.4).
+license:
+  model: Apache-2.0
+  data: CC-BY-4.0
+  code: Apache-2.0
+
+# Artifact integrity. Update on every re-export.
+checksum:
+  algorithm: sha256
+  value: "0000000000000000000000000000000000000000000000000000000000000000"
+  artifact: diffusion_local_v0.onnx

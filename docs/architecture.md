@@ -399,13 +399,13 @@ OSS 失敗の典型は、runtime に研究用 Python 依存を入れすぎるこ
 | README | 何ができるか、最短 demo、Nav2 との関係 |
 | docs/architecture | 本ドキュメント |
 | docs/safety | safety architecture, failure modes → [safety.md](safety.md) |
-| docs/getting_started | Nav2 ユーザー向け導入 |
+| docs/getting_started | Nav2 ユーザー向け導入 → [getting_started.md](getting_started.md) |
 | docs/benchmarking | MPPI 比較の再現方法 → [benchmarking.md](benchmarking.md) |
 | docs/training | bag から学習まで → [training.md](training.md) |
 | docs/deployment_jetson | Jetson 最適化 → [deployment.md](deployment.md) |
-| docs/model_zoo | model card 一覧 |
-| docs/contributing | plugin 追加、model 追加、benchmark 追加 |
-| docs/rfcs | 大きな設計変更の議論 |
+| docs/model_zoo | model card 一覧 → [model_zoo.md](model_zoo.md) |
+| docs/contributing | plugin 追加、model 追加、benchmark 追加 → [contributing.md](contributing.md) |
+| docs/rfcs | 大きな設計変更の議論 → [../rfcs/](../rfcs/) |
 
 ### 12.4 CI/CD
 

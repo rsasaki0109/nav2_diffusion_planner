@@ -77,6 +77,9 @@ Nav2 は ROS 2 移動ロボット開発の事実上の実用基盤であり、Sm
 | [docs/deployment.md](docs/deployment.md) | Deployment Strategy（platform / Jetson / packaging / staged rollout） |
 | [docs/roadmap.md](docs/roadmap.md) | Roadmap（v0.1 / v0.5 / v1.0 / v2.0） |
 | [docs/risks.md](docs/risks.md) | Risks（technical / OSS operation / safety・liability） |
+| [docs/getting_started.md](docs/getting_started.md) | Nav2 ユーザー向け導入（Controller 差し替え / demo） |
+| [docs/contributing.md](docs/contributing.md) | 貢献ガイド（plugin / model / benchmark 追加） |
+| [docs/model_zoo.md](docs/model_zoo.md) | Model Zoo（model card / manifest 一覧） |
 
 ---
 
