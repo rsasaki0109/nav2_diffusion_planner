@@ -4,6 +4,41 @@ All notable changes to this project are documented here. The project aims to
 follow [Semantic Versioning](https://semver.org/); APIs are not yet stable
 before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 
+## [0.3.0] - 2026-06-03
+
+Theme: **research-driven generative model families + costmap conditioning.** A
+deep literature/OSS survey found no open-source flow-matching / diffusion /
+consistency LOCAL planner for ROS 2 Nav2 ground robots; this release implements
+all three behind the model seam, with optional costmap conditioning.
+
+### Added
+
+- **Three generative planner families** (`nav2_diffusion_training.generative_planners`):
+  `FlowMatchingPlanner` (single/few-step conditional flow matching),
+  `DiffusionPlanner` (cosine DDPM + DDIM), and `ConsistencyPlanner` (one-step
+  distillation). Each maps a context vector to K SE(2) trajectories and exports a
+  single self-contained ONNX file matching the `[1,4] -> [1,K,H,3]` backend
+  contract. A trained flow model runs in the real C++ `OnnxTrajectoryModel`.
+- **Costmap+goal conditioning end to end** (the surveyed OSS gap): `ModelContext`
+  carries an optional egocentric costmap patch; `OnnxTrajectoryModel`
+  auto-detects an optional `costmap` input and feeds `[1,1,S,S]`; the controller
+  crops the patch via a new `costmap_patch_size` param (default off, fully
+  backward compatible); `CostmapFlowPlanner` / `CostmapDiffusionPlanner` /
+  `CostmapConsistencyPlanner` train and export two-input ONNX models.
+- **README hero GIF** rendered from the real shipped pipeline (FanRolloutModel →
+  footprint safety gate → scorer) showing obstacle avoidance with clearance, plus
+  a data-generation-to-execution diagram.
+- **GPU/headless Gazebo notes** in the bringup docs (NVIDIA EGL vendor +
+  `GZ_SIM_RESOURCE_PATH`).
+
+### Verification
+
+- ROS 2 Jazzy: all packages build and test green (gtest + pytest + ament lints);
+  the training round trip (expert/rosbag → dataset → PyTorch → ONNX → C++ backend)
+  and the costmap two-input path are covered by tests. Live multi-process Gazebo
+  remains unverified in the dev sandbox (DDS inter-process limits); logic is
+  covered by in-process integration tests.
+
 ## [0.2.0] - 2026-06-03
 
 Theme: **learned models, end to end.** A real ONNX inference backend behind the
@@ -93,5 +128,6 @@ deterministic safety layer and a benchmark suite. Matches the v0.1 theme
   simulated LiDAR; DDS discovery flakiness). The underlying logic is unit-tested.
 - This is not a safety-certified product; see [docs/safety.md](docs/safety.md).
 
+[0.3.0]: https://github.com/rsasaki0109/nav2_diffusion_planner/releases/tag/v0.3.0
 [0.2.0]: https://github.com/rsasaki0109/nav2_diffusion_planner/releases/tag/v0.2.0
 [0.1.0]: https://github.com/rsasaki0109/nav2_diffusion_planner/releases/tag/v0.1.0
