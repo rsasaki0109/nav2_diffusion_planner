@@ -9,12 +9,16 @@ find_package(ament_cmake REQUIRED)
 find_package(nav2_diffusion_core REQUIRED)
 find_package(nav2_costmap_2d REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
 
 add_library(${PROJECT_NAME} SHARED
   src/metrics.cpp
   src/collision_metrics.cpp
   src/scores.cpp
   src/report.cpp
+  src/run_recorder.cpp
 )
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 target_include_directories(${PROJECT_NAME} PUBLIC
@@ -35,6 +39,14 @@ install(
   RUNTIME DESTINATION bin
 )
 
+add_executable(benchmark_runner src/benchmark_runner_node.cpp)
+target_link_libraries(benchmark_runner ${PROJECT_NAME})
+ament_target_dependencies(benchmark_runner rclcpp nav_msgs std_srvs)
+install(
+  TARGETS benchmark_runner
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 ament_export_include_directories(include)
 ament_export_dependencies(nav2_diffusion_core nav2_costmap_2d geometry_msgs)
@@ -53,6 +65,9 @@ if(BUILD_TESTING)
 
   ament_add_gtest(test_scores test/test_scores.cpp)
   target_link_libraries(test_scores ${PROJECT_NAME})
+
+  ament_add_gtest(test_run_recorder test/test_run_recorder.cpp)
+  target_link_libraries(test_run_recorder ${PROJECT_NAME})
 
   ament_add_gtest(test_report test/test_report.cpp)
   target_link_libraries(test_report ${PROJECT_NAME})

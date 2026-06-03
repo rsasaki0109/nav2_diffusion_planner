@@ -30,7 +30,20 @@ MPPI / RPP / Smac / DWB と公正に比較できる再現可能な benchmark sui
 | narrow_doorway | MPPI | no | 0.00 | 0.00 | 1.00 | 2 | 2.00 | 0.00 | 0 | 0 | 0.00 |
 ```
 
-social 系 metrics（personal-space 等）は人トラッキングのログがある場合に別途追加予定。実行を購読/rosbag から取り込み metrics を算出して本レポートを出力する **runner ノード**も今後追加予定。
+- `nav2_diffusion_benchmarks/run_recorder.hpp`: `RunRecorder`。pose ストリーム（`/odom` や rosbag）を executed path に蓄積し、goal を与えて `RunResult` を生成（ROS 非依存・テスト可能）。
+- `benchmark_runner` ノード（`src/benchmark_runner_node.cpp`）: `odom` を購読して走行を記録し、`~/finish`（`std_srvs/srv/Trigger`）呼び出しで metrics を算出して markdown レポートを log / file 出力する薄い ROS グルー。
+
+```bash
+ros2 run nav2_diffusion_benchmarks benchmark_runner \
+  --ros-args -p scenario:=narrow_doorway -p controller:=DiffusionController \
+             -p goal_x:=2.0 -p goal_y:=0.0 -p output_file:=/tmp/report.md
+# 走行後に:
+ros2 service call /benchmark_runner/finish std_srvs/srv/Trigger
+```
+
+- gtest（`test/test_metrics.cpp`, `test/test_collision_metrics.cpp`, `test/test_scores.cpp`, `test/test_report.cpp`, `test/test_run_recorder.cpp`）
+
+social 系 metrics（personal-space 等）は人トラッキングのログがある場合に別途追加予定。複数 controller の結果を集約する harness は今後追加予定。
 
 この metrics は、同一 scenario で controller を差し替えて実行した結果（executed path）を入力に、MPPI/RPP/Smac と横並び比較するための土台。
 
