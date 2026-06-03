@@ -62,6 +62,13 @@ ament_export_dependencies(${dependencies})
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   ament_lint_auto_find_test_dependencies()
+
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_diffusion_controller_integration
+    test/test_diffusion_controller_integration.cpp
+    TIMEOUT 120)
+  target_link_libraries(test_diffusion_controller_integration ${PROJECT_NAME})
+  ament_target_dependencies(test_diffusion_controller_integration ${dependencies})
 endif()
 
 ament_package()

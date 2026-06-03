@@ -17,6 +17,14 @@ Nav2 Controller Plugin integration。
 
 `ros2 run nav2_util ...` ではなく Nav2 controller_server にプラグインとしてロードされる。`ros2 plugin list` で `nav2_core::Controller` として発見されることを確認済み。
 
+### closed-loop 統合テスト
+
+`test/test_diffusion_controller_integration.cpp` は、稼働中の `nav2_costmap_2d::Costmap2DROS` に対して実プラグインを configure/activate し、GPU/シム無しで以下を検証する:
+
+- クリアな costmap + 前方への global path → `cmd_vel.linear.x > 0`（前進）
+- 前方 ~0.4m に lethal 障害物 → footprint ゲートが発火し stop（`cmd_vel = 0`）
+- global path 無し → stop
+
 ### 使い方（例）
 
 [../nav2_diffusion_bringup/params/diffusion_controller_example.yaml](../nav2_diffusion_bringup/params/diffusion_controller_example.yaml) を参照。controller_server の `FollowPath` plugin を `nav2_diffusion_controller::DiffusionController` に差し替えるだけ。
