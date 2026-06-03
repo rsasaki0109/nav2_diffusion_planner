@@ -1,0 +1,13 @@
+<library path="nav2_diffusion_controller">
+  <class
+    type="nav2_diffusion_controller::DiffusionController"
+    base_class_type="nav2_core::Controller">
+    <description>
+      Generative trajectory-proposal local controller for Nav2 (v0.1 skeleton).
+      Proposes candidate trajectories, validates them with a deterministic
+      safety gate, extracts cmd_vel from the best safe candidate, and stops as a
+      fallback when no safe candidate exists. The generative model is a
+      placeholder pending a real learned model.
+    </description>
+  </class>
+</library>

@@ -2,9 +2,36 @@
 
 Nav2 Controller Plugin integration。
 
-**Status: 未実装（スケルトン）。v0.1 の主軸。**
+**Status: スケルトン実装あり（ビルド & lint 通過 / pluginlib 登録確認済み）。v0.1 の主軸。**
 
 `nav2_core::Controller` を実装する Nav2 Controller Server プラグイン。Global Path と Local Costmap を受け取り、生成モデルで未来軌道候補を生成し、Safety Gate を通した Best Trajectory から `cmd_vel` を出す（Mode A、[../docs/architecture.md](../docs/architecture.md) §3.2）。
+
+## 現状の実装
+
+`nav2_diffusion_controller::DiffusionController` がパイプラインを配線済み:
+
+1. **提案**: lookahead 点へ向かう候補軌道を生成（**生成モデルのプレースホルダ**。現状は pure-pursuit 風の単一候補で、後で学習モデルに差し替える）
+2. **検証**: `nav2_diffusion_safety::KinematicLimitsFilter` で速度上限を検査
+3. **抽出**: 安全なら `cmd_vel`、**安全候補が無ければ stop（fallback）**
+4. **可観測性**: 候補軌道（`TrajectoryCandidates`）と `SafetyState` を publish（RViz / rosbag 用）
+
+`ros2 run nav2_util ...` ではなく Nav2 controller_server にプラグインとしてロードされる。`ros2 plugin list` で `nav2_core::Controller` として発見されることを確認済み。
+
+### 使い方（例）
+
+[../nav2_diffusion_bringup/params/diffusion_controller_example.yaml](../nav2_diffusion_bringup/params/diffusion_controller_example.yaml) を参照。controller_server の `FollowPath` plugin を `nav2_diffusion_controller::DiffusionController` に差し替えるだけ。
+
+### パラメータ
+
+| 名前 | 既定 | 意味 |
+|---|---|---|
+| `lookahead_distance` | 0.6 | carrot 点までの距離 [m] |
+| `desired_linear_speed` | 0.3 | 目標前進速度 [m/s] |
+| `max_linear_speed` | 0.5 | 線速度上限 [m/s]（safety gate にも使用） |
+| `max_angular_speed` | 1.0 | 角速度上限 [rad/s]（safety gate にも使用） |
+| `horizon` | 2.0 | 候補軌道の予測時間 [s] |
+| `time_step` | 0.1 | 候補軌道の離散化刻み [s] |
+| `transform_tolerance` | 0.1 | TF 変換許容時間 [s] |
 
 ## v0.1 スコープ
 
