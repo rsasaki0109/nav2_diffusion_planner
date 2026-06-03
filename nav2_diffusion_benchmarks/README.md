@@ -46,7 +46,9 @@ ros2 service call /benchmark_runner/finish std_srvs/srv/Trigger
 - `nav2_diffusion_benchmarks/scenario.hpp`: 再現可能な scenario 定義（§9.3 / §10.3）。`Scenario`（name/map/robot/start/goal/goal_tolerance/seed）と `parseScenario()`（YAML 文字列）/ `loadScenarioFile()`。`scenarios/` に golden scenario の例（simple_corridor, narrow_doorway）。
 - gtest（`test/test_metrics.cpp`, `test/test_collision_metrics.cpp`, `test/test_scores.cpp`, `test/test_report.cpp`, `test/test_run_recorder.cpp`, `test/test_scenario.cpp`）
 
-social 系 metrics（personal-space 等）は人トラッキングのログがある場合に別途追加予定。複数 controller の結果を集約する harness は今後追加予定。
+- `nav2_diffusion_benchmarks/aggregate.hpp`: scenario × controller の複数 run を **controller ごとに集約**（`summarizeByController`）し、success rate / mean overall / mean safety のランキングを markdown 出力（`toMarkdownSummary`、§9.5/§9.6）。
+
+social 系 metrics（personal-space 等）は人トラッキングのログがある場合に別途追加予定。
 
 この metrics は、同一 scenario で controller を差し替えて実行した結果（executed path）を入力に、MPPI/RPP/Smac と横並び比較するための土台。
 

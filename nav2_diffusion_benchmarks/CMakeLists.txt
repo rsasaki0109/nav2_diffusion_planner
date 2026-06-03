@@ -22,6 +22,7 @@ add_library(${PROJECT_NAME} SHARED
   src/report.cpp
   src/run_recorder.cpp
   src/scenario.cpp
+  src/aggregate.cpp
 )
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 target_include_directories(${PROJECT_NAME} PUBLIC
@@ -79,6 +80,9 @@ if(BUILD_TESTING)
 
   ament_add_gtest(test_scenario test/test_scenario.cpp)
   target_link_libraries(test_scenario ${PROJECT_NAME})
+
+  ament_add_gtest(test_aggregate test/test_aggregate.cpp)
+  target_link_libraries(test_aggregate ${PROJECT_NAME})
 
   ament_add_gtest(test_report test/test_report.cpp)
   target_link_libraries(test_report ${PROJECT_NAME})
