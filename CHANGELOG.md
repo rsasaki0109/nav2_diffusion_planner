@@ -18,13 +18,15 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
   biases every candidate away from a one-sided obstacle (asserted end-to-end in
   `nav2_diffusion_onnx`'s `test_onnx_trajectory_model`). The closed-loop
   `controller_benchmark` now runs it as *Diffusion (Mode A, learned)* beside VFH+
-  and ND: it genuinely drives (traversing most of the open corridor) but, as a
-  small synthetic-trained research model, does not reliably reach the goal box —
-  the safety layer keeps it collision-free throughout. Honest demonstration that
-  the *architecture* works end-to-end; the *model* is the limit.
+  and ND: it **reaches the goal closed-loop in the open scenario**, and on the
+  obstacle scenarios (out of its training distribution) the safety layer stops it
+  safely short of the block rather than threading it (no collision) — where the
+  mature reactive controllers thread through. Honest demonstration that the
+  *architecture* works end-to-end; threading obstacles needs a better model.
 - **Carrot-directed costmap trajectory dataset.**
   `nav2_diffusion_training.generative_planners.make_costmap_dataset` now varies the
-  carrot distance/bearing and heads the expert toward it (path-tangent yaw), and
+  carrot distance/bearing and the expert follows a **pure-pursuit arc toward the
+  carrot** (the key to closed-loop goal tracking) plus an avoidance bow, and
   `train_and_export_costmap` gained `steps` / `sample_weight` options (a direct MSE
   to the smooth expert) so the sampled trajectory stays smooth and within kinematic
   limits. Backward-compatible defaults.

@@ -41,8 +41,10 @@ training_data:
   notes: >
     Fully synthetic. make_costmap_dataset() places a single obstacle band on the
     +y or -y side of the egocentric patch (varied row-band and column width) and
-    labels the expert trajectory with a lateral veer toward the open side, plus
-    clear (no-obstacle) samples labelled straight. NO real-robot or rosbag data.
+    labels the expert with a pure-pursuit arc toward a varied carrot (distance
+    ~0.9-1.1 m, bearing +/-0.4 rad) plus a lateral bow away from the obstacle, with
+    clear (no-obstacle) samples too. The carrot-pursuit arc is what gives the
+    closed-loop goal tracking. NO real-robot or rosbag data.
 
 # Behavioural check, not the full Nav2 benchmark suite (research placeholder).
 benchmark_results:
@@ -50,9 +52,9 @@ benchmark_results:
   suite: behavioural (nav2_diffusion_onnx end-to-end costmap side-selection test)
   costmap_side_selection: true     # obstacle-left -> all candidates veer right, and vice versa
   clear_unbiased: true             # no obstacle -> candidates centred (straight ahead)
-  closed_loop: "drives closed-loop in controller_benchmark (traverses most of the open
-    corridor) but, as a small research model, does not reliably reach the goal box or
-    complete the obstacle scenarios; the safety layer keeps it collision-free throughout"
+  closed_loop: "reaches the goal closed-loop in the open scenario of controller_benchmark;
+    on obstacle scenarios (out of its training distribution) the safety layer stops it
+    safely short of the block rather than threading it"
   collision_count: 0               # deterministic safety gate (kinematic + footprint) gates output
 
 limitations:
@@ -69,7 +71,7 @@ license:
 
 checksum:
   algorithm: sha256
-  value: "3cc606e677f80308e7bc5b855eb8dc9738acaa2c5fe0ce950f15a4e9de180b4a"
+  value: "6f6084e605e81c39c6ec8ad94cb805d8aa9f0776711bdb9c989c692afe953117"
   artifact: costmap_flow.onnx
 
 reproduce:

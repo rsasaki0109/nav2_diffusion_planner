@@ -240,11 +240,12 @@ int main(int argc, char ** argv)
     "lean away from a one-sided obstacle (verified end-to-end in the "
     "`nav2_diffusion_onnx` test), a deterministic kinematic + footprint layer "
     "*disposes* of unsafe ones, and the controller drives the best. It is a small "
-    "synthetic-trained research placeholder: it genuinely drives closed-loop (it "
-    "traverses most of the *open* corridor) but does not reliably complete the full "
-    "run here — the mature reactive controllers do. It is included to show a learned "
-    "controller running in the same harness; the deterministic safety layer keeps it "
-    "collision-free throughout (it stops rather than risk a collision). See its "
+    "synthetic-trained research model: it **reaches the goal closed-loop in the "
+    "*open* scenario**, and on the obstacle scenarios — outside its limited training "
+    "distribution — the deterministic safety layer stops it safely short of the "
+    "block (no collision) rather than threading it, where the mature reactive "
+    "controllers do thread through. It shows a learned controller driving in the "
+    "same harness, with the safety layer as the authority. See its "
     "[model card](../model_zoo/diffusion_local/model_card.md).\n\n";
 
   for (const auto & sc : scenarios) {
@@ -406,13 +407,14 @@ int main(int argc, char ** argv)
     "the corridor centreline the robot stayed (lower = better centred). The two "
     "reactive controllers (VFH+, ND) clear every scenario, trading berth (VFH+ "
     "tends to give wider clearance) against smoothness (ND tends to steer more "
-    "smoothly). The learned Mode A controller is a small research model: it reads "
-    "the costmap and drives closed-loop (traversing most of the *open* corridor) but "
-    "does not reliably reach the goal box, so it reports \"timeout\" here while the "
+    "smoothly). The learned Mode A controller is a small research model: it reaches "
+    "the goal closed-loop in *open*, and on the obstacle scenarios (outside its "
+    "training distribution) the deterministic safety layer stops it safely short of "
+    "the block rather than threading it — so it reports \"timeout\" there while the "
     "mature reactive controllers reach. Its proposals are verified end-to-end in the "
-    "`nav2_diffusion_onnx` test; in the loop the deterministic safety layer keeps it "
-    "collision-free throughout. \"timeout\" means the goal was not reached within the "
-    "step budget; \"collision\" means the robot entered a lethal cell._\n";
+    "`nav2_diffusion_onnx` test; in the loop the safety layer keeps it collision-free "
+    "throughout. \"timeout\" means the goal was not reached within the step budget; "
+    "\"collision\" means the robot entered a lethal cell._\n";
 
   costmap_ros->on_cleanup(rclcpp_lifecycle::State());
   rclcpp::shutdown();

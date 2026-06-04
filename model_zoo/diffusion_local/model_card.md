@@ -41,12 +41,12 @@ Honest and load-bearing:
   matches this competence.
 - **Short, gentle.** ~1 s / ~0.3 m horizon with ~0.2 m lateral veer; it leans on
   closed-loop replanning rather than one big swerve.
-- **Small research model.** It drives closed-loop but does not reliably reach the
-  goal box or complete obstacle scenarios in `controller_benchmark` — mature
-  reactive controllers (VFH+/ND) do. The architecture and inference are sound (the
-  C++ test passes); the *model* needs better training data / capacity to be a usable
-  controller.
-- **Carrot distribution.** Trained on carrots ~0.9–1.1 m ahead with bearing ±0.3 rad;
+- **Small research model.** It reaches the goal closed-loop in the *open* scenario,
+  but on the obstacle scenarios of `controller_benchmark` the safety layer stops it
+  safely short of the block rather than threading it — mature reactive controllers
+  (VFH+/ND) thread through. The architecture and inference are sound (the C++ test
+  passes); the *model* needs better training data / capacity to thread obstacles.
+- **Carrot distribution.** Trained on carrots ~0.9–1.1 m ahead with bearing ±0.4 rad;
   larger off-axis carrots are out of distribution.
 - **No safety authority.** The kinematic + footprint filters gate every proposal;
   if none is safe the controller falls back or stops. Do not deploy on hardware.
@@ -58,10 +58,11 @@ Each configuration places a one-sided obstacle band on the +y (low cols, matchin
 `cropEgocentricPatch`) or −y side of the 32×32 egocentric patch, with **varied
 row-band and column width**, emitted as a **mirrored +y/−y pair** (symmetric, no
 lateral bias), plus **clear (no-obstacle)** samples. The carrot (context
-goal_x/goal_y) is **varied in distance (~0.9–1.1 m) and bearing (±0.3 rad)** so the
-controller stays in distribution as its heading drifts; the expert heads toward the
-carrot (`_expert_trajectory`) with a half-sine lateral bow away from the obstacle
-and a path-tangent yaw. Fully procedural; no real data.
+goal_x/goal_y) is **varied in distance (~0.9–1.1 m) and bearing (±0.4 rad)** so the
+controller stays in distribution as its heading drifts; the expert (`_expert_trajectory`)
+follows a **pure-pursuit arc that turns toward the carrot** (this is what gives the
+closed-loop goal tracking) with a half-sine lateral bow away from the obstacle and a
+path-tangent yaw. Fully procedural; no real data.
 
 ## Benchmark results
 
@@ -74,12 +75,12 @@ deployment benchmark:
   `test_onnx_trajectory_model` (`CuratedZooModelVeersAwayFromObstacle`, runs where
   onnxruntime is available).
 - **Closed-loop catalog comparison:** appears as *Diffusion (Mode A, learned)* in
-  [docs/controller_comparison.md](../../docs/controller_comparison.md). It drives
-  closed-loop — traversing most of the *open* corridor — but, as a small research
-  model, does **not** reliably reach the goal box or complete the obstacle
-  scenarios (it times out where VFH+/ND reach). It is included to show a learned
-  controller running in the same harness; the architecture is sound, the model is
-  the limitation.
+  [docs/controller_comparison.md](../../docs/controller_comparison.md). It **reaches
+  the goal closed-loop in the *open* scenario** (125 steps); on the obstacle
+  scenarios (out of its training distribution) the safety layer stops it safely
+  short of the block rather than threading it, so it times out where VFH+/ND thread
+  through. Honest demonstration that the architecture works end-to-end; threading
+  obstacles needs a better model.
 - **Collisions:** gated by the deterministic kinematic + footprint safety layer; a
   candidate entering the footprint is rejected regardless of model quality (0
   collisions in the benchmark).

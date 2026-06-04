@@ -106,7 +106,7 @@ controller_server:
       costmap_patch_size: 32          # egocentric patch をモデルへ渡す
 ```
 
-モデルが costmap を読んで障害物の反対側へ軌道を提案し、決定論的安全層(kinematic + footprint)が検証する。挙動と限界(小型研究モデルで閉ループ完走は不安定)は [model_card](../model_zoo/diffusion_local/model_card.md) を参照。`OnnxTrajectoryModel` は `nav2_diffusion_onnx` + onnxruntime が必要。
+モデルが costmap を読んで障害物の反対側へ軌道を提案し、決定論的安全層(kinematic + footprint)が検証する。閉ループでは open シナリオで goal に到達し、障害物シナリオでは安全層が手前で安全停止する(小型研究モデルの限界)。挙動・限界は [model_card](../model_zoo/diffusion_local/model_card.md) を参照。`OnnxTrajectoryModel` は `nav2_diffusion_onnx` + onnxruntime が必要。
 
 ### 登録確認
 

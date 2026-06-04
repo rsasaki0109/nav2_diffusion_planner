@@ -334,28 +334,42 @@ class CostmapConsistencyPlanner(nn.Module):
 
 def _expert_trajectory(gx, gy, side, speed):
     """
-    Smooth ~1 s expert from the robot origin heading toward the carrot (gx, gy),
-    travelling ``speed`` * horizon metres, with a half-sine lateral bow away from
-    a one-sided obstacle (side > 0 = obstacle on +y -> bow to -y). yaw follows the
-    path tangent so the extracted command turns toward the carrot. side == 0 is the
-    clear case (straight toward the carrot).
+    ~1 s expert that *pursues* the carrot (gx, gy) along a constant-curvature arc
+    (pure-pursuit), travelling ``speed`` * horizon metres, plus a half-sine lateral
+    bow away from a one-sided obstacle (side > 0 = obstacle on +y -> bow to -y).
+
+    The arc turns the robot toward the carrot, so in closed loop a lateral offset
+    from the plan (which moves the carrot to the side) is actively corrected — the
+    key to staying on track over a long run. side == 0 is the clear case (pure
+    pursuit, no bow). yaw is the path tangent so the extracted command turns
+    correctly.
     """
-    gdir = math.atan2(gy, gx)
-    reach = speed * HORIZON * 0.1
+    s_total = speed * HORIZON * 0.1
+    den = gx * gx + gy * gy
+    kappa = (2.0 * gy / den) if den > 1e-6 else 0.0   # pure-pursuit curvature
     pts = []
     for h in range(HORIZON):
+        s = s_total * (h + 1) / HORIZON
+        if abs(kappa) < 1e-4:
+            x, y, yaw = s, 0.0, 0.0
+        else:
+            r = 1.0 / kappa
+            theta = s * kappa
+            x = r * math.sin(theta)
+            y = r * (1.0 - math.cos(theta))
+            yaw = theta
         t = (h + 1) / HORIZON
-        bx = math.cos(gdir) * reach * t
-        by = math.sin(gdir) * reach * t
-        veer = -side * 0.18 * (4.0 * t * (1.0 - t))     # 0 at both ends
-        x = bx - math.sin(gdir) * veer                  # bow perpendicular to heading
-        y = by + math.cos(gdir) * veer
-        pts.append([x, y, 0.0])
-    for h in range(HORIZON):                            # yaw = path tangent
-        a = pts[h]
-        b = pts[h + 1] if h + 1 < HORIZON else pts[h]
-        prev = pts[h - 1] if h > 0 else pts[h]
-        ref_a, ref_b = (a, b) if h + 1 < HORIZON else (prev, a)
+        veer = -side * 0.20 * (4.0 * t * (1.0 - t))    # 0 at both ends
+        x += -math.sin(yaw) * veer                     # bow perpendicular to heading
+        y += math.cos(yaw) * veer
+        pts.append([x, y, yaw])
+    for h in range(HORIZON):                           # yaw = path tangent (incl. bow)
+        if h == 0:
+            ref_a, ref_b = pts[0], pts[1]
+        elif h + 1 >= HORIZON:
+            ref_a, ref_b = pts[h - 1], pts[h]
+        else:
+            ref_a, ref_b = pts[h - 1], pts[h + 1]
         pts[h][2] = math.atan2(ref_b[1] - ref_a[1], ref_b[0] - ref_a[0])
     return pts
 
@@ -379,8 +393,9 @@ def make_costmap_dataset(num_samples):
     s = COSTMAP_SIZE
     row_bands = [(s // 4, s // 2), (s // 3, 2 * s // 3), (s // 6, s // 2)]
     widths = [s // 2, s // 3, 2 * s // 5]   # columns the obstacle spans from its edge
-    goals = [(1.0, 0.0), (0.9, 0.0), (1.1, 0.0), (1.0, 0.3), (1.0, -0.3),
-             (0.9, 0.25), (0.9, -0.25)]
+    goals = [(1.0, 0.0), (0.9, 0.0), (1.1, 0.0), (1.0, 0.2), (1.0, -0.2),
+             (1.0, 0.4), (1.0, -0.4), (0.9, 0.3), (0.9, -0.3), (1.1, 0.15),
+             (1.1, -0.15)]
     speed = 0.3
     i = 0
     while len(contexts) < num_samples:
