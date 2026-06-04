@@ -8,6 +8,19 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 
 ### Added
 
+- **Classical ARA\* anytime global planner** —
+  `nav2_ara_star_planner::ARAStarPlanner`, an anytime / bounded-suboptimal
+  `nav2_core::GlobalPlanner` in the new `nav2_ara_star_planner` package. ARA*
+  (Likhachev, Gordon and Thrun, 2003) runs weighted-A* searches with a shrinking
+  inflation factor epsilon: the first search returns a path within epsilon of
+  optimal cheaply, and later searches reuse the prior effort (OPEN + INCONS) to
+  tighten the bound toward 1 (optimal) within a per-plan expansion budget — so it
+  returns a valid path fast and keeps improving. Upstream Nav2 has no anytime /
+  bounded-suboptimal planner; this adds that capability. Fully deterministic.
+  Closed-loop gtests vs a live `Costmap2DROS` (clear map, **inflated-epsilon
+  configuration exercising the improvement loop**, off-centre gap, solid wall,
+  occupied goal, cancel), registered via pluginlib, added to CI and a bringup
+  planner_server example.
 - **Classical Lazy Theta\* any-angle global planner** —
   `nav2_lazy_theta_star_planner::LazyThetaStarPlanner`, an any-angle
   `nav2_core::GlobalPlanner` in the new `nav2_lazy_theta_star_planner` package.

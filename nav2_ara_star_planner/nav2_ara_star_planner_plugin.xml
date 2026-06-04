@@ -1,0 +1,14 @@
+<library path="nav2_ara_star_planner">
+  <class
+    type="nav2_ara_star_planner::ARAStarPlanner"
+    base_class_type="nav2_core::GlobalPlanner">
+    <description>
+      ARA* (Anytime Repairing A*) global planner. Runs weighted-A* searches with a
+      shrinking inflation factor epsilon, reusing the OPEN and INCONS lists to
+      return a bounded-suboptimal path quickly and improve it toward optimal
+      within a per-plan expansion budget. Upstream Nav2 has no anytime planner.
+      Classical (non-learned) and deterministic. Throws NoValidPathCouldBeFound if
+      no path is found.
+    </description>
+  </class>
+</library>

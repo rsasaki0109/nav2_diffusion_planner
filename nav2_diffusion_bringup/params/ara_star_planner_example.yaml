@@ -1,0 +1,25 @@
+# Example Nav2 planner_server configuration using the ARAStarPlanner, an anytime
+# (bounded-suboptimal) global planner that upstream Nav2 does not provide. Drop-in
+# replacement for the GridBased global planner plugin. See
+# nav2_ara_star_planner/README.md.
+#
+# ARA* runs weighted-A* searches with a shrinking inflation factor epsilon: the
+# first (large-epsilon) search returns a path within epsilon of optimal quickly,
+# and later searches reuse the previous effort to improve it toward optimal within
+# the per-plan expansion budget (max_iterations). Lower initial_epsilon for paths
+# closer to optimal up front; raise it for a faster first solution.
+
+planner_server:
+  ros__parameters:
+    expected_planner_frequency: 20.0
+    planner_plugins: ["GridBased"]
+    costmap_update_timeout: 1.0
+
+    GridBased:
+      plugin: "nav2_ara_star_planner::ARAStarPlanner"
+      initial_epsilon: 3.0       # starting inflation factor (>= 1)
+      epsilon_decrement: 0.5     # epsilon step between anytime iterations
+      max_iterations: 200000     # total expansion budget across all passes
+      cost_weight: 0.0           # >0 biases away from high-cost cells
+      lethal_threshold: 253      # costs >= this are obstacles (default INSCRIBED)
+      allow_unknown: true        # treat unknown costmap cells as traversable

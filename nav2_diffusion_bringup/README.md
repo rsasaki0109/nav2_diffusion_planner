@@ -18,6 +18,7 @@ example launch/config for Nav2。
 | `params/dstar_lite_planner_example.yaml` | planner_server ブロックのみの最小スニペット（classical incremental、`DStarLitePlanner`） |
 | `params/jps_planner_example.yaml` | planner_server ブロックのみの最小スニペット（classical、`JPSPlanner`） |
 | `params/lazy_theta_star_planner_example.yaml` | planner_server ブロックのみの最小スニペット（classical any-angle、`LazyThetaStarPlanner`） |
+| `params/ara_star_planner_example.yaml` | planner_server ブロックのみの最小スニペット（classical anytime、`ARAStarPlanner`） |
 | `launch/tb3_loopback_diffusion.launch.py` | loopback シムでの closed-loop demo |
 | `launch/tb3_gazebo_diffusion.launch.py` | Gazebo での closed-loop demo |
 | `launch/foxglove.launch.py` | Foxglove 可視化（`foxglove_bridge` + 候補/安全状態 marker 変換ノード） |
