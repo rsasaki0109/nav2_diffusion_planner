@@ -6,6 +6,21 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-06-04
+
+Theme: **deeper coupling and closed-loop training.** v0.7.0 made generative+classical
+complete via a *fallback* hybrid (classical only when the learned proposals fail).
+v0.8.0 explores the rest of that design space — tighter coupling and learning on the
+states the policy actually visits. The Mode B planner gains a **tightly-coupled
+guided** hybrid (`hybrid_mode: guided`): a built-in complete A* whose cell costs are
+discounted near the valid proposals, so the learned model *shapes every route* while
+the search guarantees completeness. And the training side gains a **DAgger** closed-
+loop loop (`dagger.py`) that rolls the policy out in a costmap sim, relabels visited
+states with an expert, and retrains — the principled fix for the distribution shift
+documented in `docs/generative_limits.md`. Honest scope: the guided hybrid solves
+every benchmark scenario; DAgger is committed as reusable infrastructure whose gain
+is marginal with the small model, pointing the way to bigger models + a faithful loop.
+
 ### Added
 
 - **DAgger closed-loop training loop for the Mode A trajectory model**
@@ -536,6 +551,7 @@ deterministic safety layer and a benchmark suite. Matches the v0.1 theme
   simulated LiDAR; DDS discovery flakiness). The underlying logic is unit-tested.
 - This is not a safety-certified product; see [docs/safety.md](docs/safety.md).
 
+[0.8.0]: https://github.com/rsasaki0109/nav2_experimental_planner/releases/tag/v0.8.0
 [0.7.0]: https://github.com/rsasaki0109/nav2_experimental_planner/releases/tag/v0.7.0
 [0.6.0]: https://github.com/rsasaki0109/nav2_experimental_planner/releases/tag/v0.6.0
 [0.5.0]: https://github.com/rsasaki0109/nav2_experimental_planner/releases/tag/v0.5.0
