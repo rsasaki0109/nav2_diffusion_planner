@@ -45,7 +45,7 @@ Nav2 GlobalPlanner Plugin integration（Mode B）。
 
 ## 使い方（例）
 
-planner_server の `GridBased` plugin を差し替える（既定: 組み込み `FanPathModel`）:
+コピペ用の最小例: [../nav2_diffusion_bringup/params/diffusion_global_planner_example.yaml](../nav2_diffusion_bringup/params/diffusion_global_planner_example.yaml)。planner_server の `GridBased` plugin を差し替える（既定: 組み込み `FanPathModel`）:
 
 ```yaml
 planner_server:

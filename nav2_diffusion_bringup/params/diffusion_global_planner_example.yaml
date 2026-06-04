@@ -1,0 +1,37 @@
+# Example Nav2 planner_server configuration using the DiffusionGlobalPlanner
+# (Mode B). Drop-in replacement for the GridBased global planner plugin: only
+# the GridBased block changes. See docs/architecture.md section 3.2 (Mode B) and
+# nav2_diffusion_global_planner/README.md.
+#
+# IMPORTANT: the built-in FanPathModel proposes a straight line plus a symmetric
+# detour fan, so this planner suits open / lightly-cluttered space and research
+# use; it is NOT a maze solver. On maps with walls and rooms, keep NavFn / Smac
+# (the deterministic validity layer here only rejects/selects among the fan, it
+# does not search around arbitrary obstacles). Pair Mode B with a learned
+# PathModel (OnnxPathModel) for richer proposals.
+
+planner_server:
+  ros__parameters:
+    expected_planner_frequency: 20.0
+    planner_plugins: ["GridBased"]
+    costmap_update_timeout: 1.0
+
+    GridBased:
+      plugin: "nav2_diffusion_global_planner::DiffusionGlobalPlanner"
+      num_candidates: 11          # candidate paths proposed per plan
+      num_points: 40              # waypoints per candidate
+      interpolation_resolution: 0.05   # collision-check sampling step [m]
+      allow_unknown: true        # treat unknown costmap cells as traversable
+      max_bow_fraction: 0.5      # FanPathModel max lateral bow / start-goal range
+      provide_costmap: true      # pass the global costmap to costmap-conditioned models
+
+      # Optional: load a learned generative path model via pluginlib instead of
+      # the built-in FanPathModel (requires nav2_diffusion_onnx + onnxruntime).
+      # The planner itself does not link onnxruntime.
+      #   train/export: python3 -c "from nav2_diffusion_training.path_planners \
+      #       import train_and_export_path as t; t('path.onnx')"
+      # model_plugin: "nav2_diffusion_onnx::OnnxPathModel"
+      # model_path: "/path/to/path.onnx"
+      # For a costmap-conditioned path model (train_and_export_costmap_path),
+      # the same OnnxPathModel auto-detects the 'costmap' input; keep
+      # provide_costmap: true so the global costmap is supplied.
