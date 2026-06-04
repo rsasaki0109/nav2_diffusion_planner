@@ -8,6 +8,18 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 
 ### Added
 
+- **Hybrid Mode B planner (generative propose → classical search dispose).**
+  `DiffusionGlobalPlanner` gains a `fallback_planner_plugin` parameter: when no
+  generative candidate is collision-free it delegates to a classical, complete
+  `nav2_core::GlobalPlanner` (mirroring the controller's `fallback_controller_plugin`)
+  instead of throwing. This breaks the learned model's gap-routing ceiling
+  *architecturally* — the planner uses the fast learned proposal on easy maps but
+  never regresses below a search planner on hard ones. `planner_benchmark` adds a
+  *Diffusion (Mode B, hybrid)* entry (learned + JPS fallback) that **solves every
+  scenario**: clear / side-obstacle via the generative path (12 poses), off-centre
+  gap / slalom via the JPS fallback (81 / 107 poses). New integration test
+  `HybridFallsBackToClassicalSearch` (analytic/learned alone throws on a slalom; the
+  hybrid returns a complete collision-free path). See docs/generative_limits.md.
 - **`docs/generative_limits.md`** — an empirical note mapping where the small
   synthetic learned models help (costmap side-selection in both modes; Mode A
   open-scenario goal reaching) versus where they hit their ceiling (Mode B

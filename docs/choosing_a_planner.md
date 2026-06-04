@@ -30,6 +30,7 @@
 | 非格子的な通路・広い自由空間・将来の高次元化 | **[RRT\* / RRT-Connect](../nav2_rrt_planner)** | sampling。RRT-Connect は狭路を高速に貫通（feasible）、RRT\* は漸近最適 |
 | 同一地図で多数の異なるクエリ | **[PRM](../nav2_prm_planner)** | ロードマップを再利用できる（本実装は plan ごと再構築だが将来 multi-query 向き） |
 | 学習した経路分布で multimodal 提案＋安全層検証 | **[生成型 Mode B](../nav2_diffusion_global_planner)** | モデルが K 候補を提案、costmap が検証、最短安全パス選択。解析的 fan か、[model_zoo](../model_zoo/diffusion_global) の costmap 条件付き **学習済み** flow モデル（`OnnxPathModel`）を選べる |
+| 生成の高速提案 ＋ 難所での完全性も両立 | **生成型 Mode B + `fallback_planner_plugin`（hybrid）** | learned 提案 → 無効なら classical search に委譲。簡単な地図は generative、off-centre gap 等は探索系が解く（[generative_limits.md](generative_limits.md)） |
 
 ### 決定フロー
 

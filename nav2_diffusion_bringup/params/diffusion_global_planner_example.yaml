@@ -35,3 +35,11 @@ planner_server:
       # For a costmap-conditioned path model (train_and_export_costmap_path),
       # the same OnnxPathModel auto-detects the 'costmap' input; keep
       # provide_costmap: true so the global costmap is supplied.
+
+      # Optional HYBRID: delegate to a classical, complete search when no
+      # generative candidate is collision-free. The learned model proposes (fast
+      # on easy maps); the classical planner guarantees a path on hard ones
+      # (e.g. routing through an off-centre gap), so the planner never regresses
+      # below a search planner. Any nav2_core::GlobalPlanner works. See
+      # docs/generative_limits.md.
+      # fallback_planner_plugin: "nav2_jps_planner::JPSPlanner"

@@ -11,10 +11,10 @@
 | costmap を読んで**回避側を選ぶ**（片側障害物 → 反対へ寄せる） | ✅ できる（両モード、全候補が空き側へ） | v0.6.0 出荷・end-to-end C++ テストで検証 |
 | 学習分布内の patch での**側選択の頑健性** | ✅ できる | 同上 |
 | Mode A: **open での閉ループ goal 到達** | ✅ できる（pure-pursuit 弧 expert で carrot 追従） | v0.6.0 出荷 |
-| Mode B: **off-centre gap（大迂回・スロット通過）** | ❌ 天井 | 下記参照 |
+| Mode B: **off-centre gap（大迂回・スロット通過）** | ❌ 学習単体では天井 → ✅ **ハイブリッドで解決** | 下記参照 |
 | Mode A: **障害物のスレッディング（回り込み通過）** | ❌ 天井（安全層が手前で安全停止） | 下記参照 |
 
-要点: **side-selection と open goal 到達は小型モデルでも実機構で動く**。一方 **gap-routing と obstacle-threading は探索/分布シフトの問題**で、小型・合成学習モデルの天井。これは偶然ではなく、**classical search / reactive 法が本来勝つ領域**であり、本リポジトリが 8 種の classical planner と 2 種の reactive controller を併載する理由そのもの。
+要点: **side-selection と open goal 到達は小型モデルでも実機構で動く**。一方 **gap-routing と obstacle-threading は探索/分布シフトの問題**で、小型・合成学習モデル単体の天井。これは偶然ではなく、**classical search / reactive 法が本来勝つ領域**であり、本リポジトリが 8 種の classical planner と 2 種の reactive controller を併載する理由そのもの。そして **ハイブリッド**（generative 提案 + classical fallback）はこの天井を実際に超える: Mode B の off-centre gap / slalom は learned+JPS の hybrid が解く（後述）。
 
 ## 何が効くか（v0.6.0 で出荷済み）
 
@@ -56,9 +56,9 @@ learned Mode A は open では goal 到達するが、`controller_benchmark` の
 
 1. **大容量モデル + 多様な実データ**: rosbag / sim から goal・障害物・gap 配置を広く集めて学習（[training.md](training.md)）。CNN/Transformer encoder の増強。
 2. **閉ループ学習（DAgger 等）**: 実行時に訪れる状態でラベルを足し、分布シフトに頑健化。obstacle-threading に直接効く。
-3. **ハイブリッド**: generative が**粗い waypoint / 多峰の概形**を提案し、classical（探索 or 最適化）が**精緻化・検証**する。完全性は classical、提案の多様性は generative が担う。本リポジトリの「propose / dispose」をさらに一段深める現実解。
+3. **ハイブリッド（✅ 実装済み）**: generative が提案し、無効なら classical（完全な探索）が引き継ぐ。`DiffusionGlobalPlanner` に `fallback_planner_plugin` を追加（Mode A controller の fallback と同型）。learned 提案が地図を通せないとき classical search に委譲するので、簡単な地図では高速な generative 経路を使いつつ、難所では探索系を下回らない。`planner_comparison.md` の **Diffusion (Mode B, hybrid)** 行（learned + JPS fallback）は **全シナリオを解く**: clear / side obstacle は generative（12 pose）、off-centre gap / slalom は JPS fallback（81 / 107 pose）。**これが gap-routing の天井を超える現実解**。Mode A 側にも同型の fallback（`fallback_controller_plugin`）が既にある。さらに進めるなら、提案を探索の heuristic/seed に使う密結合や、closed-loop 学習。
 4. **TensorRT / Jetson 実機検証**: [deployment.md](deployment.md) §11 / [roadmap.md](roadmap.md)。
 
 ## 結論
 
-小型・合成学習モデルでも **side-selection と open goal 到達は実機構で動く**（v0.6.0 出荷）。**gap-routing と obstacle-threading は classical が勝つ探索/分布シフトの領域**で、現状モデルの天井。この境界を正直に測れること自体が「generative propose / classical dispose」設計の価値であり、両者を同一リポジトリ・同一土俵に載せている理由である。
+小型・合成学習モデルでも **side-selection と open goal 到達は実機構で動く**（v0.6.0 出荷）。**gap-routing と obstacle-threading は classical が勝つ探索/分布シフトの領域**で、学習単体の天井。だが **ハイブリッド**（`fallback_planner_plugin`：learned 提案 → classical search が完全性を保証）はその天井を実際に超え、Mode B は全シナリオを解く。この境界を正直に測り、両者を組み合わせて最良を取れること自体が「generative propose / classical dispose」設計の価値であり、両者を同一リポジトリ・同一土俵に載せている理由である。

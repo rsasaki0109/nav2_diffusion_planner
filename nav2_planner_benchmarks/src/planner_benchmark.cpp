@@ -161,6 +161,13 @@ int main(int argc, char ** argv)
       {rclcpp::Parameter("model_plugin", std::string("nav2_diffusion_onnx::OnnxPathModel")),
         rclcpp::Parameter("model_path", learned_model),
         rclcpp::Parameter("provide_costmap", true)}},
+    {"Diffusion (Mode B, hybrid)", "nav2_diffusion_global_planner::DiffusionGlobalPlanner",
+      "generative propose + classical (JPS) fallback",
+      {rclcpp::Parameter("model_plugin", std::string("nav2_diffusion_onnx::OnnxPathModel")),
+        rclcpp::Parameter("model_path", learned_model),
+        rclcpp::Parameter("provide_costmap", true),
+        rclcpp::Parameter(
+          "fallback_planner_plugin", std::string("nav2_jps_planner::JPSPlanner"))}},
   };
 
   std::vector<Scenario> scenarios = {
@@ -191,7 +198,8 @@ int main(int argc, char ** argv)
     "(absolute numbers vary with load); compare relative magnitudes and the "
     "path-length / shape columns.\n\n";
   std::cout << "Planners (all `nav2_core::GlobalPlanner` plugins absent from "
-    "upstream Nav2 — eight classical plus two generative, analytic and learned):\n\n";
+    "upstream Nav2 — eight classical plus three generative Mode B variants: "
+    "analytic, learned, and learned+classical hybrid):\n\n";
   for (const auto & p : planners) {
     std::cout << "- **" << p.label << "** — " << p.family << "\n";
   }
@@ -200,17 +208,20 @@ int main(int argc, char ** argv)
     "The others replan from scratch each call.\n\n";
   std::cout << "> **Diffusion (Mode B)** is the generative planner — a model "
     "*proposes* candidate paths and the deterministic validity layer *disposes* of "
-    "colliding ones, keeping the shortest survivor. Two variants run here. "
+    "colliding ones, keeping the shortest survivor. Three variants run here. "
     "**analytic** uses the built-in `FanPathModel` (a symmetric bowed fan, no ONNX); "
     "**learned** loads the curated costmap-conditioned flow model from `model_zoo` "
-    "via `OnnxPathModel` (real ONNX inference). Both are generative, so unlike the "
-    "search planners they are not complete: if no proposal threads the gap they "
+    "via `OnnxPathModel` (real ONNX inference). Both are pure generative, so unlike "
+    "the search planners they are not complete: if no proposal threads the gap they "
     "report no path. The learned model reads the costmap and biases every proposal "
     "to the open side (see its model card), but its synthetic training distribution "
     "caps the detour size — so it clears *clear* and *side obstacle* yet cannot make "
-    "the 2 m swing of *off-centre gap* or the S of *slalom* that the wider analytic "
-    "fan can. The ceiling is the training data, not the architecture; richer data "
-    "lifts it and the same safety layer still gates the output.\n\n";
+    "the 2 m swing of *off-centre gap* or the S of *slalom*. The **hybrid** variant "
+    "keeps the learned proposal but adds a classical (JPS) fallback: when no "
+    "proposal threads the map it hands off to a complete search, so it solves every "
+    "scenario while still using the fast generative path on the easy ones. This is "
+    "the propose/dispose split taken one step further — learned proposes, classical "
+    "search disposes (see docs/generative_limits.md).\n\n";
 
   for (const auto & sc : scenarios) {
     std::cout << "## Scenario: " << sc.name << "\n\n";

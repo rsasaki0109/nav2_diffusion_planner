@@ -42,6 +42,7 @@ Nav2 GlobalPlanner Plugin integration（Mode B）。
 | `provide_costmap` | true | 正規化した大域 costmap を `PathContext` に詰めて costmap 条件付きモデルへ渡す（analytic モデルは無視。検証層は常に独立して衝突判定する） |
 | `model_plugin` | "" | 生成パスモデルの `PathModel` plugin 名。空で組み込み `FanPathModel` |
 | `model_path` | "" | `model_plugin` の `configure()` に渡すモデルパス（例: ONNX ファイル） |
+| `fallback_planner_plugin` | "" | 有効候補が無いとき委譲する classical `nav2_core::GlobalPlanner` 名（例: `nav2_jps_planner::JPSPlanner`）。空なら `NoValidPathCouldBeFound` を投げる。設定すると **hybrid**（learned 提案 → 完全な探索が dispose）になり、難所でも探索系を下回らない |
 
 ## 使い方（例）
 

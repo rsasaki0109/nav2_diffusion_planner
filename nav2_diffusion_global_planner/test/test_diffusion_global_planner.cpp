@@ -119,6 +119,25 @@ protected:
     }
   }
 
+  // A lethal wall at world x = wx spanning the whole height EXCEPT a free gap of
+  // half-width gap_half around gap_center.
+  static void markWallWithGap(double wx, double gap_center, double gap_half, int half_cells)
+  {
+    auto * costmap = costmap_ros_->getCostmap();
+    unsigned int cx = 0;
+    unsigned int cy = 0;
+    ASSERT_TRUE(costmap->worldToMap(wx, 3.0, cx, cy));
+    for (unsigned int my = 0; my < costmap->getSizeInCellsY(); ++my) {
+      const double wy = costmap->getOriginY() + (my + 0.5) * costmap->getResolution();
+      if (std::abs(wy - gap_center) <= gap_half) {
+        continue;
+      }
+      for (int dx = -half_cells; dx <= half_cells; ++dx) {
+        costmap->setCost(cx + dx, my, nav2_costmap_2d::LETHAL_OBSTACLE);
+      }
+    }
+  }
+
   static geometry_msgs::msg::PoseStamped pose(double x, double y)
   {
     geometry_msgs::msg::PoseStamped p;
@@ -220,4 +239,37 @@ TEST_F(DiffusionGlobalPlannerTest, CancelDuringPlanningThrows)
   EXPECT_THROW(
     planner_->createPlan(pose(1.0, 3.0), pose(5.0, 3.0), []() {return true;}),
     nav2_core::PlannerCancelled);
+}
+
+// Hybrid: a single-bow analytic/learned proposer cannot make an S-shaped slalom,
+// so without a fallback the default planner throws (asserted first). With a
+// classical (JPS) fallback configured, the same map yields a complete,
+// collision-free path — the "learned proposes, classical search disposes" hybrid.
+TEST_F(DiffusionGlobalPlannerTest, HybridFallsBackToClassicalSearch)
+{
+  clearCostmap();
+  markWallWithGap(2.2, 1.0, 0.5, 2);   // gap low
+  markWallWithGap(3.8, 5.0, 0.5, 2);   // gap high -> forces an S-shaped detour
+
+  // The default (no-fallback) planner cannot propose the S and gives up.
+  EXPECT_THROW(
+    planner_->createPlan(pose(1.0, 3.0), pose(5.0, 3.0), noCancel),
+    nav2_core::NoValidPathCouldBeFound);
+
+  // A planner with a classical fallback solves the same map.
+  if (!node_->has_parameter("HybridPlanner.fallback_planner_plugin")) {
+    node_->declare_parameter(
+      "HybridPlanner.fallback_planner_plugin",
+      rclcpp::ParameterValue(std::string("nav2_jps_planner::JPSPlanner")));
+  }
+  auto hybrid = std::make_shared<nav2_diffusion_global_planner::DiffusionGlobalPlanner>();
+  hybrid->configure(node_, "HybridPlanner", tf_, costmap_ros_);
+  hybrid->activate();
+
+  const auto plan = hybrid->createPlan(pose(1.0, 3.0), pose(5.0, 3.0), noCancel);
+  EXPECT_GE(plan.poses.size(), 2u);
+  EXPECT_TRUE(planIsCollisionFree(plan));
+
+  hybrid->deactivate();
+  hybrid->cleanup();
 }

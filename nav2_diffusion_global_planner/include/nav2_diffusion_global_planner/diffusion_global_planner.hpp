@@ -37,14 +37,21 @@ namespace nav2_diffusion_global_planner
 /// Generative global planner (Nav2 Mode B): a model proposes K candidate
 /// start->goal paths; a deterministic validity layer checks each against the
 /// global costmap and the shortest collision-free one is returned. When no
-/// candidate is collision-free, throws NoValidPathCouldBeFound so the planner
-/// server can recover/replan.
+/// candidate is collision-free, it delegates to an optional classical fallback
+/// planner (a complete search) if `fallback_planner_plugin` is set, otherwise it
+/// throws NoValidPathCouldBeFound so the planner server can recover/replan.
 ///
 /// The proposal stage is a nav2_diffusion_core::PathModel. The default is the
 /// built-in analytic FanPathModel; set `model_plugin` to load a learned model
 /// (e.g. an ONNX-backed PathModel) at runtime via pluginlib, exactly mirroring
 /// the controller's TrajectoryModel seam. No open-source generative model is
 /// currently integrated as a nav2_core::GlobalPlanner; this is that seam.
+///
+/// `fallback_planner_plugin` makes this a *hybrid* planner: the learned model
+/// proposes (fast, multimodal, costmap-biased) and a classical search disposes by
+/// guaranteeing a complete path when no proposal threads the map — so it keeps the
+/// generative proposal on easy maps but never regresses below a search planner on
+/// hard ones (e.g. routing through an off-centre gap). See docs/generative_limits.md.
 class DiffusionGlobalPlanner : public nav2_core::GlobalPlanner
 {
 public:
@@ -93,9 +100,15 @@ protected:
   bool provide_costmap_{true};
   std::string model_plugin_;
   std::string model_path_;
+  std::string fallback_planner_plugin_;
 
   std::unique_ptr<pluginlib::ClassLoader<nav2_diffusion_core::PathModel>> model_loader_;
   std::shared_ptr<nav2_diffusion_core::PathModel> model_;
+
+  // Optional classical fallback (a complete search) used when no generative
+  // candidate is collision-free — makes this a hybrid propose/search planner.
+  std::unique_ptr<pluginlib::ClassLoader<nav2_core::GlobalPlanner>> fallback_loader_;
+  std::shared_ptr<nav2_core::GlobalPlanner> fallback_planner_;
 };
 
 }  // namespace nav2_diffusion_global_planner

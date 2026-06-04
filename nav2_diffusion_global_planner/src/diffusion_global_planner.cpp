@@ -59,6 +59,8 @@ void DiffusionGlobalPlanner::configure(
     node, name_ + ".model_plugin", rclcpp::ParameterValue(std::string("")));
   declare_parameter_if_not_declared(
     node, name_ + ".model_path", rclcpp::ParameterValue(std::string("")));
+  declare_parameter_if_not_declared(
+    node, name_ + ".fallback_planner_plugin", rclcpp::ParameterValue(std::string("")));
 
   node->get_parameter(name_ + ".num_candidates", num_candidates_);
   node->get_parameter(name_ + ".num_points", num_points_);
@@ -68,6 +70,7 @@ void DiffusionGlobalPlanner::configure(
   node->get_parameter(name_ + ".provide_costmap", provide_costmap_);
   node->get_parameter(name_ + ".model_plugin", model_plugin_);
   node->get_parameter(name_ + ".model_path", model_path_);
+  node->get_parameter(name_ + ".fallback_planner_plugin", fallback_planner_plugin_);
 
   if (model_plugin_.empty()) {
     model_ = std::make_shared<nav2_diffusion_core::FanPathModel>(max_bow_fraction_);
@@ -78,6 +81,25 @@ void DiffusionGlobalPlanner::configure(
     model_->configure(model_path_);
   }
 
+  // Optional classical fallback (a complete search) for when no generative
+  // candidate is valid — the "search disposes" half of the hybrid.
+  if (!fallback_planner_plugin_.empty()) {
+    try {
+      fallback_loader_ = std::make_unique<pluginlib::ClassLoader<nav2_core::GlobalPlanner>>(
+        "nav2_core", "nav2_core::GlobalPlanner");
+      fallback_planner_ = fallback_loader_->createSharedInstance(fallback_planner_plugin_);
+      fallback_planner_->configure(parent, name_ + ".fallback", tf, costmap_ros);
+      RCLCPP_INFO(
+        logger_, "Loaded fallback planner '%s'", fallback_planner_plugin_.c_str());
+    } catch (const std::exception & ex) {
+      RCLCPP_ERROR(
+        logger_, "Failed to load fallback planner '%s': %s; will throw on no path instead",
+        fallback_planner_plugin_.c_str(), ex.what());
+      fallback_planner_.reset();
+      fallback_loader_.reset();
+    }
+  }
+
   RCLCPP_INFO(
     logger_, "DiffusionGlobalPlanner '%s' configured: model='%s', %d candidates, %d points",
     name_.c_str(), model_->name().c_str(), num_candidates_, num_points_);
@@ -85,13 +107,28 @@ void DiffusionGlobalPlanner::configure(
 
 void DiffusionGlobalPlanner::cleanup()
 {
+  if (fallback_planner_) {
+    fallback_planner_->cleanup();
+    fallback_planner_.reset();
+  }
+  fallback_loader_.reset();
   model_.reset();
   model_loader_.reset();
 }
 
-void DiffusionGlobalPlanner::activate() {}
+void DiffusionGlobalPlanner::activate()
+{
+  if (fallback_planner_) {
+    fallback_planner_->activate();
+  }
+}
 
-void DiffusionGlobalPlanner::deactivate() {}
+void DiffusionGlobalPlanner::deactivate()
+{
+  if (fallback_planner_) {
+    fallback_planner_->deactivate();
+  }
+}
 
 void DiffusionGlobalPlanner::fillCostmap(nav2_diffusion_core::PathContext & ctx) const
 {
@@ -212,6 +249,14 @@ nav_msgs::msg::Path DiffusionGlobalPlanner::createPlan(
   }
 
   if (best == nullptr) {
+    // Hybrid: no generative proposal threads the map -> hand off to the classical
+    // search, which is complete (e.g. routes through an off-centre gap).
+    if (fallback_planner_) {
+      RCLCPP_DEBUG(
+        logger_, "No valid generative candidate; delegating to fallback '%s'",
+        fallback_planner_plugin_.c_str());
+      return fallback_planner_->createPlan(start, goal, cancel_checker);
+    }
     throw nav2_core::NoValidPathCouldBeFound(
             "No collision-free candidate path among the generated proposals");
   }

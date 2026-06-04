@@ -84,6 +84,8 @@ planner_server:
 
 このモデルは costmap を読んで提案を空き側へ寄せる（挙動と限界は [model_card](../model_zoo/diffusion_global/model_card.md)、横断比較は [planner_comparison.md](planner_comparison.md) の *Mode B, learned* 行）。`OnnxPathModel` は `nav2_diffusion_onnx` + onnxruntime が必要。
 
+さらに `fallback_planner_plugin: "nav2_jps_planner::JPSPlanner"` を足すと **hybrid**（learned 提案 → 有効候補が無ければ classical search が完全性を保証）になり、off-centre gap のような難所も解ける（比較表の *Mode B, hybrid* 行は全シナリオ通過、[generative_limits.md](generative_limits.md)）。
+
 ### reactive Controller を差し替える（controller_server）
 
 ```yaml
