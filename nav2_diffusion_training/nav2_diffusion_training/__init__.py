@@ -1,4 +1,4 @@
-# Copyright 2026 nav2_diffusion_planner contributors
+# Copyright 2026 nav2_experimental_planner contributors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Training dataset tools for nav2_diffusion_planner."""
+"""Training dataset tools for nav2_experimental_planner."""
 
 from nav2_diffusion_training.dataset import (
     build_samples,

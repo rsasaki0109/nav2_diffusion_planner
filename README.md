@@ -4,11 +4,11 @@
 
 <p align="center"><em>実際のパイプライン出力: 生成モデルが multimodal 候補を提案し、footprint 安全層が障害物 inflation 帯（赤い領域）に入る候補（赤線）を棄却し、scorer が最良候補（緑）を選んでクリアランスを保ちつつ回避。</em></p>
 
-# nav2_diffusion_planner
+# nav2_experimental_planner
 
-[![CI](https://github.com/rsasaki0109/nav2_diffusion_planner/actions/workflows/ci.yml/badge.svg)](https://github.com/rsasaki0109/nav2_diffusion_planner/actions/workflows/ci.yml)
+[![CI](https://github.com/rsasaki0109/nav2_experimental_planner/actions/workflows/ci.yml/badge.svg)](https://github.com/rsasaki0109/nav2_experimental_planner/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/rsasaki0109/nav2_diffusion_planner)](https://github.com/rsasaki0109/nav2_diffusion_planner/releases)
+[![Release](https://img.shields.io/github/v/release/rsasaki0109/nav2_experimental_planner)](https://github.com/rsasaki0109/nav2_experimental_planner/releases)
 [![ROS 2 Jazzy](https://img.shields.io/badge/ROS_2-Jazzy-22314E?logo=ros&logoColor=white)](https://docs.ros.org/en/jazzy/)
 
 **Nav2向け Generative Navigation Framework**
@@ -16,7 +16,7 @@
 > Learned models propose. Classical safety disposes. Nav2 executes.
 > （生成モデルは候補を出す。安全層は候補を落とす。Nav2 は実行する。）
 
-`nav2_diffusion_planner` は Nav2 を置き換えるプロジェクトではありません。Nav2 の既存アーキテクチャ（Behavior Tree / Lifecycle Node / Planner・Controller Plugin / Costmap / Collision Monitor）を最大限活かしたうえで、その上に **Diffusion / Flow Matching / Consistency / Transformer / World Model 系の生成型ナビゲーションモデルを安全に接続する** ための OSS 基盤です。
+`nav2_experimental_planner` は Nav2 を置き換えるプロジェクトではありません。Nav2 の既存アーキテクチャ（Behavior Tree / Lifecycle Node / Planner・Controller Plugin / Costmap / Collision Monitor）を最大限活かしたうえで、その上に **Diffusion / Flow Matching / Consistency / Transformer / World Model 系の生成型ナビゲーションモデルを安全に接続する** ための OSS 基盤です。
 
 - **Scope:** AMR / Delivery Robot / Warehouse Robot / Service Robot
 - **Out of Scope:** Manipulation, MoveIt, Humanoid, Full VLA, Multi-Agent Planning（主目的としては扱わない）
@@ -56,7 +56,7 @@ Nav2 は ROS 2 移動ロボット開発の事実上の実用基盤であり、Sm
 
 ## Final Architecture Position
 
-`nav2_diffusion_planner` の正しい初期形は次です。
+`nav2_experimental_planner` の正しい初期形は次です。
 
 > **Nav2 Controller Plugin として動く、costmap-conditioned generative trajectory proposal framework。**
 

@@ -4,7 +4,7 @@
   <name>nav2_diffusion_core</name>
   <version>0.3.0</version>
   <description>
-    ROS-independent core types and utilities for nav2_diffusion_planner:
+    ROS-independent core types and utilities for nav2_experimental_planner:
     time-indexed SE(2) trajectory representation and shared helpers. See
     docs/architecture.md sections 3.3 and 4.4.
   </description>

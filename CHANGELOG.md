@@ -187,6 +187,6 @@ deterministic safety layer and a benchmark suite. Matches the v0.1 theme
   simulated LiDAR; DDS discovery flakiness). The underlying logic is unit-tested.
 - This is not a safety-certified product; see [docs/safety.md](docs/safety.md).
 
-[0.3.0]: https://github.com/rsasaki0109/nav2_diffusion_planner/releases/tag/v0.3.0
-[0.2.0]: https://github.com/rsasaki0109/nav2_diffusion_planner/releases/tag/v0.2.0
-[0.1.0]: https://github.com/rsasaki0109/nav2_diffusion_planner/releases/tag/v0.1.0
+[0.3.0]: https://github.com/rsasaki0109/nav2_experimental_planner/releases/tag/v0.3.0
+[0.2.0]: https://github.com/rsasaki0109/nav2_experimental_planner/releases/tag/v0.2.0
+[0.1.0]: https://github.com/rsasaki0109/nav2_experimental_planner/releases/tag/v0.1.0

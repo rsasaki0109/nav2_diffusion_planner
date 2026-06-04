@@ -4,7 +4,7 @@
   <name>nav2_diffusion_safety</name>
   <version>0.3.0</version>
   <description>
-    Deterministic, GPU-independent safety layer for nav2_diffusion_planner.
+    Deterministic, GPU-independent safety layer for nav2_experimental_planner.
     Validates generative trajectory candidates (kinematic limits, collision,
     stale data) before execution. See docs/safety.md.
   </description>

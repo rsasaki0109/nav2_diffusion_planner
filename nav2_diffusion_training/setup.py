@@ -14,7 +14,7 @@ setup(
     zip_safe=True,
     maintainer='Ryohei Sasaki',
     maintainer_email='rsasaki0109@gmail.com',
-    description='Dataset and training tools for nav2_diffusion_planner.',
+    description='Dataset and training tools for nav2_experimental_planner.',
     license='Apache-2.0',
     tests_require=['pytest'],
     entry_points={

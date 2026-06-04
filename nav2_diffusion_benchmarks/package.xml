@@ -4,7 +4,7 @@
   <name>nav2_diffusion_benchmarks</name>
   <version>0.3.0</version>
   <description>
-    Benchmark scenarios, metrics, and reports for nav2_diffusion_planner. Lets
+    Benchmark scenarios, metrics, and reports for nav2_experimental_planner. Lets
     DiffusionController be compared fairly against MPPI / RPP / Smac on the same
     scenarios. See docs/benchmarking.md.
   </description>

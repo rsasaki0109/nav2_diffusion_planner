@@ -4,7 +4,7 @@
   <name>nav2_diffusion_onnx</name>
   <version>0.3.0</version>
   <description>
-    Optional ONNX Runtime inference backend for nav2_diffusion_planner: an
+    Optional ONNX Runtime inference backend for nav2_experimental_planner: an
     OnnxTrajectoryModel implementing nav2_diffusion_core::TrajectoryModel
     (docs/architecture.md sections 5.2/7.2). Requires onnxruntime to be findable
     by CMake (onnxruntime_vendor, a system install, or CMAKE_PREFIX_PATH); it is

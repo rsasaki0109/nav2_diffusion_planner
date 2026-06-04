@@ -2,7 +2,7 @@
 
 > 対象: 既存の Nav2 ユーザー。関連: [architecture.md](architecture.md) §3.2 Mode A、[simulation.md](simulation.md)、[../nav2_diffusion_bringup/README.md](../nav2_diffusion_bringup/README.md)
 
-`nav2_diffusion_planner` は、Nav2 の Controller を差し替えるだけで生成型ローカルプランナを試せます。「Learned models propose. Classical safety disposes. Nav2 executes.」
+`nav2_experimental_planner` は、Nav2 の Controller を差し替えるだけで生成型ローカルプランナを試せます。「Learned models propose. Classical safety disposes. Nav2 executes.」
 
 ## 必要環境
 
