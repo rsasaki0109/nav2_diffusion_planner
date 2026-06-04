@@ -1,0 +1,14 @@
+<library path="nav2_prm_planner">
+  <class
+    type="nav2_prm_planner::PRMPlanner"
+    base_class_type="nav2_core::GlobalPlanner">
+    <description>
+      Probabilistic Roadmap (PRM) global planner. Samples collision-free
+      milestones over the global costmap, connects nearby milestones with
+      collision-free edges into a graph, adds the start and goal, and returns the
+      shortest path found by Dijkstra search over the roadmap. Classical
+      (non-learned) and not part of upstream Nav2. Throws NoValidPathCouldBeFound
+      if start and goal are not connected in the roadmap.
+    </description>
+  </class>
+</library>

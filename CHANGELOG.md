@@ -8,6 +8,15 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 
 ### Added
 
+- **Classical PRM global planner** — `nav2_prm_planner::PRMPlanner`, a
+  Probabilistic Roadmap `nav2_core::GlobalPlanner` in the new `nav2_prm_planner`
+  package. Samples collision-free milestones over the global costmap, wires
+  nearby ones (k-nearest within a radius, collision-free edges) into an
+  undirected graph, splices in the start and goal, and returns the shortest path
+  by Dijkstra search. Adds the roadmap family Nav2's search-only global planners
+  lack. Deterministic for a fixed `random_seed`. Closed-loop gtests vs a live
+  `Costmap2DROS` (clear map, off-centre gap, solid wall, occupied goal, cancel),
+  registered via pluginlib, added to CI and a bringup planner_server example.
 - **Classical RRT-Connect global planner** — `nav2_rrt_planner::RRTConnectPlanner`,
   a bidirectional sampling-based `nav2_core::GlobalPlanner` (second planner in the
   `nav2_rrt_planner` package). Grows trees from both the start and the goal and

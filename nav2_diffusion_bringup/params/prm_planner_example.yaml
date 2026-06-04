@@ -1,0 +1,24 @@
+# Example Nav2 planner_server configuration using the PRMPlanner, a
+# sampling-based Probabilistic Roadmap global planner that upstream Nav2 does not
+# provide (it ships only NavFn / Smac / Theta*, all search-based). Drop-in
+# replacement for the GridBased global planner plugin. See
+# nav2_prm_planner/README.md.
+#
+# PRM samples collision-free milestones, wires nearby ones into a graph, and runs
+# Dijkstra over it — so it can route through gaps and around walls on cluttered
+# maps. For tree-based sampling planners see nav2_rrt_planner (RRT* / RRT-Connect).
+
+planner_server:
+  ros__parameters:
+    expected_planner_frequency: 20.0
+    planner_plugins: ["GridBased"]
+    costmap_update_timeout: 1.0
+
+    GridBased:
+      plugin: "nav2_prm_planner::PRMPlanner"
+      num_samples: 500            # collision-free milestones to sample
+      connection_radius: 1.5      # max edge length when wiring the graph [m]
+      max_neighbours: 10          # max edges per milestone (k-nearest cap)
+      interpolation_resolution: 0.05   # edge collision-check step [m]
+      allow_unknown: true        # treat unknown costmap cells as traversable
+      random_seed: 1             # fixed sampler seed for reproducibility
