@@ -39,6 +39,15 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
   given device (e.g. `'cuda'`) and always exports on CPU for a portable artifact.
 
 ### Documentation
+- `docs/simulation.md` §10.5 — verified headless Gazebo bring-up. An actual run of
+  `tb3_gazebo_diffusion.launch.py` confirms gz renders the GPU LiDAR (`/scan`
+  count 360, the `libEGL ... dri2` warning is non-fatal), the ros_gz bridges and
+  the Nav2 stack load, and `FollowPath` is the DiffusionController. Documents the
+  two blockers to a fully automated closed-loop numbers run in a restricted
+  sandbox (localization needs an initial pose; the DDS layer rejects external
+  processes — Fast DDS `/dev/shm` lock failure, CycloneDDS participant-index
+  failure) and the path to finish it (an in-launch mission node + a DDS-capable
+  host). `docs/next_phase.md` 段3 cross-references it.
 - `docs/next_phase.md` — an execution plan for the data-/environment-dependent
   next phase. Consolidates the future-work threads scattered across the roadmap and
   `generative_limits.md` into prerequisites → ordered stages (faithful closed-loop
