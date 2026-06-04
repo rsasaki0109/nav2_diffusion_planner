@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>nav2_planner_benchmarks</name>
+  <version>0.3.0</version>
+  <description>
+    Offline comparison of the classical nav2_core::GlobalPlanner plugins in
+    nav2_experimental_planner (RRT*, RRT-Connect, PRM, D* Lite, JPS, Lazy Theta*,
+    ARA*, visibility graph) on shared scenarios against a live Costmap2DROS,
+    writing a Markdown leaderboard (docs/planner_comparison.md).
+  </description>
+
+  <maintainer email="rsasaki0109@gmail.com">Ryohei Sasaki</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>rclcpp_lifecycle</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>nav2_core</depend>
+  <depend>nav2_costmap_2d</depend>
+  <depend>pluginlib</depend>
+  <depend>tf2_ros</depend>
+
+  <!-- Planner plugins loaded at runtime by class name. -->
+  <exec_depend>nav2_rrt_planner</exec_depend>
+  <exec_depend>nav2_prm_planner</exec_depend>
+  <exec_depend>nav2_dstar_lite_planner</exec_depend>
+  <exec_depend>nav2_jps_planner</exec_depend>
+  <exec_depend>nav2_lazy_theta_star_planner</exec_depend>
+  <exec_depend>nav2_ara_star_planner</exec_depend>
+  <exec_depend>nav2_visibility_graph_planner</exec_depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

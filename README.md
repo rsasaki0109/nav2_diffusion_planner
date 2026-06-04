@@ -18,7 +18,7 @@
 
 `nav2_experimental_planner` は Nav2 を置き換えるプロジェクトではありません。Nav2 の既存アーキテクチャ（Behavior Tree / Lifecycle Node / Planner・Controller Plugin / Costmap / Collision Monitor）を最大限活かしたうえで、その上に **Diffusion / Flow Matching / Consistency / Transformer / World Model 系の生成型ナビゲーションモデルを安全に接続する** ための OSS 基盤です。
 
-加えて、**Nav2 公式に無い planner（生成型に限らず classical も）** を実験的に収録します。Nav2 がもたない classical planner として、**サンプリングベース**の **RRT\***（asymptotically optimal）と **RRT-Connect**（双方向・狭路で高速）を [nav2_rrt_planner](nav2_rrt_planner) に、**PRM**（Probabilistic Roadmap）を [nav2_prm_planner](nav2_prm_planner) に、**インクリメンタル探索**の **D\* Lite**（変化セルだけ修復し再計画コストを抑える）を [nav2_dstar_lite_planner](nav2_dstar_lite_planner) に、**グリッド探索高速化**の **JPS**（Jump Point Search、対称性枝刈りで A\* を高速化）を [nav2_jps_planner](nav2_jps_planner) に、**any-angle** の **Lazy Theta\***（グリッド方向に縛られない直線経路、LOS 判定を遅延）を [nav2_lazy_theta_star_planner](nav2_lazy_theta_star_planner) に、**anytime** の **ARA\***（時間予算内で bounded-suboptimal な解を漸進改善）を [nav2_ara_star_planner](nav2_ara_star_planner) に、**幾何（連続空間）**の **visibility graph**（障害物の凸コーナーを結ぶ厳密な直線最短）を [nav2_visibility_graph_planner](nav2_visibility_graph_planner) に、それぞれ nav2_core::GlobalPlanner として実装済み。
+加えて、**Nav2 公式に無い planner（生成型に限らず classical も）** を実験的に収録します。Nav2 がもたない classical planner として、**サンプリングベース**の **RRT\***（asymptotically optimal）と **RRT-Connect**（双方向・狭路で高速）を [nav2_rrt_planner](nav2_rrt_planner) に、**PRM**（Probabilistic Roadmap）を [nav2_prm_planner](nav2_prm_planner) に、**インクリメンタル探索**の **D\* Lite**（変化セルだけ修復し再計画コストを抑える）を [nav2_dstar_lite_planner](nav2_dstar_lite_planner) に、**グリッド探索高速化**の **JPS**（Jump Point Search、対称性枝刈りで A\* を高速化）を [nav2_jps_planner](nav2_jps_planner) に、**any-angle** の **Lazy Theta\***（グリッド方向に縛られない直線経路、LOS 判定を遅延）を [nav2_lazy_theta_star_planner](nav2_lazy_theta_star_planner) に、**anytime** の **ARA\***（時間予算内で bounded-suboptimal な解を漸進改善）を [nav2_ara_star_planner](nav2_ara_star_planner) に、**幾何（連続空間）**の **visibility graph**（障害物の凸コーナーを結ぶ厳密な直線最短）を [nav2_visibility_graph_planner](nav2_visibility_graph_planner) に、それぞれ nav2_core::GlobalPlanner として実装済み。これら 8 種を同一シナリオで比較したオフライン表は [docs/planner_comparison.md](docs/planner_comparison.md)（`nav2_planner_benchmarks` で再現可能）。
 
 - **Scope:** AMR / Delivery Robot / Warehouse Robot / Service Robot
 - **Out of Scope:** Manipulation, MoveIt, Humanoid, Full VLA, Multi-Agent Planning（主目的としては扱わない）
@@ -148,6 +148,7 @@ flowchart LR
 | [docs/contributing.md](docs/contributing.md) | 貢献ガイド（plugin / model / benchmark 追加） |
 | [docs/model_zoo.md](docs/model_zoo.md) | Model Zoo（model card / manifest 一覧） |
 | [docs/model_comparison.md](docs/model_comparison.md) | 6生成系のオフライン比較 leaderboard（`tools/benchmark_models.py` 自動生成） |
+| [docs/planner_comparison.md](docs/planner_comparison.md) | classical GlobalPlanner 8種のオフライン比較（経路長/pose/時間。`nav2_planner_benchmarks` 自動生成） |
 | [docs/visualization.md](docs/visualization.md) | RViz / Foxglove 可視化（候補軌道・安全状態・cmd_vel、Foxglove レイアウト同梱） |
 
 ---

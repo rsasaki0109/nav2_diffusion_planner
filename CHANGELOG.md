@@ -8,6 +8,15 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 
 ### Added
 
+- **Classical planner comparison benchmark** — `nav2_planner_benchmarks`
+  (`planner_benchmark` executable) loads all eight classical
+  `nav2_core::GlobalPlanner` plugins via pluginlib and runs them on shared
+  scenarios (clear, off-centre gap, slalom) against a live `Costmap2DROS`,
+  recording success, path length, pose count, and median plan time, and writes
+  `docs/planner_comparison.md`. Shows the trade-offs at a glance: RRT-Connect is
+  fastest but its paths are longest; Lazy Theta* / visibility graph give the
+  shortest (any-angle) paths; D* Lite's warm incremental replans are cheap; RRT*
+  is near-optimal but slow to converge.
 - **Classical visibility-graph global planner** —
   `nav2_visibility_graph_planner::VisibilityGraphPlanner`, a continuous-space
   geometric `nav2_core::GlobalPlanner` in the new `nav2_visibility_graph_planner`
