@@ -1,0 +1,22 @@
+# Example Nav2 planner_server configuration using the DStarLitePlanner, an
+# incremental-search global planner that upstream Nav2 does not provide (it ships
+# only NavFn / Smac / Theta*, which replan from scratch each cycle). Drop-in
+# replacement for the GridBased global planner plugin. See
+# nav2_dstar_lite_planner/README.md.
+#
+# D* Lite searches the 8-connected costmap grid backward from the goal and caches
+# g/rhs values, so on the next cycle it repairs only the vertices whose costs
+# changed instead of recomputing the whole field — cheap when the costmap changes
+# little between plans (newly seen obstacles, dynamic agents).
+
+planner_server:
+  ros__parameters:
+    expected_planner_frequency: 20.0
+    planner_plugins: ["GridBased"]
+    costmap_update_timeout: 1.0
+
+    GridBased:
+      plugin: "nav2_dstar_lite_planner::DStarLitePlanner"
+      cost_weight: 3.0           # how strongly to avoid high-cost cells
+      heuristic_weight: 1.0      # <=1 keeps the heuristic admissible
+      allow_unknown: true        # treat unknown costmap cells as traversable

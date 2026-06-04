@@ -1,0 +1,14 @@
+<library path="nav2_dstar_lite_planner">
+  <class
+    type="nav2_dstar_lite_planner::DStarLitePlanner"
+    base_class_type="nav2_core::GlobalPlanner">
+    <description>
+      D* Lite incremental-search global planner. Searches the 8-connected costmap
+      grid backward from the goal, caches g/rhs values, and on later plans
+      repairs only the vertices whose edge costs changed (plus a priority-key
+      shift for the moved robot) instead of replanning from scratch. Classical
+      (non-learned) and not part of upstream Nav2. Throws NoValidPathCouldBeFound
+      if no path is found.
+    </description>
+  </class>
+</library>

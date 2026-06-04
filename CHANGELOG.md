@@ -8,6 +8,19 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 
 ### Added
 
+- **Classical D\* Lite incremental global planner** —
+  `nav2_dstar_lite_planner::DStarLitePlanner`, an incremental-search
+  `nav2_core::GlobalPlanner` in the new `nav2_dstar_lite_planner` package.
+  Upstream Nav2's global planners (NavFn, Smac, Theta*) replan from scratch every
+  cycle; D* Lite (Koenig & Likhachev, 2002) searches the 8-connected costmap grid
+  backward from the goal, caches g/rhs values across `createPlan` calls, and on
+  the next plan shifts the priority keys for the moved robot (`km`) and repairs
+  only the vertices whose costs changed since the last snapshot — far cheaper when
+  the costmap changes little between cycles. Adds the incremental family Nav2
+  lacks. Fully deterministic. Closed-loop gtests vs a live `Costmap2DROS` (clear
+  map, off-centre gap, **incremental replan that reuses cached state to avoid a
+  newly dropped wall**, solid wall, occupied goal, cancel), registered via
+  pluginlib, added to CI and a bringup planner_server example.
 - **Classical PRM global planner** — `nav2_prm_planner::PRMPlanner`, a
   Probabilistic Roadmap `nav2_core::GlobalPlanner` in the new `nav2_prm_planner`
   package. Samples collision-free milestones over the global costmap, wires
