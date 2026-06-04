@@ -1,0 +1,14 @@
+<library path="nav2_nd_controller">
+  <class
+    type="nav2_nd_controller::NDController"
+    base_class_type="nav2_core::Controller">
+    <description>
+      Nearness Diagram (ND) reactive local controller. Scans the costmap into a
+      per-sector obstacle-nearness diagram, selects a navigable gap toward the
+      goal, and applies a safety deflection that steers away from close obstacles
+      (corridor centring). A different reactive paradigm from VFH+. Classical
+      (non-learned) and not part of upstream Nav2. Stops when no plan is set or the
+      goal is reached.
+    </description>
+  </class>
+</library>

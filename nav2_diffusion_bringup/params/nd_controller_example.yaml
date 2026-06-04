@@ -1,0 +1,32 @@
+# Example Nav2 controller_server configuration using the NDController, a reactive
+# Nearness Diagram local controller that upstream Nav2 does not provide (it ships
+# DWB, MPPI, Regulated Pure Pursuit). Drop-in replacement for the FollowPath
+# controller plugin. See nav2_nd_controller/README.md.
+#
+# ND reasons about per-sector obstacle nearness, picks a navigable gap toward the
+# goal, and adds a safety deflection that steers away from close obstacles so the
+# robot centres itself in corridors. A different reactive paradigm from VFH+
+# (see nav2_vfh_controller). Treats the costmap as binary free/blocked.
+
+controller_server:
+  ros__parameters:
+    controller_frequency: 20.0
+    controller_plugins: ["FollowPath"]
+
+    FollowPath:
+      plugin: "nav2_nd_controller::NDController"
+      num_sectors: 72            # polar diagram resolution (sectors over 360 deg)
+      active_window: 2.0         # scan radius around the robot [m]
+      obstacle_threshold: 253    # costs >= this count as obstacles (default INSCRIBED)
+      allow_unknown: true        # treat unknown costmap cells as traversable
+      robot_radius: 0.2          # collision clearance radius [m]
+      safety_distance: 0.1       # extra clearance margin [m]
+      security_distance: 0.4     # obstacles closer than this trigger deflection / block sectors
+      min_region_sectors: 3      # min navigable width to count as a gap
+      lookahead_distance: 0.6    # carrot distance along the global plan [m]
+      max_linear_speed: 0.5      # [m/s]
+      max_angular_speed: 1.5     # [rad/s]
+      angular_gain: 1.5          # proportional steering gain
+      deflection_gain: 1.0       # safety-deflection strength
+      slow_distance: 0.6         # front clearance below which linear is scaled [m]
+      goal_dist_tolerance: 0.25  # stop within this distance of the goal [m]

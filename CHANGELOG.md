@@ -6,6 +6,21 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 
 ## [Unreleased]
 
+### Added
+
+- **Classical ND (Nearness Diagram) local controller** —
+  `nav2_nd_controller::NDController`, a second reactive `nav2_core::Controller`
+  (a different paradigm from VFH+). ND (Minguez & Montano, 2004) scores per-sector
+  obstacle nearness, selects a navigable gap toward the goal, and adds a *safety
+  deflection* that steers away from whichever side has a close obstacle — so the
+  robot centres itself in corridors and squeezes through tight gaps, the
+  behaviour that distinguishes ND from a histogram valley-cost method. Simplified
+  ND (per-sector nearest distance + region/gap selection + symmetric deflection).
+  Upstream Nav2 has neither ND nor VFH. Deterministic. Closed-loop gtests vs a
+  live `Costmap2DROS` (clear path, frontal obstacle, **deflection away from a
+  close right-side obstacle**, no plan, at goal), registered via pluginlib, added
+  to CI and a bringup controller_server example.
+
 ## [0.4.0] - 2026-06-04
 
 Theme: **classical planners Nav2 lacks.** The repo was renamed
