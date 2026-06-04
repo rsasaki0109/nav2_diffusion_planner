@@ -6,6 +6,20 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-06-04
+
+Theme: **hybrid — generative proposes, classical disposes (and completes).** v0.6.0
+put the first learned models in the loop and was honest that small synthetic models
+hit a ceiling on gap-routing (Mode B) and obstacle-threading (Mode A). v0.7.0 breaks
+that ceiling *architecturally* rather than by overfitting a tiny model: each mode
+gains a classical fallback, so the learned model proposes (fast, multimodal,
+costmap-biased on the easy cases) and a complete classical method disposes by
+guaranteeing a result on the hard ones. The Mode B planner falls back to a classical
+search (JPS); the Mode A controller falls back to a classical reactive controller
+(VFH+). Both now **reach the goal / return a valid path in every benchmark
+scenario** via propose→dispose, and `docs/generative_limits.md` documents where the
+learned models help, where they hit their ceiling, and how the hybrid passes it.
+
 ### Added
 
 - **Hybrid Mode A controller (generative propose → classical reactive dispose).**
@@ -494,6 +508,7 @@ deterministic safety layer and a benchmark suite. Matches the v0.1 theme
   simulated LiDAR; DDS discovery flakiness). The underlying logic is unit-tested.
 - This is not a safety-certified product; see [docs/safety.md](docs/safety.md).
 
+[0.7.0]: https://github.com/rsasaki0109/nav2_experimental_planner/releases/tag/v0.7.0
 [0.6.0]: https://github.com/rsasaki0109/nav2_experimental_planner/releases/tag/v0.6.0
 [0.5.0]: https://github.com/rsasaki0109/nav2_experimental_planner/releases/tag/v0.5.0
 [0.4.0]: https://github.com/rsasaki0109/nav2_experimental_planner/releases/tag/v0.4.0

@@ -2,7 +2,7 @@
 
 > 関連: [architecture.md](architecture.md)、[risks.md](risks.md)
 
-## 実装状況（v0.6.0 時点）
+## 実装状況（v0.7.0 時点）
 
 以下は計画（後続セクション）に対する現状サマリ。一部は計画を先取りして実装済み。なお
 v0.4.0 以降、リポジトリの charter は「生成型」から「**Nav2 公式に無い実験的 planner 全般
@@ -13,6 +13,10 @@ v0.6.0 で **初の学習済みモデルがループに入った**: [model_zoo](
 （trajectory）/ Mode B（path）の costmap 条件付き flow モデルを収録し、実 C++ ONNX 推論で
 稼働（learned Mode A は open シナリオで閉ループ goal 到達）。これで「学習パイプライン →
 ONNX → C++ 推論 → 安全層 → Nav2」が placeholder でなく実モデルで一周した。
+v0.7.0 で **ハイブリッド**を追加: 各モードに classical fallback（Mode B=探索 JPS、
+Mode A=reactive VFH+）を入れ、learned が提案・無効なら classical が完全性を担保する形で
+**両モードとも全シナリオ解決**。小型学習モデルの天井（gap-routing / obstacle-threading）を
+設計で超えた（[generative_limits.md](generative_limits.md)）。
 
 | 項目 | 計画 | 状況 |
 |---|---|---|
