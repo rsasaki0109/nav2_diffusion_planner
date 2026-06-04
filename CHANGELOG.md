@@ -6,6 +6,18 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-04
+
+Theme: **classical planners Nav2 lacks.** The repo was renamed
+`nav2_diffusion_planner` -> `nav2_experimental_planner` to reflect a broader
+charter: host experimental planners not in upstream Nav2, generative *and*
+classical. This release adds eight classical `nav2_core::GlobalPlanner` families
+spanning every major paradigm (sampling, incremental, grid-A* speed-up,
+any-angle, anytime, geometric), the first classical `nav2_core::Controller`
+(VFH+), and an offline comparison benchmark across all eight global planners.
+"Learned models propose. Classical safety disposes. Nav2 executes" — now with a
+classical bench deep enough to be the disposer.
+
 ### Added
 
 - **Classical VFH+ local controller** — `nav2_vfh_controller::VFHController`, a
@@ -303,6 +315,7 @@ deterministic safety layer and a benchmark suite. Matches the v0.1 theme
   simulated LiDAR; DDS discovery flakiness). The underlying logic is unit-tested.
 - This is not a safety-certified product; see [docs/safety.md](docs/safety.md).
 
+[0.4.0]: https://github.com/rsasaki0109/nav2_experimental_planner/releases/tag/v0.4.0
 [0.3.0]: https://github.com/rsasaki0109/nav2_experimental_planner/releases/tag/v0.3.0
 [0.2.0]: https://github.com/rsasaki0109/nav2_experimental_planner/releases/tag/v0.2.0
 [0.1.0]: https://github.com/rsasaki0109/nav2_experimental_planner/releases/tag/v0.1.0

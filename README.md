@@ -155,6 +155,6 @@ flowchart LR
 
 ## Status
 
-**v0.3.0** — Nav2 Controller Plugin（generative local controller、Mode A）+ **Nav2 GlobalPlanner Plugin（generative global planner、Mode B）** + 決定論的安全層 + ONNX バックエンド + **3生成系（flow / diffusion / consistency）** + **costmap+goal 条件付け** + 学習パイプライン + RViz 可視化 + benchmark suite。変更履歴は [CHANGELOG.md](CHANGELOG.md)、今後の計画は [docs/roadmap.md](docs/roadmap.md)。API は 1.0.0 まで安定化されていません。
+**v0.4.0** — リポジトリを `nav2_experimental_planner` に改称し、**Nav2 公式に無い classical planner 群**を追加: **8 種の classical GlobalPlanner**（RRT\* / RRT-Connect / PRM / D\* Lite / JPS / Lazy Theta\* / ARA\* / visibility graph）+ 初の **classical Controller（VFH+）** + 8 GlobalPlanner の同一シナリオ比較ベンチマーク（[docs/planner_comparison.md](docs/planner_comparison.md)）。これに v0.3.0 までの生成系（Mode A controller / Mode B global planner + 決定論的安全層 + ONNX + flow/diffusion/consistency + costmap 条件付け + 学習パイプライン + RViz/Foxglove 可視化）が加わる。変更履歴は [CHANGELOG.md](CHANGELOG.md)、今後の計画は [docs/roadmap.md](docs/roadmap.md)。API は 1.0.0 まで安定化されていません。
 
 > ⚠️ この OSS は安全認証済み製品ではありません。実機導入者は hardware EStop、速度制限、ODD（Operational Design Domain）定義、現場 risk assessment を必ず行ってください。詳細は [docs/safety.md](docs/safety.md) を参照。
