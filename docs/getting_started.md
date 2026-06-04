@@ -96,6 +96,18 @@ controller_server:
 
 例: `vfh_controller_example.yaml` / `nd_controller_example.yaml`。
 
+生成型 Mode A(`nav2_diffusion_controller::DiffusionController`)も**学習済み軌道モデル**に差し替えられる。[model_zoo](../model_zoo/diffusion_local) の costmap 条件付き flow モデルを使うには:
+
+```yaml
+    FollowPath:
+      plugin: "nav2_diffusion_controller::DiffusionController"
+      model_plugin: "nav2_diffusion_onnx::OnnxTrajectoryModel"
+      model_path: "/path/to/model_zoo/diffusion_local/costmap_flow.onnx"
+      costmap_patch_size: 32          # egocentric patch をモデルへ渡す
+```
+
+モデルが costmap を読んで障害物の反対側へ軌道を提案し、決定論的安全層(kinematic + footprint)が検証する。挙動と限界(小型研究モデルで閉ループ完走は不安定)は [model_card](../model_zoo/diffusion_local/model_card.md) を参照。`OnnxTrajectoryModel` は `nav2_diffusion_onnx` + onnxruntime が必要。
+
 ### 登録確認
 
 ```bash

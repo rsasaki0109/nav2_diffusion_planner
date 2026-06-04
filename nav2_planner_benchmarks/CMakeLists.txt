@@ -38,11 +38,17 @@ install(
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
-# The curated learned Mode B model (model_zoo) is installed so planner_benchmark
-# can load it at runtime via OnnxPathModel.
+# The curated learned models (model_zoo) are installed so the benchmarks can load
+# them at runtime: Mode B (planner_benchmark / OnnxPathModel) and Mode A
+# (controller_benchmark / OnnxTrajectoryModel).
 install(
   FILES ${CMAKE_CURRENT_SOURCE_DIR}/../model_zoo/diffusion_global/costmap_flow.onnx
   DESTINATION share/${PROJECT_NAME}/models
+)
+install(
+  FILES ${CMAKE_CURRENT_SOURCE_DIR}/../model_zoo/diffusion_local/costmap_flow.onnx
+  DESTINATION share/${PROJECT_NAME}/models
+  RENAME diffusion_local_costmap_flow.onnx
 )
 
 if(BUILD_TESTING)

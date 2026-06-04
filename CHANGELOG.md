@@ -8,6 +8,26 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 
 ### Added
 
+- **Learned model in the loop for Mode A (local controller).** The headline
+  "learned models propose trajectories" mode now has a curated trained model:
+  [`model_zoo/diffusion_local/`](model_zoo/diffusion_local) ships a
+  costmap-conditioned flow **trajectory** model (`costmap_flow.onnx`, ≈268 KB, with
+  manifest / model card / reproducible `export.py`) that runs end-to-end through
+  `nav2_diffusion_controller::DiffusionController` →
+  `nav2_diffusion_onnx::OnnxTrajectoryModel`. It reads the egocentric costmap and
+  biases every candidate away from a one-sided obstacle (asserted end-to-end in
+  `nav2_diffusion_onnx`'s `test_onnx_trajectory_model`). The closed-loop
+  `controller_benchmark` now runs it as *Diffusion (Mode A, learned)* beside VFH+
+  and ND: it genuinely drives (traversing most of the open corridor) but, as a
+  small synthetic-trained research model, does not reliably reach the goal box —
+  the safety layer keeps it collision-free throughout. Honest demonstration that
+  the *architecture* works end-to-end; the *model* is the limit.
+- **Carrot-directed costmap trajectory dataset.**
+  `nav2_diffusion_training.generative_planners.make_costmap_dataset` now varies the
+  carrot distance/bearing and heads the expert toward it (path-tangent yaw), and
+  `train_and_export_costmap` gained `steps` / `sample_weight` options (a direct MSE
+  to the smooth expert) so the sampled trajectory stays smooth and within kinematic
+  limits. Backward-compatible defaults.
 - **First learned model in the loop (Mode B).** The repo's generative claim is no
   longer carried only by analytic placeholders: a curated costmap-conditioned
   flow-matching path model now ships in [`model_zoo/diffusion_global/`](model_zoo/diffusion_global)
@@ -37,6 +57,14 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
   obstacle width / forward extent, emits mirrored +y/−y pairs, and includes clear
   (no-obstacle) samples, so the learned Mode B model responds symmetrically and
   without a built-in lateral bias.
+
+### Fixed
+
+- **Lookahead carrot could point backwards in `DiffusionController`** (the same bug
+  fixed earlier in VFH+/ND): it scanned the plan from the start for the first pose
+  beyond `lookahead_distance`, so once the robot advanced the carrot fell back onto
+  passed poses behind it. It now finds the nearest plan pose and looks ahead from
+  there. Surfaced by the new closed-loop `controller_benchmark` run.
 
 ## [0.5.0] - 2026-06-04
 

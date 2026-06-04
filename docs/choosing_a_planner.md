@@ -59,7 +59,7 @@ flowchart TD
 | 軌道ロールアウト無しの安価な反応回避 | **[VFH+](../nav2_vfh_controller)** | 極座標ヒストグラムの free valley をコストで選ぶ。雑然空間で堅牢 |
 | 狭い回廊での中央寄せ・すり抜けと滑らかな操舵 | **[ND](../nav2_nd_controller)** | gap 選択＋安全偏向。閉ループ比較では VFH+ より滑らか |
 | 正面障害物に広いクリアランスで回避 | **[VFH+](../nav2_vfh_controller)** | 比較で frontal の最小クリアランスが大きい傾向 |
-| 学習モデルで multimodal 軌道提案＋決定論安全層 | **[生成型 Mode A](../nav2_diffusion_controller)** | 提案→安全ゲート→scoring→cmd_vel、no-safe なら fallback |
+| 学習モデルで multimodal 軌道提案＋決定論安全層 | **[生成型 Mode A](../nav2_diffusion_controller)** | 提案→安全ゲート→scoring→cmd_vel、no-safe なら fallback。解析的 fan か、[model_zoo](../model_zoo/diffusion_local) の costmap 条件付き **学習済み** 軌道モデル(`OnnxTrajectoryModel`)を選べる |
 
 VFH+ と ND は実測で「berth（VFH+ が広め）」対「smoothness（ND が滑らか）」のトレードオフで、**一方的な優劣は無い**（[controller_comparison.md](controller_comparison.md)）。
 

@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
@@ -221,11 +222,25 @@ geometry_msgs::msg::PoseStamped DiffusionController::getLookaheadPointInBaseFram
 
   const double rx = robot_pose.pose.position.x;
   const double ry = robot_pose.pose.position.y;
-  for (const auto & stamped : global_plan_.poses) {
-    const double dx = stamped.pose.position.x - rx;
-    const double dy = stamped.pose.position.y - ry;
+  // Find the nearest plan pose first, then look ahead forward from there, so the
+  // carrot never falls back onto already-passed poses behind the robot (which
+  // would point the lookahead backwards once the robot has advanced).
+  std::size_t nearest = 0;
+  double nearest_dist = std::numeric_limits<double>::max();
+  for (std::size_t i = 0; i < global_plan_.poses.size(); ++i) {
+    const double d = std::hypot(
+      global_plan_.poses[i].pose.position.x - rx,
+      global_plan_.poses[i].pose.position.y - ry);
+    if (d < nearest_dist) {
+      nearest_dist = d;
+      nearest = i;
+    }
+  }
+  for (std::size_t i = nearest; i < global_plan_.poses.size(); ++i) {
+    const double dx = global_plan_.poses[i].pose.position.x - rx;
+    const double dy = global_plan_.poses[i].pose.position.y - ry;
     if (std::hypot(dx, dy) >= lookahead_distance_) {
-      selected.pose = stamped.pose;
+      selected.pose = global_plan_.poses[i].pose;
       break;
     }
   }

@@ -26,6 +26,8 @@ PyTorch is a heavy optional dependency, imported here (not from __init__); tests
 skip when torch is unavailable.
 """
 
+import math
+
 from nav2_diffusion_training.train import make_synthetic_dataset
 import onnx
 import torch
@@ -330,29 +332,75 @@ class CostmapConsistencyPlanner(nn.Module):
         return torch.cat(outs, dim=1)
 
 
+def _expert_trajectory(gx, gy, side, speed):
+    """
+    Smooth ~1 s expert from the robot origin heading toward the carrot (gx, gy),
+    travelling ``speed`` * horizon metres, with a half-sine lateral bow away from
+    a one-sided obstacle (side > 0 = obstacle on +y -> bow to -y). yaw follows the
+    path tangent so the extracted command turns toward the carrot. side == 0 is the
+    clear case (straight toward the carrot).
+    """
+    gdir = math.atan2(gy, gx)
+    reach = speed * HORIZON * 0.1
+    pts = []
+    for h in range(HORIZON):
+        t = (h + 1) / HORIZON
+        bx = math.cos(gdir) * reach * t
+        by = math.sin(gdir) * reach * t
+        veer = -side * 0.18 * (4.0 * t * (1.0 - t))     # 0 at both ends
+        x = bx - math.sin(gdir) * veer                  # bow perpendicular to heading
+        y = by + math.cos(gdir) * veer
+        pts.append([x, y, 0.0])
+    for h in range(HORIZON):                            # yaw = path tangent
+        a = pts[h]
+        b = pts[h + 1] if h + 1 < HORIZON else pts[h]
+        prev = pts[h - 1] if h > 0 else pts[h]
+        ref_a, ref_b = (a, b) if h + 1 < HORIZON else (prev, a)
+        pts[h][2] = math.atan2(ref_b[1] - ref_a[1], ref_b[0] - ref_a[0])
+    return pts
+
+
 def make_costmap_dataset(num_samples):
     """
-    Synthetic costmap patches with a side obstacle and an avoidance expert.
+    Synthetic costmap patches with a side obstacle and a carrot-directed expert.
 
-    Obstacle on the left -> expert veers right and vice versa, so the model must
-    read the costmap to choose the avoidance direction.
+    Obstacle on the left (+y, low cols — matching cropEgocentricPatch) -> expert
+    veers right (-y), and vice versa, so the model must read the costmap to choose
+    the avoidance direction. The carrot (context goal_x/goal_y) is *varied* in
+    distance and bearing so the closed-loop controller stays in distribution as its
+    heading drifts; the expert heads toward the carrot with a lateral avoidance
+    bow. Obstacle row-band / column width vary, every configuration is a mirrored
+    +y/-y pair, and clear (no-obstacle) samples anchor the unconditioned behaviour
+    to driving straight at the carrot.
     """
     contexts = []
     patches = []
     targets = []
-    for i in range(num_samples):
-        side = 1.0 if (i % 2 == 0) else -1.0  # +1 obstacle on left (+y)
-        patch = torch.zeros(1, COSTMAP_SIZE, COSTMAP_SIZE)
-        col0 = 0 if side > 0 else COSTMAP_SIZE // 2
-        patch[:, COSTMAP_SIZE // 3:2 * COSTMAP_SIZE // 3, col0:col0 + COSTMAP_SIZE // 2] = 1.0
-        rows = []
-        for h in range(HORIZON):
-            fwd = 0.3 * (h + 1) * 0.1
-            lat = -side * 0.15 * (h + 1) / HORIZON  # veer away from the obstacle
-            rows.append([fwd, lat, -side * 0.05])
-        contexts.append([1.0, 0.0, 0.3, 1.0])
-        patches.append(patch)
-        targets.append(rows)
+    s = COSTMAP_SIZE
+    row_bands = [(s // 4, s // 2), (s // 3, 2 * s // 3), (s // 6, s // 2)]
+    widths = [s // 2, s // 3, 2 * s // 5]   # columns the obstacle spans from its edge
+    goals = [(1.0, 0.0), (0.9, 0.0), (1.1, 0.0), (1.0, 0.3), (1.0, -0.3),
+             (0.9, 0.25), (0.9, -0.25)]
+    speed = 0.3
+    i = 0
+    while len(contexts) < num_samples:
+        gx, gy = goals[i % len(goals)]
+        rb = row_bands[(i // 2) % len(row_bands)]
+        w = widths[(i // 2) % len(widths)]
+        for side in (1.0, -1.0):            # +1 obstacle on left (+y / low cols)
+            if len(contexts) >= num_samples:
+                break
+            patch = torch.zeros(1, s, s)
+            c0, c1 = (0, w) if side > 0 else (s - w, s)
+            patch[:, rb[0]:rb[1], c0:c1] = 1.0
+            contexts.append([gx, gy, speed, 1.0])
+            patches.append(patch)
+            targets.append(_expert_trajectory(gx, gy, side, speed))
+        if len(contexts) < num_samples:     # clear -> straight at the carrot
+            contexts.append([gx, gy, speed, 1.0])
+            patches.append(torch.zeros(1, s, s))
+            targets.append(_expert_trajectory(gx, gy, 0.0, speed))
+        i += 1
     return (
         torch.tensor(contexts, dtype=torch.float32),
         torch.stack(patches),
@@ -372,10 +420,22 @@ _COSTMAP_LOSS = {
 }
 
 
-def train_and_export_costmap(path, kind='flow', num_samples=32, epochs=60, lr=0.01):
-    """Train a costmap-conditioned planner (flow/diffusion/consistency) -> 2-input ONNX."""
+def train_and_export_costmap(
+        path, kind='flow', num_samples=32, epochs=60, lr=0.01,
+        steps=None, sample_weight=0.0):
+    """Train a costmap-conditioned planner (flow/diffusion/consistency) -> 2-input ONNX.
+
+    ``steps`` overrides the flow integration steps (more = smoother samples).
+    ``sample_weight`` > 0 adds a direct MSE between the *sampled* trajectory and the
+    expert target on top of the generative loss, which yields a smooth, ordered
+    output whose per-step speeds stay within kinematic limits (so the controller's
+    safety gate accepts it). Both default to the previous behaviour.
+    """
     torch.manual_seed(0)
-    model = _COSTMAP_BUILD[kind]()
+    if kind == 'flow' and steps is not None:
+        model = CostmapFlowPlanner(steps=steps)
+    else:
+        model = _COSTMAP_BUILD[kind]()
     context, costmap, target = make_costmap_dataset(num_samples)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
@@ -384,6 +444,9 @@ def train_and_export_costmap(path, kind='flow', num_samples=32, epochs=60, lr=0.
     for _ in range(max(1, epochs)):
         optimizer.zero_grad()
         loss = _COSTMAP_LOSS[kind](model, context, costmap, target)
+        if sample_weight > 0.0:
+            out = model(context, costmap)                       # [B, K, H, 3]
+            loss = loss + sample_weight * ((out - target.unsqueeze(1)) ** 2).mean()
         loss.backward()
         optimizer.step()
 

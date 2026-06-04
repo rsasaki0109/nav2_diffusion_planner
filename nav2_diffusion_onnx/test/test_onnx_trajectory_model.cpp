@@ -14,6 +14,9 @@
 
 #include <gtest/gtest.h>
 
+#include <string>
+#include <vector>
+
 #include "nav2_diffusion_core/trajectory_model.hpp"
 #include "nav2_diffusion_onnx/onnx_trajectory_model.hpp"
 
@@ -23,8 +26,47 @@
 #ifndef ONNX_COSTMAP_MODEL
 #define ONNX_COSTMAP_MODEL ""
 #endif
+// The curated, committed Mode A artifact shipped in model_zoo/ (not a build-time
+// fixture). Exercising it guards the shipped binary against corruption / drift.
+#ifndef ONNX_ZOO_COSTMAP_MODEL
+#define ONNX_ZOO_COSTMAP_MODEL ""
+#endif
 
 using nav2_diffusion_onnx::OnnxTrajectoryModel;
+
+namespace
+{
+// An egocentric 32x32 patch with a one-sided obstacle band. cropEgocentricPatch
+// maps col 0 -> +y (left), so obstacle_side > 0 fills the low (left/+y) columns.
+nav2_diffusion_core::ModelContext costmapTrajContext(double obstacle_side)
+{
+  constexpr int kSize = 32;
+  nav2_diffusion_core::ModelContext ctx;
+  ctx.goal_x = 1.0;
+  ctx.linear_speed = 0.3;
+  ctx.max_angular_speed = 1.0;
+  ctx.time_step = 0.1;
+  ctx.costmap_size = kSize;
+  ctx.costmap.assign(static_cast<std::size_t>(kSize) * kSize, 0.0f);
+  const int c0 = obstacle_side > 0 ? 0 : kSize / 2;
+  const int c1 = obstacle_side > 0 ? kSize / 2 : kSize;
+  for (int r = kSize / 4; r < kSize / 2; ++r) {
+    for (int c = c0; c < c1; ++c) {
+      ctx.costmap[static_cast<std::size_t>(r) * kSize + c] = 1.0f;
+    }
+  }
+  return ctx;
+}
+
+double meanLateral(const nav2_diffusion_core::Trajectory & t)
+{
+  double sum = 0.0;
+  for (const auto & p : t.points) {
+    sum += p.y;
+  }
+  return t.points.empty() ? 0.0 : sum / static_cast<double>(t.points.size());
+}
+}  // namespace
 
 TEST(OnnxTrajectoryModelTest, LoadsModelAndProducesCandidates)
 {
@@ -84,4 +126,32 @@ TEST(OnnxTrajectoryModelTest, CostmapConditionedModelRuns)
   const auto candidates = model.generate(context);
   ASSERT_EQ(candidates.size(), 3u);
   EXPECT_EQ(candidates.front().points.size(), 10u);
+}
+
+// The shipped model_zoo artifact (diffusion_local_costmap_flow_v0): load the
+// actual committed .onnx and assert its headline behaviour — every proposed
+// trajectory veers away from a one-sided obstacle. This is the repo's first
+// learned local-controller model in the loop, so the curated binary is a
+// regression guard.
+TEST(OnnxTrajectoryModelTest, CuratedZooModelVeersAwayFromObstacle)
+{
+  const std::string zoo = ONNX_ZOO_COSTMAP_MODEL;
+  if (zoo.empty()) {
+    GTEST_SKIP() << "model_zoo costmap trajectory model path not provided";
+  }
+  OnnxTrajectoryModel model(zoo);
+  EXPECT_EQ(model.name(), "onnx");
+
+  // Obstacle on the +y (left) side -> every candidate should lean -y (right).
+  const auto left = model.generate(costmapTrajContext(+1.0));
+  ASSERT_FALSE(left.empty());
+  for (const auto & t : left) {
+    EXPECT_LT(meanLateral(t), 0.0);
+  }
+  // Obstacle on the -y (right) side -> every candidate should lean +y (left).
+  const auto right = model.generate(costmapTrajContext(-1.0));
+  ASSERT_FALSE(right.empty());
+  for (const auto & t : right) {
+    EXPECT_GT(meanLateral(t), 0.0);
+  }
 }

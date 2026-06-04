@@ -9,8 +9,9 @@ curated model metadata, not necessarily large binaries。
 | モデル | 種別 | seam | アーティファクト | card / manifest |
 |---|---|---|---|---|
 | `diffusion_global_costmap_flow_v0` | flow matching（学習済み） | Mode B `PathModel`（global path） | [diffusion_global/costmap_flow.onnx](diffusion_global/costmap_flow.onnx)（≈349 KB, 直接コミット・[export.py](diffusion_global/export.py) で再現可） | [model_card.md](diffusion_global/model_card.md) / [manifest.yaml](diffusion_global/manifest.yaml) |
+| `diffusion_local_costmap_flow_v0` | flow matching（学習済み） | Mode A `TrajectoryModel`（local controller） | [diffusion_local/costmap_flow.onnx](diffusion_local/costmap_flow.onnx)（≈268 KB, 直接コミット・[export.py](diffusion_local/export.py) で再現可） | [model_card.md](diffusion_local/model_card.md) / [manifest.yaml](diffusion_local/manifest.yaml) |
 
-これがリポジトリ初の「**実際に C++ 推論経路でループに入っている学習済みモデル**」（unit-test fixture ではない）。costmap を読んで全提案を空き側へ寄せる挙動を持ち、`nav2_diffusion_global_planner` の Mode B で `nav2_diffusion_onnx::OnnxPathModel` 経由でロードされる。横断比較は [../docs/planner_comparison.md](../docs/planner_comparison.md)、限界・失敗ケースは model card を参照。
+これらが「**実際に C++ 推論経路でループに入っている学習済みモデル**」（unit-test fixture ではない）。いずれも costmap を読んで全提案を空き側へ寄せる。**Mode B** は `nav2_diffusion_global_planner` で `OnnxPathModel` 経由、**Mode A** は `nav2_diffusion_controller` で `OnnxTrajectoryModel` 経由でロードされ、決定論的安全層が検証・選択する。横断比較は [../docs/planner_comparison.md](../docs/planner_comparison.md)（Mode B）/ [../docs/controller_comparison.md](../docs/controller_comparison.md)（Mode A）、限界・失敗ケースは各 model card を参照。
 
 ## ルール
 
