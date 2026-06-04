@@ -56,13 +56,11 @@ learned Mode A は open では goal 到達するが、`controller_benchmark` の
 
 ## 天井を超える道筋（future work）
 
-1. **大容量モデル + 多様な実データ**: rosbag / sim から goal・障害物・gap 配置を広く集めて学習（[training.md](training.md)）。CNN/Transformer encoder の増強。
-2. **閉ループ学習（DAgger 等）**: 実行時に訪れる状態でラベルを足し、分布シフトに頑健化。obstacle-threading に直接効く。
-3. **ハイブリッド（✅ 実装済み・2 形態）**: generative 提案 + classical の完全性。本リポジトリは 2 つの結合度を実装している。
+1. **ハイブリッド（✅ 実装済み・2 形態）**: generative 提案 + classical の完全性。本リポジトリは 2 つの結合度を実装している。
    - **疎結合（fallback）**: `DiffusionGlobalPlanner` の `fallback_planner_plugin`（Mode A controller の `fallback_controller_plugin` と同型）。learned 提案が無効なときだけ classical search/reactive に委譲。簡単な地図は高速な generative 経路、難所は探索系。`planner_comparison.md` の **Mode B, hybrid**（learned + JPS）は全シナリオ解決（clear/side は generative 12 pose、gap/slalom は JPS 81/107 pose）。`controller_comparison.md` の **Mode A, hybrid**（learned + VFH+）も全シナリオ到達。
    - **密結合（guided）**: `hybrid_mode: guided`。**常に**完全な A* を走らせ、有効な proposal の近傍セルのコストを割引くので、learned が**毎回**の経路形状を誘導しつつ探索が完全性を保証する。**Mode B, guided** も全シナリオ解決（cell 解像度 81/111 pose — fallback と違い簡単な地図でも探索を走らせる）。
-
-さらに進めるなら closed-loop 学習や、大容量モデル + 実データ。
+2. **閉ループ学習（DAgger）（✅ 基盤実装済み・効果は限定的）**: `nav2_diffusion_training/dagger.py`。現方策を numpy costmap シム（C++ の egocentric crop / first-segment 抽出 / lookahead / dt を踏襲）でロールアウトし、訪れた状態で expert（carrot への pure-pursuit + costmap 回避）にラベルを問い、集約して再学習する。**分布シフトに対する正しい道具**で、ループは end-to-end で動く（pytest 付き）。ただし現状の **小型モデル + 軽量シム**では閉ループ成功は marginal（0/4 → 1/4、集約が増えると loss も増えて fit しきれない）。**忠実な改善には大容量モデルと、より忠実な閉ループ（実 C++/Gazebo ロールアウト）が要る**——下の項目と組み合わせるのが筋。
+3. **大容量モデル + 多様な実データ**: rosbag / sim から goal・障害物・gap 配置を広く集めて学習（[training.md](training.md)）。CNN/Transformer encoder の増強。DAgger と組み合わせると効く見込み。
 4. **TensorRT / Jetson 実機検証**: [deployment.md](deployment.md) §11 / [roadmap.md](roadmap.md)。
 
 ## 結論

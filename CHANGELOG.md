@@ -8,6 +8,20 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 
 ### Added
 
+- **DAgger closed-loop training loop for the Mode A trajectory model**
+  (`nav2_diffusion_training/dagger.py`). Targets the distribution shift documented
+  in docs/generative_limits.md: it rolls the current policy out in a lightweight
+  numpy costmap sim (mirroring the C++ controller's egocentric crop, first-segment
+  command extraction, nearest-then-forward lookahead, and dt), queries an expert
+  (pure-pursuit toward the carrot + costmap-read avoidance) at every visited state,
+  aggregates those (state, expert) labels, and retrains — exporting the standard
+  `[1,4]+[1,1,32,32] -> [1,3,10,3]` ONNX. The loop runs end to end (pytest
+  `test_dagger.py`), but with the small synthetic model + lightweight sim the
+  closed-loop gain is marginal (0/4 → 1/4 reached; the aggregated set outgrows the
+  tiny model's capacity). It is committed as **reusable infrastructure** for the
+  documented future work (bigger models + a faithful real C++/Gazebo closed loop),
+  not as a shipped model — the curated Mode A model is unchanged and Mode A
+  obstacles are already solved by the hybrid. See docs/generative_limits.md.
 - **Tightly-coupled hybrid Mode B planner (`hybrid_mode: guided`).** Beyond the
   fallback hybrid (which only invokes a classical planner when the generative
   proposals all fail), `DiffusionGlobalPlanner` gains a built-in complete 8-connected
