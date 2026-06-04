@@ -1,7 +1,7 @@
-"""Offline leaderboard comparing the six generative planner families.
+"""Offline leaderboard comparing the eight generative planner configurations.
 
-Trains each shipped generative planner (flow / diffusion / consistency, both
-context-only and costmap-conditioned) on the synthetic obstacle-avoidance
+Trains each generative planner (flow / diffusion / consistency / transformer,
+both context-only and costmap-conditioned) on the synthetic obstacle-avoidance
 dataset, evaluates the *proposals* each makes on a fixed set of obstacle
 scenarios, and writes a safety-first leaderboard to ``docs/model_comparison.md``.
 
@@ -125,9 +125,11 @@ MODELS = [
     ('flow', 'flow matching', 'context', 1, train_context, False),
     ('diffusion', 'diffusion (DDIM)', 'context', 4, train_context, False),
     ('consistency', 'consistency (1-step)', 'context', 1, train_context, False),
+    ('transformer', 'transformer (set-pred)', 'context', 1, train_context, False),
     ('costmap-flow', 'flow matching', 'costmap+goal', 2, train_costmap, True),
     ('costmap-diffusion', 'diffusion (DDIM)', 'costmap+goal', 4, train_costmap, True),
     ('costmap-consistency', 'consistency (1-step)', 'costmap+goal', 1, train_costmap, True),
+    ('costmap-transformer', 'transformer (set-pred)', 'costmap+goal', 1, train_costmap, True),
 ]
 
 
@@ -172,7 +174,8 @@ def write_report(ranked):
         '> 自動生成: `python3 tools/benchmark_models.py`。'
         '関連: [benchmarking.md](benchmarking.md)、[model_zoo.md](model_zoo.md)。',
         '',
-        '出荷する6つの生成プランナ系統を**同一の合成回避シナリオ**で評価し、各モデルが'
+        '8つの生成プランナ構成（flow / diffusion / consistency / transformer × '
+        'context / costmap+goal）を**同一の合成回避シナリオ**で評価し、各モデルが'
         '提案する K 候補軌道の品質を比較する。シナリオは前方を塞ぐ障害物と片側 gap'
         '（gap-right / gap-left）＋ clear。直進すると衝突し、gap 側へ回避した候補のみ'
         'クリアできる。これは CPU・決定論的な**提案品質**の比較であり、シミュレータ'
@@ -220,8 +223,11 @@ def write_report(ranked):
         '',
         '- 上位は **costmap 条件付き**モデルが占める。costmap を読めるモデルだけが'
         'gap 側を選んで安全候補を出せる＝条件付けの価値が success に直結する。',
-        '- **costmap-consistency**（1ステップ蒸留）が衝突0・success 1.00 で総合首位。'
-        '1ステップ推論で flow/diffusion を上回れれば edge-GPU 配備に有利。',
+        '- **costmap-consistency**（1ステップ蒸留）が衝突0・success 1.00 で総合首位、'
+        '**costmap-transformer**（DETR 風 set-prediction）が衝突0・success 1.00・'
+        '1ステップで僅差の2位。新規の transformer ファミリが反復サンプリング系と'
+        '同等の安全候補品質を1フォワードで出せることを示す（context-only でも'
+        'transformer が context 勢の最上位）。',
         '- これは**固定 seed の単一試行・toy モデル**による例示であり、絶対順位は'
         'seed / epoch / 推論ステップ数に依存する。手法選定の確定指標ではなく、'
         '再現可能な比較 harness と相対傾向のデモとして読むこと。',

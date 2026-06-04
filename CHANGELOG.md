@@ -21,6 +21,11 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
   transformer local trajectory planner integrated with Nav2. Tests cover the ONNX
   contract for both variants and verify the costmap-conditioned model learns to
   veer away from a one-sided obstacle.
+- Transformer added to the offline leaderboard (`tools/benchmark_models.py`, now
+  eight configurations). On the shared synthetic avoidance scenarios
+  `costmap-transformer` ranks **2nd** (success 1.00, zero collisions, single-step
+  inference), just behind `costmap-consistency`, and `transformer` is the best of
+  the context-only models — regenerated into `docs/model_comparison.md`.
 
 ### Documentation
 - `docs/next_phase.md` — an execution plan for the data-/environment-dependent
