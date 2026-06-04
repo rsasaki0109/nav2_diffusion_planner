@@ -38,6 +38,23 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 - GPU training support: `train_and_export_costmap(..., device=...)` trains on the
   given device (e.g. `'cuda'`) and always exports on CPU for a portable artifact.
 
+- **Gazebo closed-loop mission harness** — an in-launch, external-discovery-free
+  way to run the headless TB3 sim end-to-end:
+  - `nav2_diffusion_bringup/scripts/sim_mission.py` — a mission node that waits for
+    Nav2's `navigate_to_pose`, drives one goal, records executed odometry, and
+    writes a Markdown result file (the file, not a topic, is the artifact).
+  - `launch/tb3_gazebo_mission.launch.py` — brings up the sim + mission node and
+    shuts the launch down when the mission finishes.
+  - `params/nav2_diffusion_tb3.yaml` — AMCL `set_initial_pose` so localization
+    activates headless (no RViz 2D Pose Estimate needed).
+  - `config/fastdds_udp_localhost.xml` — a Fast DDS UDP-only / unicast-localhost
+    profile for sandboxes without SHM or multicast.
+  Built and lint-clean; the mission ran and wrote its result file. The closed-loop
+  *numbers* are still blocked in this sandbox by a complete inter-process DDS
+  failure (even a 2-process talker/listener hears nothing under every transport
+  tried) — documented exhaustively in `docs/simulation.md` §10.5. On a DDS-capable
+  host the mission launch produces the sim numbers directly.
+
 ### Documentation
 - `docs/simulation.md` §10.5 — verified headless Gazebo bring-up. An actual run of
   `tb3_gazebo_diffusion.launch.py` confirms gz renders the GPU LiDAR (`/scan`

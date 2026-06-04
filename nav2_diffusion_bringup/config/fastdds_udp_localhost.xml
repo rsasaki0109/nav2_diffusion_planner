@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Fast DDS profile for restricted environments where shared-memory transport and
+  multicast discovery are unavailable (e.g. CI sandboxes, containers). Forces a
+  UDPv4-only transport (no /dev/shm locks) and unicast localhost discovery (no
+  multicast), so separate ROS 2 processes on one host can still discover each
+  other. Enable with:
+
+      export FASTRTPS_DEFAULT_PROFILES_FILE=<this file>
+      export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+
+  See docs/simulation.md section 10.5. Use only for single-host localhost runs.
+-->
+<dds xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+  <profiles>
+    <transport_descriptors>
+      <transport_descriptor>
+        <transport_id>udp_localhost_transport</transport_id>
+        <type>UDPv4</type>
+      </transport_descriptor>
+    </transport_descriptors>
+
+    <participant profile_name="udp_localhost_participant" is_default_profile="true">
+      <rtps>
+        <userTransports>
+          <transport_id>udp_localhost_transport</transport_id>
+        </userTransports>
+        <!-- Drop the default SHM + UDP builtin transports (SHM locks fail). -->
+        <useBuiltinTransports>false</useBuiltinTransports>
+        <builtin>
+          <metatrafficUnicastLocatorList>
+            <locator>
+              <udpv4>
+                <address>127.0.0.1</address>
+              </udpv4>
+            </locator>
+          </metatrafficUnicastLocatorList>
+          <!-- Unicast discovery peer: no multicast needed. -->
+          <initialPeersList>
+            <locator>
+              <udpv4>
+                <address>127.0.0.1</address>
+              </udpv4>
+            </locator>
+          </initialPeersList>
+        </builtin>
+      </rtps>
+    </participant>
+  </profiles>
+</dds>

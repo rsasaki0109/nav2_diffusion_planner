@@ -4,8 +4,14 @@ project(nav2_diffusion_bringup)
 find_package(ament_cmake REQUIRED)
 
 install(
-  DIRECTORY launch params foxglove
+  DIRECTORY launch params foxglove config
   DESTINATION share/${PROJECT_NAME}
+)
+
+# In-launch mission node for the headless Gazebo closed-loop benchmark.
+install(
+  PROGRAMS scripts/sim_mission.py
+  DESTINATION lib/${PROJECT_NAME}
 )
 
 if(BUILD_TESTING)

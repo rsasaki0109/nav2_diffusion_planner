@@ -20,6 +20,12 @@
   <exec_depend>nav2_diffusion_rviz_plugins</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
+  <!-- In-launch mission node (sim_mission.py) for the Gazebo benchmark -->
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>nav2_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>action_msgs</exec_depend>
   <!-- Optional: only needed for the Foxglove visualization launch -->
   <exec_depend>foxglove_bridge</exec_depend>
 

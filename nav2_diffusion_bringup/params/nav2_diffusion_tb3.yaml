@@ -46,6 +46,16 @@ amcl:
     z_rand: 0.5
     z_short: 0.05
     scan_topic: scan
+    # Headless automation: self-localize at activation from the TB3 spawn pose
+    # (nav2_bringup tb3_simulation_launch spawns at x=-2.0, y=-0.5, yaw=0). Without
+    # this AMCL waits for an RViz "2D Pose Estimate" and never publishes map->odom,
+    # so global_costmap fails to activate. See docs/simulation.md section 10.5.
+    set_initial_pose: true
+    initial_pose:
+      x: -2.0
+      y: -0.5
+      z: 0.0
+      yaw: 0.0
 
 bt_navigator:
   ros__parameters:

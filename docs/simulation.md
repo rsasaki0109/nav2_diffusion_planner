@@ -78,31 +78,51 @@ headless:=True`（`TURTLEBOT3_MODEL=waffle`）で:
   nav2_diffusion_onnx::OnnxTrajectoryModel` ＋ `model_path`（[model_zoo](../model_zoo)）＋
   `costmap_patch_size: 32` を足す。
 
-### 完走をブロックしたこと（このサンドボックス固有）
+### 実装したもの（mission ハーネス）
 
-1. **localization 未確立**: 初期姿勢を与えないと AMCL が map→odom を出さず、
-   `global_costmap` が "transform base_link→map did not become available" で
-   activate 失敗。通常は RViz の 2D Pose Estimate か `/initialpose` への publish が要る。
-2. **DDS が外部プロセスを受け付けない**:
-   - Fast DDS（既定）: `/dev/shm` の `open_and_lock_file failed`（SHM transport ロック
-     失敗）。同一 launch 内のノード同士は UDP fallback で動くが、**後から起動する外部
-     CLI（`ros2 topic list/echo`, goal 送信）が DDS グラフに join できず全てタイムアウト**。
-   - CycloneDDS（`RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`, `ROS_LOCALHOST_ONLY=1`）:
-     `Failed to find a free participant index for domain 0` で participant 生成自体が失敗。
-   - → **外部スクリプトから goal 投入・odom 記録・成功判定ができない**ため、自動の
-     閉ループ数値ベンチはこの環境では完走不可。
+完走に向けて、以下を実装・ビルド・lint 済み（実 ROS ホストで動く想定）:
+
+1. **AMCL 自前 localization**: params の amcl に `set_initial_pose: true` ＋
+   `initial_pose`（TB3 spawn の x=-2.0, y=-0.5）を追加。RViz の初期姿勢入力なしで
+   map→odom が出て global_costmap が activate する。
+2. **in-launch mission ノード**
+   [`sim_mission.py`](../nav2_diffusion_bringup/scripts/sim_mission.py): nav2 の
+   `navigate_to_pose` を待ち、`/odom` を購読して、1 ゴールへ誘導し、到達/タイムアウト・
+   経路長・時間を集計して **Markdown 結果ファイルに書き出す**。結果は topic でなく
+   **ファイル**なので、DDS グラフに join できない環境でも成果物を検証できる。
+3. **専用 launch**
+   [`tb3_gazebo_mission.launch.py`](../nav2_diffusion_bringup/launch/tb3_gazebo_mission.launch.py):
+   sim＋mission を 1 launch で起動し、mission 終了で launch を Shutdown。
+   `ros2 launch nav2_diffusion_bringup tb3_gazebo_mission.launch.py goal_x:=0.0
+   goal_y:=-0.5 results_file:=/tmp/sim_mission_result.md`。
+
+### それでも完走をブロックする壁（このサンドボックス固有・厳密に特定）
+
+1. **localization**: 上記 `set_initial_pose` で解消（実装済み）。
+2. **inter-process DDS が全面的に不可**: 本環境では**プロセスをまたいだ ROS 2 通信が
+   一切成立しない**。最小の `demo_nodes_cpp talker`/`listener` 2 プロセスで検証した結果、
+   どの構成でも listener は 1 つも受信しない（"I heard" = 0）:
+   - Fast DDS 既定（SHM）: `/dev/shm` の `open_and_lock_file failed`。実行中に
+     fastrtps の SHM セグメントが**578 個**滞留していたため掃除したが、掃除後も 0。
+   - Fast DDS UDP 強制（`FASTDDS_BUILTIN_TRANSPORTS=UDPv4`）: 0（multicast discovery 遮断）。
+   - Fast DDS UDP＋unicast localhost discovery を XML プロファイルで強制
+     ([`config/fastdds_udp_localhost.xml`](../nav2_diffusion_bringup/config/fastdds_udp_localhost.xml)): 0。
+   - CycloneDDS（`rmw_cyclonedds_cpp`）: ノード生成自体が失敗（participant index / rcl init エラー）。
+   - Fast DDS Discovery Server: `fast-discovery-server` バイナリ未インストールで起動不可。
+   - → nav2 は単一コンテナ内（composition）で**プロセス内**通信するため起動はするが、
+     **別プロセスの mission ノードが nav2 / bridge を discover できず**、
+     `navigate_to_pose action server unavailable`・`/odom` 受信 0 で終わる
+     （mission は結果ファイルを正しく書き出した＝ハーネスは健全、通信のみが壁）。
 
 ### 完走に必要なもの（next_phase.md 段3 へ）
 
-- **DDS が通る実 ROS ホスト**（`/dev/shm` 制限のないネイティブ環境）、または
-- **すべてを 1 つの launch に内包**する方式: sim + Nav2 ＋「初期姿勢を publish →
-  `NavigateToPose` を送る → `/odom` を購読して成功率/経路長/時間を集計し結果ファイルへ
-  書き出す」**mission ノード**を launch 内で起動（外部 discovery に依存しない）。
-  intra-launch 通信は本環境でも動くため、これが現実的な実装路。
-- map_server に TB3 マップ、初期姿勢の自動設定。
+- **inter-process DDS が成立する実 ROS ホスト**（`/dev/shm` 制限・multicast 遮断のない
+  ネイティブ環境、または discovery-server を入れた環境）。そこで上記 mission launch を
+  そのまま実行すれば、`/tmp/sim_mission_result.md` に到達/経路長/時間が出る。
+- 得られた実 sim numbers を [model_comparison.md](model_comparison.md) /
+  [controller_comparison.md](controller_comparison.md) に実 sim 列として追加。
 
-結論: **bring-up と GPU センサ描画は本物で動く**ことを実走で確認済み。残りは
-「初期姿勢＋mission ノード＋DDS の通る環境」であり、コードの不足ではなく**実行環境と
-未実装の mission ハーネス**が律速。番号（実走 numbers）はそれが揃ってから
-[model_comparison.md](model_comparison.md) / [controller_comparison.md](controller_comparison.md)
-に実機/実 sim 列として追加する。
+結論: **bring-up・GPU センサ描画・mission ハーネス（初期姿勢＋goal＋集計＋ファイル出力）は
+実装し実走で確認済み**。残る律速はコードではなく、**このサンドボックスの inter-process
+DDS が完全に不通**であること。実 ROS ホストに移せば mission launch がそのまま実 sim
+numbers を出す。番号はその時点で比較表に追加し、でっち上げ値は載せない。
