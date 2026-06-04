@@ -8,6 +8,15 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 
 ### Added
 
+- **Classical RRT-Connect global planner** — `nav2_rrt_planner::RRTConnectPlanner`,
+  a bidirectional sampling-based `nav2_core::GlobalPlanner` (second planner in the
+  `nav2_rrt_planner` package). Grows trees from both the start and the goal and
+  greedily connects them, threading narrow passages in far fewer iterations than
+  plain RRT/RRT* (feasible, not asymptotically optimal — use RRTStarPlanner when
+  shortest-path matters). Still absent from upstream Nav2's search-only global
+  planners. Deterministic for a fixed `random_seed`. Closed-loop gtests vs a live
+  `Costmap2DROS` (clear map, off-centre gap, solid wall, occupied goal, cancel),
+  registered via pluginlib, added to CI and the bringup planner_server example.
 - **Classical RRT\* global planner** — `nav2_rrt_planner::RRTStarPlanner`, a
   sampling-based `nav2_core::GlobalPlanner`. Upstream Nav2 ships only search-based
   global planners (NavFn, Smac, Theta*); this adds the missing sampling family

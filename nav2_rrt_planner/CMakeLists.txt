@@ -27,6 +27,7 @@ endforeach()
 
 add_library(${PROJECT_NAME} SHARED
   src/rrt_star_planner.cpp
+  src/rrt_connect_planner.cpp
 )
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 target_include_directories(${PROJECT_NAME} PUBLIC
@@ -66,6 +67,12 @@ if(BUILD_TESTING)
     TIMEOUT 120)
   target_link_libraries(test_rrt_star_planner ${PROJECT_NAME})
   ament_target_dependencies(test_rrt_star_planner ${dependencies})
+
+  ament_add_gtest(test_rrt_connect_planner
+    test/test_rrt_connect_planner.cpp
+    TIMEOUT 120)
+  target_link_libraries(test_rrt_connect_planner ${PROJECT_NAME})
+  ament_target_dependencies(test_rrt_connect_planner ${dependencies})
 endif()
 
 ament_package()

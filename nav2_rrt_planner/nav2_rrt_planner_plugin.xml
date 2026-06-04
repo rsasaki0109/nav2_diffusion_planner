@@ -9,4 +9,15 @@
       of upstream Nav2. Throws NoValidPathCouldBeFound if no path is found.
     </description>
   </class>
+  <class
+    type="nav2_rrt_planner::RRTConnectPlanner"
+    base_class_type="nav2_core::GlobalPlanner">
+    <description>
+      Bidirectional sampling-based RRT-Connect global planner. Grows trees from
+      both the start and the goal over the global costmap and greedily connects
+      them, threading narrow passages faster than plain RRT/RRT* (feasible, not
+      optimal). Classical (non-learned) and not part of upstream Nav2. Throws
+      NoValidPathCouldBeFound if no path is found.
+    </description>
+  </class>
 </library>
