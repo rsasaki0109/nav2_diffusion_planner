@@ -143,6 +143,7 @@ flowchart LR
 | [docs/simulation.md](docs/simulation.md) | Simulation Strategy（Gazebo / Isaac Sim / golden scenarios） |
 | [docs/deployment.md](docs/deployment.md) | Deployment Strategy（platform / Jetson / packaging / staged rollout） |
 | [docs/roadmap.md](docs/roadmap.md) | Roadmap（v0.1 / v0.5 / v1.0 / v2.0） |
+| [docs/next_phase.md](docs/next_phase.md) | 次フェーズ実行計画（データ・環境依存の前進を前提・手順・完了条件に落とした着手設計書） |
 | [docs/risks.md](docs/risks.md) | Risks（technical / OSS operation / safety・liability） |
 | [docs/getting_started.md](docs/getting_started.md) | Nav2 ユーザー向け導入（Controller 差し替え / demo） |
 | [docs/contributing.md](docs/contributing.md) | 貢献ガイド（plugin / model / benchmark 追加） |

@@ -22,6 +22,14 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
   contract for both variants and verify the costmap-conditioned model learns to
   veer away from a one-sided obstacle.
 
+### Documentation
+- `docs/next_phase.md` — an execution plan for the data-/environment-dependent
+  next phase. Consolidates the future-work threads scattered across the roadmap and
+  `generative_limits.md` into prerequisites → ordered stages (faithful closed-loop
+  DAgger, larger model + real data, real-robot shadow mode, TensorRT/Jetson) → each
+  with a definition of done, mapped onto the existing scaffolding. Linked from the
+  README doc index and the roadmap.
+
 ## [0.8.0] - 2026-06-04
 
 Theme: **deeper coupling and closed-loop training.** v0.7.0 made generative+classical

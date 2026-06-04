@@ -1,6 +1,6 @@
 # Roadmap
 
-> 関連: [architecture.md](architecture.md)、[risks.md](risks.md)
+> 関連: [architecture.md](architecture.md)、[risks.md](risks.md)、[next_phase.md](next_phase.md)（データ・環境依存の前進を着手手順に落とした実行計画）
 
 ## 実装状況（v0.8.0 時点）
 
