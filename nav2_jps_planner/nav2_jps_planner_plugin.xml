@@ -1,0 +1,15 @@
+<library path="nav2_jps_planner">
+  <class
+    type="nav2_jps_planner::JPSPlanner"
+    base_class_type="nav2_core::GlobalPlanner">
+    <description>
+      Jump Point Search (JPS) global planner. An optimal speed-up of 8-connected
+      grid A* on uniform-cost grids: it jumps over symmetric path segments and
+      pushes only jump points onto the open list, returning the same optimal path
+      as A* while expanding far fewer nodes. Treats the costmap as a binary
+      free/blocked grid (cells at or above lethal_threshold are obstacles).
+      Classical (non-learned) and not part of upstream Nav2. Throws
+      NoValidPathCouldBeFound if no path is found.
+    </description>
+  </class>
+</library>

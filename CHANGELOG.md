@@ -8,6 +8,18 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 
 ### Added
 
+- **Classical Jump Point Search (JPS) global planner** —
+  `nav2_jps_planner::JPSPlanner`, an optimal grid-A* speed-up
+  `nav2_core::GlobalPlanner` in the new `nav2_jps_planner` package. JPS (Harabor &
+  Grastien, 2011) exploits grid path symmetry to jump over chains of cells A*
+  would expand individually, pushing only jump points (turning / forced-neighbour
+  cells) onto the open list — same optimal 8-connected path, far fewer
+  expansions. Upstream Nav2's grid planners (NavFn, Smac) do not include JPS.
+  Treats the costmap as a binary free/blocked grid (cells >= `lethal_threshold`
+  are obstacles), so it ignores graded inflation costs. Fully deterministic.
+  Closed-loop gtests vs a live `Costmap2DROS` (clear map, off-centre gap, solid
+  wall, occupied goal, cancel), registered via pluginlib, added to CI and a
+  bringup planner_server example.
 - **Classical D\* Lite incremental global planner** —
   `nav2_dstar_lite_planner::DStarLitePlanner`, an incremental-search
   `nav2_core::GlobalPlanner` in the new `nav2_dstar_lite_planner` package.

@@ -395,6 +395,7 @@ flowchart TD
 | `/nav2_rrt_planner` | classical サンプリングベース GlobalPlanner（RRT\* + RRT-Connect）。Nav2 に無い planner 群（非AI） |
 | `/nav2_prm_planner` | classical サンプリングベース GlobalPlanner（PRM ロードマップ + Dijkstra）。Nav2 に無い planner 群（非AI） |
 | `/nav2_dstar_lite_planner` | classical インクリメンタル探索 GlobalPlanner（D\* Lite、変化セルのみ修復）。Nav2 に無い planner 群（非AI） |
+| `/nav2_jps_planner` | classical グリッド探索 GlobalPlanner（JPS、対称性枝刈りで A\* 高速化）。Nav2 に無い planner 群（非AI） |
 | `/nav2_diffusion_msgs` | trajectory candidates, diagnostics, benchmark result messages |
 | `/nav2_diffusion_safety` | safety gate, collision validation integration |
 | `/nav2_diffusion_bringup` | example launch/config for Nav2 |

@@ -1,0 +1,21 @@
+# Example Nav2 planner_server configuration using the JPSPlanner, a Jump Point
+# Search global planner that upstream Nav2's grid planners (NavFn, Smac) do not
+# include. Drop-in replacement for the GridBased global planner plugin. See
+# nav2_jps_planner/README.md.
+#
+# JPS is an optimal speed-up of 8-connected grid A*: it jumps over symmetric path
+# segments and expands far fewer nodes, returning the same optimal path. It
+# assumes a uniform-cost grid, so it treats the costmap as binary free/blocked
+# (cells >= lethal_threshold are obstacles) and ignores graded inflation costs —
+# use NavFn/Smac or nav2_dstar_lite_planner when soft cost shaping matters.
+
+planner_server:
+  ros__parameters:
+    expected_planner_frequency: 20.0
+    planner_plugins: ["GridBased"]
+    costmap_update_timeout: 1.0
+
+    GridBased:
+      plugin: "nav2_jps_planner::JPSPlanner"
+      lethal_threshold: 253      # costs >= this are obstacles (default INSCRIBED)
+      allow_unknown: true        # treat unknown costmap cells as traversable
