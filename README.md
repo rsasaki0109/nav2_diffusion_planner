@@ -120,6 +120,16 @@ flowchart LR
 
 調査（papers＋既存 OSS の突き合わせ）の結果、Nav2 地上ロボット向けの **flow / diffusion / consistency の local planner で公開実装が無い** ことを確認し、3系統＋costmap 条件付けを OSS-gap 実装として収録している（[docs/model_zoo.md](docs/model_zoo.md)）。6系統を同一シナリオで比較したオフライン leaderboard は [docs/model_comparison.md](docs/model_comparison.md)（`tools/benchmark_models.py` で再現可能）。
 
+## 生成型 GlobalPlanner（Mode B）
+
+<p align="center">
+  <img src="docs/mode_b_demo.gif" width="420" alt="Mode B: generative global path candidates; the costmap rejects colliding ones (red) and selects the shortest safe path (green) around the obstacle">
+</p>
+
+<p align="center"><em>出荷モデル <code>PathFlowPlanner</code>（flow matching）が start→goal の大域パス候補を生成し、決定論的 costmap 検証層が障害物に当たる候補（赤）を棄却、最短の安全パス（緑）を選択する propose→validate→select パイプライン。障害物が左右に動くと選択パスが反対側へ切り替わる。再現は <a href="tools/mode_b_demo.py">tools/mode_b_demo.py</a>。</em></p>
+
+これは local controller（Mode A）と対称の **Nav2 GlobalPlanner（Mode B）**。生成型モデルを `nav2_core::GlobalPlanner` に統合した OSS は調査時点で存在せず、`PathModel` seam（analytic `FanPathModel` / 学習済み `OnnxPathModel`、costmap 条件付きも同 seam）として実装している（[nav2_diffusion_global_planner](nav2_diffusion_global_planner)）。
+
 ## ドキュメント地図
 
 | ドキュメント | 内容 |

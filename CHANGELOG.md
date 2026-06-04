@@ -46,6 +46,10 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
   `costmap-consistency` (1-step) wins.
 - **Costmap-conditioned avoidance demo GIF** (`docs/costmap_demo.gif`,
   `tools/costmap_demo.py`) rendered from the real `CostmapFlowPlanner`.
+- **Mode B demo GIF** (`docs/mode_b_demo.gif`, `tools/mode_b_demo.py`) rendered
+  from the shipped generative `PathFlowPlanner`: K global-path proposals, the
+  costmap rejecting colliding candidates (red) and selecting the shortest safe
+  path (green) as the obstacle sweeps left/right.
 - **Foxglove visualization** — `nav2_diffusion_bringup/launch/foxglove.launch.py`
   (starts `foxglove_bridge` + the candidate/safety marker converter) and a
   ready-to-import Foxglove Studio layout
