@@ -31,6 +31,10 @@
 #ifndef ONNX_ZOO_COSTMAP_PATH_MODEL
 #define ONNX_ZOO_COSTMAP_PATH_MODEL ""
 #endif
+// The transformer Mode B sibling shipped in model_zoo/ (same PathModel contract).
+#ifndef ONNX_ZOO_COSTMAP_PATH_TRANSFORMER_MODEL
+#define ONNX_ZOO_COSTMAP_PATH_TRANSFORMER_MODEL ""
+#endif
 
 using nav2_diffusion_onnx::OnnxPathModel;
 
@@ -167,5 +171,68 @@ TEST(OnnxPathModelTest, CuratedZooModelVeersAwayFromObstacle)
   ASSERT_FALSE(right.empty());
   for (const auto & c : right) {
     EXPECT_GT(c.points[c.points.size() / 2].y, 0.0);
+  }
+}
+
+namespace
+{
+// A PathContext with a wall across the path (world x in [2.5, 3.3]) blocking every
+// lateral cell except a single off-centre slot centred at slot_side * 2.0 m. Routing
+// THROUGH the slot (not picking a free side) is the off-centre-gap problem.
+nav2_diffusion_core::PathContext gapContext(double slot_side)
+{
+  nav2_diffusion_core::PathContext ctx;
+  ctx.start_x = 0.0;
+  ctx.start_y = 0.0;
+  ctx.goal_x = 5.0;   // bearing 0 -> aligned frame == world frame
+  ctx.goal_y = 0.0;
+  const unsigned int sx = 60;   // x: 0..6 m
+  const unsigned int sy = 80;   // y: -4..4 m
+  ctx.costmap_size_x = sx;
+  ctx.costmap_size_y = sy;
+  ctx.costmap_resolution = 0.1;
+  ctx.costmap_origin_x = 0.0;
+  ctx.costmap_origin_y = -4.0;
+  ctx.costmap.assign(static_cast<std::size_t>(sx) * sy, 0.0f);
+  const double slot_y = slot_side * 2.0;
+  for (unsigned int my = 0; my < sy; ++my) {
+    const double wy = ctx.costmap_origin_y + (my + 0.5) * ctx.costmap_resolution;
+    for (unsigned int mx = 0; mx < sx; ++mx) {
+      const double wx = ctx.costmap_origin_x + (mx + 0.5) * ctx.costmap_resolution;
+      const bool in_wall = wx > 2.5 && wx < 3.3;
+      const double dy = wy - slot_y;
+      const bool in_slot = dy > -0.5 && dy < 0.5;
+      if (in_wall && !in_slot) {
+        ctx.costmap[static_cast<std::size_t>(my) * sx + mx] = 1.0f;
+      }
+    }
+  }
+  return ctx;
+}
+}  // namespace
+
+// The transformer Mode B sibling (diffusion_global_costmap_transformer_v0): it
+// crosses the off-centre-gap ceiling the flow model could not — every candidate
+// detours toward the slot at the wall. Guards the shipped binary's headline claim.
+TEST(OnnxPathModelTest, CuratedZooTransformerRoutesThroughGap)
+{
+  const std::string zoo = ONNX_ZOO_COSTMAP_PATH_TRANSFORMER_MODEL;
+  if (zoo.empty()) {
+    GTEST_SKIP() << "model_zoo transformer path model path not provided";
+  }
+  OnnxPathModel model(zoo);
+  EXPECT_EQ(model.name(), "onnx_path");
+
+  // Slot on +y -> candidates must detour toward +y near the wall (mid-path).
+  const auto pos = model.generate(gapContext(+1.0));
+  ASSERT_FALSE(pos.empty());
+  for (const auto & c : pos) {
+    EXPECT_GT(c.points[c.points.size() / 2].y, 0.5);
+  }
+  // Slot on -y -> candidates must detour toward -y.
+  const auto neg = model.generate(gapContext(-1.0));
+  ASSERT_FALSE(neg.empty());
+  for (const auto & c : neg) {
+    EXPECT_LT(c.points[c.points.size() / 2].y, -0.5);
   }
 }

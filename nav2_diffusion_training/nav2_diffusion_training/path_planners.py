@@ -30,7 +30,12 @@ costmap-validation layer in the planner decides which proposal (if any) is used.
 PyTorch is a heavy optional dependency, imported here (not from __init__).
 """
 
+import math
+
+from nav2_diffusion_training.generative_planners import _CrossAttnBlock
+
 import onnx
+
 import torch
 from torch import nn
 
@@ -228,6 +233,65 @@ class CostmapPathFlowPlanner(nn.Module):
         return torch.cat(outs, dim=1)
 
 
+_PATH_TF_DIM = 32
+_PATH_TF_HEADS = 4
+_PATH_TF_LAYERS = 2
+
+
+class _PathCostmapTokenizer(nn.Module):
+    """Tokenize the goal-aligned costmap patch into spatial tokens for attention."""
+
+    def __init__(self, d_model):
+        super().__init__()
+        self.proj = nn.Conv2d(1, d_model, kernel_size=4, stride=4)
+        n = (PATH_COSTMAP_SIZE // 4) ** 2
+        self.pos = nn.Parameter(torch.randn(1, n, d_model) * 0.1)
+
+    def forward(self, costmap):
+        x = self.proj(costmap)                       # [B, D, S/4, S/4]
+        b, d, gh, gw = x.shape
+        x = x.reshape(b, d, gh * gw).transpose(1, 2)  # [B, N, D]
+        return x + self.pos
+
+
+class CostmapPathTransformerPlanner(nn.Module):
+    """
+    Costmap+goal conditioned transformer set-prediction global-path planner.
+
+    The Mode B (global path) analogue of the transformer trajectory model: the
+    goal-aligned costmap patch is tokenized (strided conv + learned positions) and
+    prepended with a context token; K learned query tokens cross-attend to that
+    memory and each decodes a full start->goal path in one deterministic forward
+    pass. Attention over explicit costmap tokens (vs the flow model's 16-d CNN
+    embedding) is the hypothesis for routing through an off-centre gap, where the
+    flow model hit its ceiling (docs/generative_limits.md).
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.tok = _PathCostmapTokenizer(_PATH_TF_DIM)
+        self.ctx = nn.Linear(CTX_DIM, _PATH_TF_DIM)
+        self.blocks = nn.ModuleList(
+            [_CrossAttnBlock(_PATH_TF_DIM, _PATH_TF_HEADS) for _ in range(_PATH_TF_LAYERS)])
+        self.queries = nn.Parameter(torch.randn(PATH_K, _PATH_TF_DIM) * 0.1)
+        self.head = nn.Sequential(
+            nn.LayerNorm(_PATH_TF_DIM), nn.Linear(_PATH_TF_DIM, PATH_VEC))
+
+    def forward(self, context, costmap):
+        b = context.shape[0]
+        tokens = self.tok(costmap)                          # [B, N, D]
+        ctx = self.ctx(context).unsqueeze(1)                # [B, 1, D]
+        memory = torch.cat([ctx, tokens], dim=1)            # [B, 1 + N, D]
+        q = self.queries.unsqueeze(0).expand(b, -1, -1)     # [B, K, D]
+        for blk in self.blocks:
+            q = blk(q, memory)
+        return self.head(q).reshape(b, PATH_K, PATH_H, PATH_DIM)
+
+    def recon_loss(self, context, costmap, target):
+        """Direct regression of the K candidate paths onto the routing expert."""
+        return ((self(context, costmap) - target.unsqueeze(1)) ** 2).mean()
+
+
 def _aligned_patch(side, inner=0.0, x_lo=1.5, x_hi=4.0):
     """
     Build a patch (row->fwd x, col->lateral y) with an obstacle on one side.
@@ -302,25 +366,130 @@ def make_costmap_path_dataset(num_samples):
     )
 
 
-def train_and_export_costmap_path(path, num_samples=96, epochs=400, lr=0.01, steps=4):
-    """Train CostmapPathFlowPlanner and export a 2-input (context+costmap) ONNX."""
+def _gap_patch(slot_y, x_lo, x_hi, slot_hw):
+    """
+    A wall spanning the patch width at forward band [x_lo, x_hi] with one slot.
+
+    The wall fills every column except a gap of half-width ``slot_hw`` centred at
+    lateral ``slot_y`` (metres). Routing through the slot — not picking a free side
+    — is the off-centre-gap problem the flow model could not solve.
+    """
+    s = PATH_COSTMAP_SIZE
+    patch = torch.zeros(1, s, s)
+    r0 = max(0, int(s * x_lo / PATCH_FWD))
+    r1 = min(s, int(s * x_hi / PATCH_FWD))
+    for c in range(s):
+        ay = -PATCH_HALF + 2.0 * PATCH_HALF * (c + 0.5) / s
+        if abs(ay - slot_y) > slot_hw:        # wall everywhere except the slot
+            patch[:, r0:r1, c] = 1.0
+    return patch
+
+
+def make_costmap_path_gap_dataset(num_samples):
+    """
+    Off-centre-gap routing data: a wall across the path with a single off-centre slot.
+
+    Unlike the one-sided-obstacle data, the expert must *route through the slot*
+    (detour to the slot's lateral offset at the wall, then return toward the goal),
+    so the model has to localize the gap, not just pick a free side. Slot offset and
+    side, wall position and slot width vary; every slot is emitted as a mirrored
+    +y/-y pair. A few clear samples anchor the straight-line behaviour.
+    """
+    contexts = []
+    patches = []
+    targets = []
+    slot_offsets = [1.2, 1.6, 2.0]            # |lateral| offset of the slot [m]
+    spans = [(2.5, 3.3), (2.2, 3.0), (2.8, 3.6)]
+    slot_hws = [0.5, 0.6, 0.45]               # slot half-width [m]
+    i = 0
+    while len(contexts) < num_samples:
+        d = 4.5 + 1.0 * ((i * 3) % 5) / 4.0   # goal distance 4.5..5.5 m
+        off = slot_offsets[i % len(slot_offsets)]
+        x_lo, x_hi = spans[(i // 2) % len(spans)]
+        slot_hw = slot_hws[(i // 2) % len(slot_hws)]
+        x_wall = 0.5 * (x_lo + x_hi)
+        t_wall = min(0.9, max(0.1, x_wall / d))
+        sigma = 0.22
+        for side in (1.0, -1.0):              # slot on +y or -y
+            if len(contexts) >= num_samples:
+                break
+            slot_y = side * off
+            rows = []
+            for h in range(PATH_H):
+                t = h / (PATH_H - 1)
+                # Gaussian detour peaking at the slot offset as the path crosses
+                # the wall, ~0 at start and goal.
+                bump = math.exp(-((t - t_wall) / sigma) ** 2)
+                rows.append([t * d, slot_y * bump])
+            contexts.append([d, 0.0])
+            patches.append(_gap_patch(slot_y, x_lo, x_hi, slot_hw))
+            targets.append(rows)
+        if len(contexts) < num_samples:
+            contexts.append([d, 0.0])
+            patches.append(torch.zeros(1, PATH_COSTMAP_SIZE, PATH_COSTMAP_SIZE))
+            targets.append([[(h / (PATH_H - 1)) * d, 0.0] for h in range(PATH_H)])
+        i += 1
+    return (
+        torch.tensor(contexts, dtype=torch.float32),
+        torch.stack(patches),
+        torch.tensor(targets, dtype=torch.float32),
+    )
+
+
+def _path_dataset(dataset, num_samples):
+    """Select / combine the path datasets: 'side', 'gap', or 'both'."""
+    if dataset == 'side':
+        return make_costmap_path_dataset(num_samples)
+    if dataset == 'gap':
+        return make_costmap_path_gap_dataset(num_samples)
+    if dataset == 'both':
+        half = num_samples // 2
+        a = make_costmap_path_dataset(num_samples - half)
+        b = make_costmap_path_gap_dataset(half)
+        return tuple(torch.cat([a[i], b[i]], dim=0) for i in range(3))
+    raise ValueError('unknown path dataset: ' + dataset)
+
+
+def train_and_export_costmap_path(path, num_samples=96, epochs=400, lr=0.01, steps=4,
+                                  kind='flow', dataset='side', device=None):
+    """Train a costmap-conditioned Mode B path planner and export a 2-input ONNX.
+
+    ``kind`` selects the family: ``'flow'`` (CostmapPathFlowPlanner) or
+    ``'transformer'`` (CostmapPathTransformerPlanner). ``dataset`` selects the
+    training data: ``'side'`` (one-sided obstacle, the default / shipped behaviour),
+    ``'gap'`` (off-centre slot routing), or ``'both'``. ``device`` selects the
+    training device (e.g. ``'cuda'``); the model is always exported on CPU so the
+    artifact is portable.
+    """
     torch.manual_seed(0)
-    model = CostmapPathFlowPlanner(steps=steps)
-    context, costmap, target = make_costmap_path_dataset(num_samples)
+    dev = torch.device(device) if device is not None else torch.device('cpu')
+    if kind == 'flow':
+        model = CostmapPathFlowPlanner(steps=steps)
+    elif kind == 'transformer':
+        model = CostmapPathTransformerPlanner()
+    else:
+        raise ValueError('unknown path planner kind: ' + kind)
+    model.to(dev)
+    context, costmap, target = _path_dataset(dataset, num_samples)
+    context, costmap, target = context.to(dev), costmap.to(dev), target.to(dev)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
     model.train()
     loss = torch.tensor(0.0)
     for _ in range(max(1, epochs)):
         optimizer.zero_grad()
-        loss = model.flow_loss(context, costmap, target)
-        out = model(context[:16], costmap[:16])             # [B, K, H, 2]
+        if kind == 'flow':
+            loss = model.flow_loss(context, costmap, target)
+            out = model(context[:16], costmap[:16])         # [B, K, H, 2]
+        else:
+            loss = model.recon_loss(context, costmap, target)
+            out = model(context[:16], costmap[:16])
         jerk = out[:, :, 2:, :] - 2 * out[:, :, 1:-1, :] + out[:, :, :-2, :]
         loss = loss + 2.0 * (jerk ** 2).mean()              # smoothness
         loss.backward()
         optimizer.step()
 
-    model.eval()
+    model.eval().to('cpu')
     dummy_ctx = torch.zeros(1, CTX_DIM)
     dummy_map = torch.zeros(1, 1, PATH_COSTMAP_SIZE, PATH_COSTMAP_SIZE)
     torch.onnx.export(

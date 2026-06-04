@@ -136,3 +136,41 @@ def test_costmap_path_loss_decreases_and_reads_costmap():
         right = model(ctx, _aligned_patch(-1.0).unsqueeze(0))
     # Different costmaps must yield different proposals (the patch is read).
     assert (left - right).abs().max().item() > 1e-3
+
+
+def test_costmap_path_transformer_exports_contract(tmp_path):
+    """The transformer Mode B planner exports the same context+costmap ONNX seam."""
+    from nav2_diffusion_training.path_planners import (
+        PATH_COSTMAP_SIZE, PATH_H, PATH_K, train_and_export_costmap_path)
+
+    path = os.path.join(str(tmp_path), 'costmap_path_transformer.onnx')
+    train_and_export_costmap_path(
+        path, num_samples=12, epochs=3, kind='transformer', dataset='both')
+
+    ort = pytest.importorskip('onnxruntime')
+    import numpy as np
+    session = ort.InferenceSession(path, providers=['CPUExecutionProvider'])
+    names = {i.name for i in session.get_inputs()}
+    assert names == {'context', 'costmap'}
+    ctx = np.array([[5.0, 0.0]], dtype=np.float32)
+    cm = np.zeros((1, 1, PATH_COSTMAP_SIZE, PATH_COSTMAP_SIZE), dtype=np.float32)
+    out = session.run(None, {'context': ctx, 'costmap': cm})[0]
+    assert out.shape == (1, PATH_K, PATH_H, 2)
+    assert np.isfinite(out).all()
+
+
+def test_gap_dataset_shapes_and_routes_through_slot():
+    """The off-centre-gap dataset has the seam shapes and a slot-routing expert.
+
+    The full routing *behaviour* of the trained model is guarded in the C++ backend
+    gtest (OnnxPathModelTest.CuratedZooTransformerRoutesThroughGap); here we check
+    the dataset shapes and that the expert path detours toward the off-centre slot.
+    """
+    from nav2_diffusion_training.path_planners import (
+        PATH_DIM, PATH_H, make_costmap_path_gap_dataset)
+    ctx, patches, targets = make_costmap_path_gap_dataset(12)
+    assert ctx.shape[1] == 2
+    assert patches.shape[1:] == (1, 24, 24)
+    assert targets.shape[1:] == (PATH_H, PATH_DIM)
+    # The first sample's slot is on +y, so the expert bows to +y at mid-path.
+    assert targets[0, PATH_H // 2, 1].item() > 0.5
