@@ -1,0 +1,23 @@
+# Example Nav2 planner_server configuration using the VisibilityGraphPlanner, a
+# continuous-space geometric global planner that upstream Nav2 does not provide.
+# Drop-in replacement for the GridBased global planner plugin. See
+# nav2_visibility_graph_planner/README.md.
+#
+# A visibility graph reasons about obstacle geometry: its vertices are obstacle
+# convex corners (plus start and goal), its edges connect mutually visible
+# vertices, and A* over it returns a piecewise-straight corner-hugging route. It
+# treats the costmap as binary free/blocked (cells >= lethal_threshold). All-pairs
+# visibility is O(V^2); max_corners caps the vertex count on cluttered maps.
+
+planner_server:
+  ros__parameters:
+    expected_planner_frequency: 20.0
+    planner_plugins: ["GridBased"]
+    costmap_update_timeout: 1.0
+
+    GridBased:
+      plugin: "nav2_visibility_graph_planner::VisibilityGraphPlanner"
+      lethal_threshold: 253      # costs >= this are obstacles (default INSCRIBED)
+      allow_unknown: true        # treat unknown costmap cells as traversable
+      interpolation_resolution: 0.05   # path densification / line-of-sight step [m]
+      max_corners: 1500          # cap on graph corner vertices (O(V^2) edges)

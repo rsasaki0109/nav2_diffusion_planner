@@ -1,0 +1,14 @@
+<library path="nav2_visibility_graph_planner">
+  <class
+    type="nav2_visibility_graph_planner::VisibilityGraphPlanner"
+    base_class_type="nav2_core::GlobalPlanner">
+    <description>
+      Visibility-graph global planner. Builds a graph whose vertices are obstacle
+      convex corners (extracted from the costmap) plus the start and goal, whose
+      edges connect mutually visible vertices, and runs A* over it to return a
+      piecewise-straight corner-hugging route. Reasons about obstacle geometry
+      rather than grid cells. Classical (non-learned) and not part of upstream
+      Nav2. Throws NoValidPathCouldBeFound if start and goal are not connected.
+    </description>
+  </class>
+</library>

@@ -8,6 +8,19 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 
 ### Added
 
+- **Classical visibility-graph global planner** —
+  `nav2_visibility_graph_planner::VisibilityGraphPlanner`, a continuous-space
+  geometric `nav2_core::GlobalPlanner` in the new `nav2_visibility_graph_planner`
+  package. It reasons about obstacle geometry rather than grid cells: graph
+  vertices are obstacle convex corners (extracted from the costmap) plus the start
+  and goal, edges connect mutually visible vertices (line-of-sight), and A* over
+  the graph returns a piecewise-straight corner-hugging route. The only
+  geometry-based (non-grid, non-sampling) planner in the repo; upstream Nav2 has
+  none. All-pairs visibility is O(V^2), capped by `max_corners` (warns when
+  truncated). Fully deterministic. Closed-loop gtests vs a live `Costmap2DROS`
+  (straight line to an off-axis goal on a clear map, route through an off-centre
+  gap, solid wall, occupied goal, cancel), registered via pluginlib, added to CI
+  and a bringup planner_server example.
 - **Classical ARA\* anytime global planner** —
   `nav2_ara_star_planner::ARAStarPlanner`, an anytime / bounded-suboptimal
   `nav2_core::GlobalPlanner` in the new `nav2_ara_star_planner` package. ARA*
