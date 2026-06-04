@@ -143,6 +143,8 @@ int main(int argc, char ** argv)
     {"Lazy Theta*", "nav2_lazy_theta_star_planner::LazyThetaStarPlanner", "any-angle"},
     {"ARA*", "nav2_ara_star_planner::ARAStarPlanner", "anytime"},
     {"Visibility graph", "nav2_visibility_graph_planner::VisibilityGraphPlanner", "geometric"},
+    {"Diffusion (Mode B)", "nav2_diffusion_global_planner::DiffusionGlobalPlanner",
+      "generative (propose + validate)"},
   };
 
   std::vector<Scenario> scenarios = {
@@ -169,13 +171,20 @@ int main(int argc, char ** argv)
     "(absolute numbers vary with load); compare relative magnitudes and the "
     "path-length / shape columns.\n\n";
   std::cout << "Planners (all `nav2_core::GlobalPlanner` plugins absent from "
-    "upstream Nav2):\n\n";
+    "upstream Nav2 — eight classical plus one generative):\n\n";
   for (const auto & p : planners) {
     std::cout << "- **" << p.label << "** — " << p.family << "\n";
   }
   std::cout << "\n> D\\* Lite caches its goal-rooted search across calls, so its "
     "median reflects warm incremental replans (the first cold plan is slower). "
     "The others replan from scratch each call.\n\n";
+  std::cout << "> **Diffusion (Mode B)** is the generative planner running its "
+    "default analytic `FanPathModel` (no ONNX, fully deterministic): it *proposes* "
+    "a fan of bowed candidates and the deterministic validity layer *disposes* of "
+    "colliding ones, keeping the shortest survivor. Unlike the search planners it "
+    "is not complete — if no proposed candidate threads the gap it reports no path. "
+    "A trained model would propose richer, data-driven shapes; the same safety "
+    "layer would still gate them.\n\n";
 
   for (const auto & sc : scenarios) {
     std::cout << "## Scenario: " << sc.name << "\n\n";

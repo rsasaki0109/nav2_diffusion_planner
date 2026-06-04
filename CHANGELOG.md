@@ -8,6 +8,16 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 
 ### Added
 
+- **Generative Mode B in the planner comparison** — the planner benchmark now also
+  runs `nav2_diffusion_global_planner::DiffusionGlobalPlanner` (its default analytic
+  `FanPathModel`, no ONNX, deterministic) alongside the eight classical planners,
+  putting *generative propose + classical dispose* on the same footing. It is the
+  fastest after RRT-Connect and returns optimal paths on the clear and off-centre-gap
+  scenarios, but reports **no path** on the slalom: the analytic fan cannot propose
+  an S-shape, so the deterministic validity layer rejects every candidate and the
+  planner fails closed — the intended behaviour of the propose/dispose split (a
+  trained model would propose richer shapes; the same safety layer would still gate
+  them). See `docs/planner_comparison.md`.
 - **Planner / controller selection guide** — `docs/choosing_a_planner.md`: when to
   use each of the eight classical global planners, the two reactive controllers,
   and the generative options (with decision tables and Mermaid flowcharts), plus

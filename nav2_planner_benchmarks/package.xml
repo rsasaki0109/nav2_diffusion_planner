@@ -4,10 +4,11 @@
   <name>nav2_planner_benchmarks</name>
   <version>0.3.0</version>
   <description>
-    Offline comparison of the classical nav2_core::GlobalPlanner plugins in
+    Offline comparison of the nav2_core::GlobalPlanner plugins in
     nav2_experimental_planner (RRT*, RRT-Connect, PRM, D* Lite, JPS, Lazy Theta*,
-    ARA*, visibility graph) on shared scenarios against a live Costmap2DROS,
-    writing a Markdown leaderboard (docs/planner_comparison.md).
+    ARA*, visibility graph, plus the generative Mode B diffusion planner) on shared
+    scenarios against a live Costmap2DROS, writing a Markdown leaderboard
+    (docs/planner_comparison.md).
   </description>
 
   <maintainer email="rsasaki0109@gmail.com">Ryohei Sasaki</maintainer>
@@ -34,6 +35,7 @@
   <exec_depend>nav2_lazy_theta_star_planner</exec_depend>
   <exec_depend>nav2_ara_star_planner</exec_depend>
   <exec_depend>nav2_visibility_graph_planner</exec_depend>
+  <exec_depend>nav2_diffusion_global_planner</exec_depend>
   <exec_depend>nav2_vfh_controller</exec_depend>
   <exec_depend>nav2_nd_controller</exec_depend>
 

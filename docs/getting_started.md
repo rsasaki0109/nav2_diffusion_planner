@@ -114,7 +114,7 @@ demo launch は `candidate_markers` ノードも起動します。RViz に **Mar
 ## 次のステップ
 
 - どれを使うか迷ったら: [choosing_a_planner.md](choosing_a_planner.md)（状況別の推奨・決定フロー）
-- classical 群の比較: [planner_comparison.md](planner_comparison.md)（GlobalPlanner 8 種）/ [controller_comparison.md](controller_comparison.md)（VFH+ vs ND）
+- 横断比較: [planner_comparison.md](planner_comparison.md)（classical GlobalPlanner 8 種 + 生成型 Mode B）/ [controller_comparison.md](controller_comparison.md)（VFH+ vs ND）
 - 挙動の理解: 候補軌道（`TrajectoryCandidates`）と `SafetyState` を RViz / `ros2 topic echo` で観察
 - 自分の robot へ: [../nav2_diffusion_controller/README.md](../nav2_diffusion_controller/README.md) のパラメータ
 - 自社データで学習・評価: [training.md](training.md) / [benchmarking.md](benchmarking.md)
