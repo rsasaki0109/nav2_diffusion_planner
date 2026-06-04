@@ -43,3 +43,11 @@ planner_server:
       # below a search planner. Any nav2_core::GlobalPlanner works. See
       # docs/generative_limits.md.
       # fallback_planner_plugin: "nav2_jps_planner::JPSPlanner"
+
+      # Optional TIGHTLY-COUPLED HYBRID: instead of only falling back on failure,
+      # always run a built-in complete A* whose cell costs are discounted near the
+      # valid proposals, so the learned model shapes every route while the search
+      # guarantees completeness.
+      # hybrid_mode: "guided"
+      # guidance_strength: 0.5   # cost discount near proposals [0, 1)
+      # guidance_radius: 0.3     # corridor half-width around proposals [m]

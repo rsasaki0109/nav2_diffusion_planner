@@ -58,7 +58,11 @@ learned Mode A は open では goal 到達するが、`controller_benchmark` の
 
 1. **大容量モデル + 多様な実データ**: rosbag / sim から goal・障害物・gap 配置を広く集めて学習（[training.md](training.md)）。CNN/Transformer encoder の増強。
 2. **閉ループ学習（DAgger 等）**: 実行時に訪れる状態でラベルを足し、分布シフトに頑健化。obstacle-threading に直接効く。
-3. **ハイブリッド（✅ 実装済み）**: generative が提案し、無効なら classical（完全な探索）が引き継ぐ。`DiffusionGlobalPlanner` に `fallback_planner_plugin` を追加（Mode A controller の fallback と同型）。learned 提案が地図を通せないとき classical search に委譲するので、簡単な地図では高速な generative 経路を使いつつ、難所では探索系を下回らない。`planner_comparison.md` の **Diffusion (Mode B, hybrid)** 行（learned + JPS fallback）は **全シナリオを解く**: clear / side obstacle は generative（12 pose）、off-centre gap / slalom は JPS fallback（81 / 107 pose）。**これが gap-routing の天井を超える現実解**。Mode A 側にも同型の fallback（`fallback_controller_plugin`）が既にある。さらに進めるなら、提案を探索の heuristic/seed に使う密結合や、closed-loop 学習。
+3. **ハイブリッド（✅ 実装済み・2 形態）**: generative 提案 + classical の完全性。本リポジトリは 2 つの結合度を実装している。
+   - **疎結合（fallback）**: `DiffusionGlobalPlanner` の `fallback_planner_plugin`（Mode A controller の `fallback_controller_plugin` と同型）。learned 提案が無効なときだけ classical search/reactive に委譲。簡単な地図は高速な generative 経路、難所は探索系。`planner_comparison.md` の **Mode B, hybrid**（learned + JPS）は全シナリオ解決（clear/side は generative 12 pose、gap/slalom は JPS 81/107 pose）。`controller_comparison.md` の **Mode A, hybrid**（learned + VFH+）も全シナリオ到達。
+   - **密結合（guided）**: `hybrid_mode: guided`。**常に**完全な A* を走らせ、有効な proposal の近傍セルのコストを割引くので、learned が**毎回**の経路形状を誘導しつつ探索が完全性を保証する。**Mode B, guided** も全シナリオ解決（cell 解像度 81/111 pose — fallback と違い簡単な地図でも探索を走らせる）。
+
+さらに進めるなら closed-loop 学習や、大容量モデル + 実データ。
 4. **TensorRT / Jetson 実機検証**: [deployment.md](deployment.md) §11 / [roadmap.md](roadmap.md)。
 
 ## 結論

@@ -6,6 +6,20 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 
 ## [Unreleased]
 
+### Added
+
+- **Tightly-coupled hybrid Mode B planner (`hybrid_mode: guided`).** Beyond the
+  fallback hybrid (which only invokes a classical planner when the generative
+  proposals all fail), `DiffusionGlobalPlanner` gains a built-in complete 8-connected
+  A* that discounts the cost of cells near the valid proposals (`guidance_strength` /
+  `guidance_radius`). The learned model *shapes every route* (which way to go around)
+  while the search guarantees completeness; with no valid proposal it degrades to a
+  plain complete A*. `planner_benchmark` adds a *Diffusion (Mode B, guided)* entry
+  that solves every scenario at cell resolution (81 / 111 poses) — unlike the
+  fallback hybrid which returns the 12-pose generative path on easy maps. New gtest
+  `GuidedHybridSolvesSlalomWithCompleteSearch` (no external fallback plugin needed).
+  See docs/generative_limits.md.
+
 ## [0.7.0] - 2026-06-04
 
 Theme: **hybrid — generative proposes, classical disposes (and completes).** v0.6.0

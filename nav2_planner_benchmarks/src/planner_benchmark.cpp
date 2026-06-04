@@ -168,6 +168,12 @@ int main(int argc, char ** argv)
         rclcpp::Parameter("provide_costmap", true),
         rclcpp::Parameter(
           "fallback_planner_plugin", std::string("nav2_jps_planner::JPSPlanner"))}},
+    {"Diffusion (Mode B, guided)", "nav2_diffusion_global_planner::DiffusionGlobalPlanner",
+      "generative-guided complete A* (tightly coupled)",
+      {rclcpp::Parameter("model_plugin", std::string("nav2_diffusion_onnx::OnnxPathModel")),
+        rclcpp::Parameter("model_path", learned_model),
+        rclcpp::Parameter("provide_costmap", true),
+        rclcpp::Parameter("hybrid_mode", std::string("guided"))}},
   };
 
   std::vector<Scenario> scenarios = {
@@ -198,8 +204,8 @@ int main(int argc, char ** argv)
     "(absolute numbers vary with load); compare relative magnitudes and the "
     "path-length / shape columns.\n\n";
   std::cout << "Planners (all `nav2_core::GlobalPlanner` plugins absent from "
-    "upstream Nav2 — eight classical plus three generative Mode B variants: "
-    "analytic, learned, and learned+classical hybrid):\n\n";
+    "upstream Nav2 — eight classical plus four generative Mode B variants: "
+    "analytic, learned, learned+classical fallback hybrid, and guided hybrid):\n\n";
   for (const auto & p : planners) {
     std::cout << "- **" << p.label << "** — " << p.family << "\n";
   }
@@ -221,7 +227,12 @@ int main(int argc, char ** argv)
     "proposal threads the map it hands off to a complete search, so it solves every "
     "scenario while still using the fast generative path on the easy ones. This is "
     "the propose/dispose split taken one step further — learned proposes, classical "
-    "search disposes (see docs/generative_limits.md).\n\n";
+    "search disposes. The **hybrid (guided)** variant couples them tightly: it "
+    "always runs a complete A* but discounts cell costs near the valid proposals, so "
+    "the learned model *shapes* every route while the search guarantees completeness "
+    "— note its cell-resolution pose counts even on easy maps, where the fallback "
+    "hybrid instead returns the 12-pose generative path (see "
+    "docs/generative_limits.md).\n\n";
 
   for (const auto & sc : scenarios) {
     std::cout << "## Scenario: " << sc.name << "\n\n";

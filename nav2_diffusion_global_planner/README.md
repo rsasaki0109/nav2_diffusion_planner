@@ -42,7 +42,10 @@ Nav2 GlobalPlanner Plugin integration（Mode B）。
 | `provide_costmap` | true | 正規化した大域 costmap を `PathContext` に詰めて costmap 条件付きモデルへ渡す（analytic モデルは無視。検証層は常に独立して衝突判定する） |
 | `model_plugin` | "" | 生成パスモデルの `PathModel` plugin 名。空で組み込み `FanPathModel` |
 | `model_path` | "" | `model_plugin` の `configure()` に渡すモデルパス（例: ONNX ファイル） |
-| `fallback_planner_plugin` | "" | 有効候補が無いとき委譲する classical `nav2_core::GlobalPlanner` 名（例: `nav2_jps_planner::JPSPlanner`）。空なら `NoValidPathCouldBeFound` を投げる。設定すると **hybrid**（learned 提案 → 完全な探索が dispose）になり、難所でも探索系を下回らない |
+| `fallback_planner_plugin` | "" | 有効候補が無いとき委譲する classical `nav2_core::GlobalPlanner` 名（例: `nav2_jps_planner::JPSPlanner`）。空なら `NoValidPathCouldBeFound` を投げる。設定すると **疎結合 hybrid**（learned 提案 → 失敗時のみ完全探索が dispose）になり、難所でも探索系を下回らない |
+| `hybrid_mode` | "fallback" | `"guided"` にすると **密結合 hybrid**: 常に組み込みの完全な A* を走らせ、有効 proposal 近傍セルのコストを割引いて learned が毎回の経路形状を誘導する（完全性は探索が保証） |
+| `guidance_strength` | 0.5 | guided 時、proposal 近傍セルのコスト割引率 [0,1) |
+| `guidance_radius` | 0.3 | guided 時、proposal 周りの誘導コリドー半幅 [m] |
 
 ## 使い方（例）
 

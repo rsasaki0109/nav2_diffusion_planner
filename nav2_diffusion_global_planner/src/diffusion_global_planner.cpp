@@ -19,7 +19,9 @@
 #include <cstddef>
 #include <limits>
 #include <memory>
+#include <queue>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "nav2_core/planner_exceptions.hpp"
@@ -61,6 +63,12 @@ void DiffusionGlobalPlanner::configure(
     node, name_ + ".model_path", rclcpp::ParameterValue(std::string("")));
   declare_parameter_if_not_declared(
     node, name_ + ".fallback_planner_plugin", rclcpp::ParameterValue(std::string("")));
+  declare_parameter_if_not_declared(
+    node, name_ + ".hybrid_mode", rclcpp::ParameterValue(std::string("fallback")));
+  declare_parameter_if_not_declared(
+    node, name_ + ".guidance_strength", rclcpp::ParameterValue(0.5));
+  declare_parameter_if_not_declared(
+    node, name_ + ".guidance_radius", rclcpp::ParameterValue(0.3));
 
   node->get_parameter(name_ + ".num_candidates", num_candidates_);
   node->get_parameter(name_ + ".num_points", num_points_);
@@ -71,6 +79,9 @@ void DiffusionGlobalPlanner::configure(
   node->get_parameter(name_ + ".model_plugin", model_plugin_);
   node->get_parameter(name_ + ".model_path", model_path_);
   node->get_parameter(name_ + ".fallback_planner_plugin", fallback_planner_plugin_);
+  node->get_parameter(name_ + ".hybrid_mode", hybrid_mode_);
+  node->get_parameter(name_ + ".guidance_strength", guidance_strength_);
+  node->get_parameter(name_ + ".guidance_radius", guidance_radius_);
 
   if (model_plugin_.empty()) {
     model_ = std::make_shared<nav2_diffusion_core::FanPathModel>(max_bow_fraction_);
@@ -231,6 +242,18 @@ nav_msgs::msg::Path DiffusionGlobalPlanner::createPlan(
   }
   const auto candidates = model_->generate(ctx);
 
+  // Tightly-coupled hybrid: run a complete A* whose costs are discounted near the
+  // valid proposals, so the learned model shapes the route and the search keeps
+  // completeness. (The fallback mode below only invokes search on total failure.)
+  if (hybrid_mode_ == "guided") {
+    const auto guided = guidedSearch(start, goal, candidates, cancel_checker);
+    if (guided.poses.empty()) {
+      throw nav2_core::NoValidPathCouldBeFound(
+              "Guided search found no route from start to goal");
+    }
+    return guided;
+  }
+
   // Dispose + select: keep the shortest collision-free candidate.
   const nav2_diffusion_core::PathCandidate * best = nullptr;
   double best_length = std::numeric_limits<double>::max();
@@ -282,6 +305,175 @@ nav_msgs::msg::Path DiffusionGlobalPlanner::createPlan(
     plan.poses.push_back(pose);
   }
 
+  return plan;
+}
+
+nav_msgs::msg::Path DiffusionGlobalPlanner::guidedSearch(
+  const geometry_msgs::msg::PoseStamped & start,
+  const geometry_msgs::msg::PoseStamped & goal,
+  const std::vector<nav2_diffusion_core::PathCandidate> & proposals,
+  std::function<bool()> cancel_checker) const
+{
+  nav_msgs::msg::Path plan;
+  plan.header.frame_id = global_frame_;
+  auto node = node_.lock();
+  plan.header.stamp = node ? node->now() : rclcpp::Clock().now();
+
+  const int sx = static_cast<int>(costmap_->getSizeInCellsX());
+  const int sy = static_cast<int>(costmap_->getSizeInCellsY());
+  const double res = costmap_->getResolution();
+  const std::size_t ncells = static_cast<std::size_t>(sx) * sy;
+
+  unsigned int smx = 0, smy = 0, gmx = 0, gmy = 0;
+  if (!costmap_->worldToMap(start.pose.position.x, start.pose.position.y, smx, smy) ||
+    !costmap_->worldToMap(goal.pose.position.x, goal.pose.position.y, gmx, gmy))
+  {
+    return plan;
+  }
+  const int gx = static_cast<int>(gmx);
+  const int gy = static_cast<int>(gmy);
+  const int start_idx = static_cast<int>(smy) * sx + static_cast<int>(smx);
+  const int goal_idx = gy * sx + gx;
+
+  // Guidance: cells near a VALID proposal get a cost discount, biasing the search
+  // toward the learned corridor where it is free. No valid proposal -> plain A*.
+  std::vector<char> near(ncells, 0);
+  const int rad = std::max(0, static_cast<int>(std::lround(guidance_radius_ / res)));
+  for (const auto & cand : proposals) {
+    if (cand.size() < 2 || !isPathValid(cand)) {
+      continue;
+    }
+    for (std::size_t i = 1; i < cand.points.size(); ++i) {
+      const auto & a = cand.points[i - 1];
+      const auto & b = cand.points[i];
+      const double seg = std::hypot(b.x - a.x, b.y - a.y);
+      const int samples = std::max(1, static_cast<int>(std::ceil(seg / res)));
+      for (int s = 0; s <= samples; ++s) {
+        const double t = static_cast<double>(s) / static_cast<double>(samples);
+        unsigned int cmx = 0, cmy = 0;
+        if (!costmap_->worldToMap(a.x + t * (b.x - a.x), a.y + t * (b.y - a.y), cmx, cmy)) {
+          continue;
+        }
+        for (int dy = -rad; dy <= rad; ++dy) {
+          for (int dx = -rad; dx <= rad; ++dx) {
+            const int nx = static_cast<int>(cmx) + dx;
+            const int ny = static_cast<int>(cmy) + dy;
+            if (nx >= 0 && ny >= 0 && nx < sx && ny < sy) {
+              near[static_cast<std::size_t>(ny) * sx + nx] = 1;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  auto traversable = [&](int mx, int my) {
+    const unsigned char c = costmap_->getCost(mx, my);
+    if (c == nav2_costmap_2d::LETHAL_OBSTACLE ||
+      c == nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE)
+    {
+      return false;
+    }
+    return c != nav2_costmap_2d::NO_INFORMATION || allow_unknown_;
+  };
+  auto heuristic = [&](int mx, int my) {
+    const int dx = std::abs(mx - gx);
+    const int dy = std::abs(my - gy);
+    const int lo = std::min(dx, dy);
+    const int hi = std::max(dx, dy);
+    return (hi + (M_SQRT2 - 1.0) * lo) * res;
+  };
+
+  std::vector<double> g(ncells, std::numeric_limits<double>::max());
+  std::vector<int> came_from(ncells, -1);
+  std::vector<char> closed(ncells, 0);
+  using Node = std::pair<double, int>;            // (f, idx)
+  std::priority_queue<Node, std::vector<Node>, std::greater<Node>> open;
+  g[start_idx] = 0.0;
+  open.push({heuristic(static_cast<int>(smx), static_cast<int>(smy)), start_idx});
+
+  const int dxs[8] = {1, -1, 0, 0, 1, 1, -1, -1};
+  const int dys[8] = {0, 0, 1, -1, 1, -1, 1, -1};
+  int iterations = 0;
+  bool found = false;
+  while (!open.empty()) {
+    if ((++iterations & 0x3ff) == 0 && cancel_checker && cancel_checker()) {
+      throw nav2_core::PlannerCancelled("Planning cancelled");
+    }
+    const int cur = open.top().second;
+    open.pop();
+    if (closed[cur]) {
+      continue;
+    }
+    closed[cur] = 1;
+    if (cur == goal_idx) {
+      found = true;
+      break;
+    }
+    const int cx = cur % sx;
+    const int cy = cur / sx;
+    for (int k = 0; k < 8; ++k) {
+      const int nx = cx + dxs[k];
+      const int ny = cy + dys[k];
+      if (nx < 0 || ny < 0 || nx >= sx || ny >= sy || !traversable(nx, ny)) {
+        continue;
+      }
+      const bool diagonal = dxs[k] != 0 && dys[k] != 0;
+      // No corner cutting: a diagonal needs both orthogonal cells free.
+      if (diagonal && (!traversable(cx + dxs[k], cy) || !traversable(cx, cy + dys[k]))) {
+        continue;
+      }
+      const int nidx = ny * sx + nx;
+      const double base = (diagonal ? M_SQRT2 : 1.0) * res;
+      const double factor = near[nidx] ? (1.0 - guidance_strength_) : 1.0;
+      const double tentative = g[cur] + base * factor;
+      if (tentative < g[nidx]) {
+        g[nidx] = tentative;
+        came_from[nidx] = cur;
+        open.push({tentative + heuristic(nx, ny), nidx});
+      }
+    }
+  }
+
+  if (!found) {
+    return plan;          // empty -> no route
+  }
+
+  // Backtrack into world-frame poses (cell centres), then snap the endpoints.
+  std::vector<int> idx_path;
+  for (int n = goal_idx; n != -1; n = came_from[n]) {
+    idx_path.push_back(n);
+  }
+  std::reverse(idx_path.begin(), idx_path.end());
+
+  plan.poses.reserve(idx_path.size());
+  std::vector<std::pair<double, double>> pts;
+  pts.reserve(idx_path.size());
+  for (int n : idx_path) {
+    double wx = 0.0, wy = 0.0;
+    costmap_->mapToWorld(
+      static_cast<unsigned int>(n % sx), static_cast<unsigned int>(n / sx), wx, wy);
+    pts.push_back({wx, wy});
+  }
+  pts.front() = {start.pose.position.x, start.pose.position.y};
+  pts.back() = {goal.pose.position.x, goal.pose.position.y};
+
+  for (std::size_t i = 0; i < pts.size(); ++i) {
+    geometry_msgs::msg::PoseStamped pose;
+    pose.header = plan.header;
+    pose.pose.position.x = pts[i].first;
+    pose.pose.position.y = pts[i].second;
+    if (i + 1 < pts.size()) {
+      const double yaw = std::atan2(
+        pts[i + 1].second - pts[i].second, pts[i + 1].first - pts[i].first);
+      tf2::Quaternion q;
+      q.setRPY(0.0, 0.0, yaw);
+      pose.pose.orientation = tf2::toMsg(q);
+    } else {
+      pose.pose.orientation = goal.pose.orientation;
+    }
+    plan.poses.push_back(pose);
+  }
   return plan;
 }
 

@@ -52,6 +52,12 @@ namespace nav2_diffusion_global_planner
 /// guaranteeing a complete path when no proposal threads the map — so it keeps the
 /// generative proposal on easy maps but never regresses below a search planner on
 /// hard ones (e.g. routing through an off-centre gap). See docs/generative_limits.md.
+///
+/// `hybrid_mode: guided` is the tightly-coupled variant: instead of only handing
+/// off on failure, it always runs a built-in A* search but discounts the cost of
+/// cells near the valid generative proposals, so the learned model *shapes* every
+/// plan (which way to go around) while the search guarantees completeness. With no
+/// valid proposal it degrades to a plain complete A*.
 class DiffusionGlobalPlanner : public nav2_core::GlobalPlanner
 {
 public:
@@ -83,6 +89,16 @@ protected:
   /// costmap-conditioned PathModels can read it.
   void fillCostmap(nav2_diffusion_core::PathContext & ctx) const;
 
+  /// Tightly-coupled hybrid: a complete 8-connected A* over the costmap whose
+  /// per-cell cost is discounted near the valid generative proposals, so the
+  /// learned model shapes the route while the search guarantees completeness.
+  /// Returns an empty path if no route exists.
+  nav_msgs::msg::Path guidedSearch(
+    const geometry_msgs::msg::PoseStamped & start,
+    const geometry_msgs::msg::PoseStamped & goal,
+    const std::vector<nav2_diffusion_core::PathCandidate> & proposals,
+    std::function<bool()> cancel_checker) const;
+
   rclcpp_lifecycle::LifecycleNode::WeakPtr node_;
   std::shared_ptr<tf2_ros::Buffer> tf_;
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
@@ -101,6 +117,9 @@ protected:
   std::string model_plugin_;
   std::string model_path_;
   std::string fallback_planner_plugin_;
+  std::string hybrid_mode_{"fallback"};   // "fallback" or "guided"
+  double guidance_strength_{0.5};          // cost discount near proposals [0, 1)
+  double guidance_radius_{0.3};            // corridor half-width around proposals [m]
 
   std::unique_ptr<pluginlib::ClassLoader<nav2_diffusion_core::PathModel>> model_loader_;
   std::shared_ptr<nav2_diffusion_core::PathModel> model_;

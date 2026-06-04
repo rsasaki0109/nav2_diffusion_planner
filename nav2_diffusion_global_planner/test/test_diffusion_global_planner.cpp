@@ -273,3 +273,30 @@ TEST_F(DiffusionGlobalPlannerTest, HybridFallsBackToClassicalSearch)
   hybrid->deactivate();
   hybrid->cleanup();
 }
+
+// Tightly-coupled hybrid (hybrid_mode: guided): a built-in complete A* (cost
+// discounted near the proposals) solves the same S-shaped slalom that the pure
+// generative proposer cannot, with no external fallback plugin.
+TEST_F(DiffusionGlobalPlannerTest, GuidedHybridSolvesSlalomWithCompleteSearch)
+{
+  clearCostmap();
+  markWallWithGap(2.2, 1.0, 0.5, 2);
+  markWallWithGap(3.8, 5.0, 0.5, 2);
+
+  if (!node_->has_parameter("GuidedPlanner.hybrid_mode")) {
+    node_->declare_parameter(
+      "GuidedPlanner.hybrid_mode", rclcpp::ParameterValue(std::string("guided")));
+  }
+  auto guided = std::make_shared<nav2_diffusion_global_planner::DiffusionGlobalPlanner>();
+  guided->configure(node_, "GuidedPlanner", tf_, costmap_ros_);
+  guided->activate();
+
+  const auto plan = guided->createPlan(pose(1.0, 3.0), pose(5.0, 3.0), noCancel);
+  EXPECT_GE(plan.poses.size(), 2u);
+  EXPECT_TRUE(planIsCollisionFree(plan));
+  EXPECT_NEAR(plan.poses.front().pose.position.x, 1.0, 0.1);
+  EXPECT_NEAR(plan.poses.back().pose.position.x, 5.0, 0.1);
+
+  guided->deactivate();
+  guided->cleanup();
+}
