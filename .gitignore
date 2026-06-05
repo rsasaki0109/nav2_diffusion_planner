@@ -37,6 +37,8 @@ compile_commands.json
 *.bag
 *.db3
 *.mcap
+# Exception: the small curated Foxglove demo recording is tracked (like the GIFs).
+!docs/mode_b_demo.mcap
 rosbag2_*/
 
 # Editor / OS

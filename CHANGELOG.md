@@ -7,6 +7,17 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 ## [Unreleased]
 
 ### Added
+- **Foxglove-openable MCAP recording of the real Mode B pipeline**
+  (`tools/foxglove_mcap_demo.py` → `docs/mode_b_demo.mcap`). It runs the shipped
+  `PathFlowPlanner`, sweeps an obstacle, and writes each frame's costmap +
+  proposed/validated/selected paths as standard ROS 2 messages (`OccupancyGrid`,
+  `Path`, `PoseArray`, `PoseStamped`; 24 frames / ~2.3 s) so Foxglove Studio can
+  open it (3D panel, scrub/play, Export → Video) with no live ROS. The MCAP is
+  validated structurally (round-tripped through the mcap_ros2 reader).
+  `docs/visualization.md` documents opening it and recording a video. Honest
+  scope: it records the *model pipeline* to a portable file — not a live
+  Gazebo/ROS run (the sandbox has no display and blocks inter-process DDS, so a
+  Foxglove screen-capture cannot be produced here).
 - **Animated visualization of the closed-loop Gazebo courses** in the README
   (`docs/sim_courses.gif`, reproducible via `tools/gazebo_courses_demo.py`). It
   renders the `nav2_diffusion_sim` course layouts (centred / off-centre gap /

@@ -48,6 +48,29 @@ Foxglove Studio で `ws://<host>:8765` に接続し、**Layout → Import from f
 
 > トピック名がデフォルトと異なる場合は launch 引数で合わせるか、Foxglove 各パネルの設定で購読トピックを変更する。
 
+### オフラインで開く / 動画化（live ROS なしでも可）
+
+live な ROS / bridge が無くても、収録済みの **MCAP** を Foxglove Studio で直接開ける。
+[tools/foxglove_mcap_demo.py](../tools/foxglove_mcap_demo.py) は**実 Mode B パイプライン**（出荷
+`PathFlowPlanner` が start→goal の候補を提案 → costmap 検証 → 最短安全パス選択）を障害物
+スイープしながら ROS 2 メッセージとして [docs/mode_b_demo.mcap](mode_b_demo.mcap) に書き出す
+（`OccupancyGrid` / `Path` / `PoseArray` / `PoseStamped`、24 フレーム・約 2.3 s）。
+
+```bash
+pip install torch mcap mcap-ros2-support
+PYTHONPATH=generative/nav2_diffusion_training python3 tools/foxglove_mcap_demo.py
+```
+
+Foxglove Studio で **File → Open local file** から `docs/mode_b_demo.mcap` を開き、**3D**
+パネルを追加して `/local_costmap`・`/path_best`（選択パス）・`/candidates_safe` /
+`/candidates_rejected`・`/goal_pose` を表示。タイムラインを再生すると、障害物の移動に追従して
+選択パス（緑）が左右へ切り替わる。**Foxglove の Export → Video** でそのまま動画化できる。
+
+> 正直なスコープ: これは**モデル出力を可搬ファイルに収録したもの**で、Gazebo の閉ループ実走
+> ではない（このリポジトリのサンドボックスは inter-process DDS 不通かつ画面なしのため、
+> Foxglove の画面録画自体はここでは生成できない）。閉ループ実走は実 ROS ホストで上の
+> `foxglove.launch.py` を使う（[simulation.md](simulation.md) §10.5）。
+
 ## RViz
 
 RViz では標準の **MarkerArray** ディスプレイで `/candidate_markers` を、**Marker** で `/safety_state_marker` を追加すれば同じ可視化が得られる（[../nav2_diffusion_rviz_plugins/README.md](../generative/nav2_diffusion_rviz_plugins/README.md)）。`candidate_markers` ノードは上記 Foxglove launch でも起動するので、RViz と併用も可能。
