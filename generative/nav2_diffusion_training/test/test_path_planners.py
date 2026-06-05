@@ -233,6 +233,29 @@ def test_gap_dataset_shapes_and_routes_through_slot():
     assert targets[0, PATH_H // 2, 1].item() > 0.5
 
 
+def test_centred_gap_dataset_routes_straight_through():
+    """
+    The centred-gap dataset has the seam shapes and a straight (dead-ahead) expert.
+
+    Mirror of the off-centre-gap data: the slot is on the line, so the expert keeps
+    lateral ~0 (no detour). This is the data used in the documented centred-rebalance
+    experiment (docs/generative_limits.md); it stays available as the 'centred'
+    dataset option but is intentionally not mixed into 'both'.
+    """
+    from nav2_diffusion_training.path_planners import (
+        PATH_DIM, PATH_H, make_costmap_path_centred_gap_dataset)
+    ctx, patches, targets = make_costmap_path_centred_gap_dataset(8)
+    assert ctx.shape[1] == 2
+    assert patches.shape[1:] == (1, 24, 24)
+    assert targets.shape[1:] == (PATH_H, PATH_DIM)
+    # Dead-ahead slot: the expert stays on the centre line (no lateral detour).
+    assert abs(targets[0, PATH_H // 2, 1].item()) < 1e-6
+    # The patch is a wall with a free column at lateral 0 (centre is free, edges wall).
+    mid = patches[0, 0]
+    assert mid.sum().item() > 0          # there is a wall
+    assert mid[:, mid.shape[1] // 2].sum().item() == 0   # centre column is the slot
+
+
 def test_footprint_penalty_prefers_routing_through_the_slot():
     """
     The footprint-clearance term penalizes a wall-crossing path over a slot one.

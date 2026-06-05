@@ -6,7 +6,23 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 
 ## [Unreleased]
 
+### Added
+- **`make_costmap_path_centred_gap_dataset` + a `'centred'` path dataset option**
+  (dead-ahead slot, straight-through expert; includes narrow on-line slots), with a
+  unit test. This is the data for the centred-rebalance experiment below; it is
+  intentionally *not* mixed into `'both'`.
+
 ### Changed
+- **Tried the documented centred-rebalance to close the transformer's gap
+  trade-off — it only *shifts* it (an honest negative result, verified in C++).**
+  Mixing centred-gap samples into `'both'` and retraining made the transformer
+  gain *centred*/*narrow* but **lose the off-centre gap** (the project headline)
+  and *double gate*; an off-centre-weighted mix lost off-centre too, and off-centre
+  threading is flaky across GPU runs. So it is a genuine small-model capacity limit,
+  not a data-mix oversight. `'both'` stays two-way, the **shipped model is unchanged**
+  (off-centre headline preserved), and the finding is recorded in
+  `docs/generative_limits.md` and the transformer `model_card.md`. Closing the
+  trade-off needs more model capacity or curriculum / multi-task training.
 - **Root-caused the sandbox "no live ROS" limit and corrected the record.** With the
   agent command sandbox disabled (foreground), DDS works on this very machine —
   multicast loopback (JOIN_OK, 2/2), demo talker→listener discovery (heard 9), and

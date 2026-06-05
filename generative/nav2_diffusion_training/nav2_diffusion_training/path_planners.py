@@ -574,13 +574,53 @@ def make_costmap_path_gap_dataset(num_samples):
     )
 
 
+def make_costmap_path_centred_gap_dataset(num_samples):
+    """
+    Dead-ahead-gap data: a wall with a slot centred on the straight line.
+
+    The mirror of the off-centre-gap data: the slot sits at lateral 0, so the
+    expert goes *straight through* (no detour). Without these samples a model
+    trained only on off-centre gaps over-aims and misses a gap that is dead ahead
+    (the *centred gap* / *narrow gap* benchmark courses). Narrow slot half-widths
+    are included so the model learns tight on-line passages too.
+    """
+    contexts = []
+    patches = []
+    targets = []
+    spans = [(1.6, 2.4), (2.5, 3.3), (2.2, 3.0), (2.8, 3.6)]
+    slot_hws = [0.3, 0.5, 0.4, 0.35]          # include narrow (0.3) on-line slots
+    i = 0
+    while len(contexts) < num_samples:
+        d = 4.0 + 1.5 * ((i * 3) % 5) / 4.0   # goal distance 4.0..5.5 m
+        x_lo, x_hi = spans[i % len(spans)]
+        slot_hw = slot_hws[i % len(slot_hws)]
+        contexts.append([d, 0.0])
+        patches.append(_gap_patch(0.0, x_lo, x_hi, slot_hw))
+        targets.append([[(h / (PATH_H - 1)) * d, 0.0] for h in range(PATH_H)])
+        i += 1
+    return (
+        torch.tensor(contexts, dtype=torch.float32),
+        torch.stack(patches),
+        torch.tensor(targets, dtype=torch.float32),
+    )
+
+
 def _path_dataset(dataset, num_samples):
-    """Select / combine the path datasets: 'side', 'gap', or 'both'."""
+    """Select / combine the path datasets: 'side', 'gap', 'centred', or 'both'."""
     if dataset == 'side':
         return make_costmap_path_dataset(num_samples)
     if dataset == 'gap':
         return make_costmap_path_gap_dataset(num_samples)
+    if dataset == 'centred':
+        return make_costmap_path_centred_gap_dataset(num_samples)
     if dataset == 'both':
+        # One-sided obstacles + off-centre gaps (the transformer Mode B model).
+        # NOTE: a 'centred' tri-mix was tried to also cover dead-ahead gaps, but in
+        # the real C++ benchmark it only *shifted* the trade-off — it gained
+        # centred/narrow while losing the off-centre gap (the project headline),
+        # confirming a small-model capacity limit. So 'both' stays two-way; the
+        # centred data lives on as the 'centred' option for that experiment. See
+        # make_costmap_path_centred_gap_dataset and docs/generative_limits.md.
         half = num_samples // 2
         a = make_costmap_path_dataset(num_samples - half)
         b = make_costmap_path_gap_dataset(half)

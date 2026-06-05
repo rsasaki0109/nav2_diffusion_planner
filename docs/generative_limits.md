@@ -90,6 +90,18 @@ aim は出るが、これだけでは benchmark の gap は通らなかった（
 
 要するに **flow/recurrent と transformer は相補的**: 前者は dead-ahead の隙間に強く off-axis に弱い、後者は逆。両者を seam 上の peer として併載する価値がここに出る（用途に応じて選べる、または hybrid が両方を内包する）。
 
+#### centred-sample 再バランスを試した結果（2026-06、トレードオフは「移動」する）
+
+上で future work とした「centred サンプル追加で両立」を**実際に試した**（`make_costmap_path_centred_gap_dataset` を追加し `dataset='both'` を side+off-centre+centred の三分割化して transformer を再学習、実 C++ `planner_benchmark` で検証）。結果は**両立せず、トレードオフが移動しただけ**:
+
+| 配合 | centred / narrow | off-centre gap | far | double gate |
+|---|:-:|:-:|:-:|:-:|
+| 出荷（side+off-centre, 2-way） | ❌ | ✅ | ✅ | ✅ |
+| 三分割（centred 1/3 追加） | ✅ 獲得 | ❌ 喪失 | ✅ | ❌ 喪失 |
+| off-centre 厚め（centred 1/5） | ❌ | ❌ | ✅ | — |
+
+centred を足すと dead-ahead は通るが**プロジェクトの目玉である off-centre 貫通を失う**。off-centre を厚くしても（GPU 学習の run 間非決定性もあり）off-centre 貫通は flaky で安定しない。**= 小型モデル（16→token attention の軽量 transformer）の容量限界**で、この patch 表現・データ規模では「全ての隙間種」を同時に解けない、というのが実証的結論。よって **`'both'` は 2-way のまま据え置き**（off-centre 貫通の再現性を優先）、centred データは `dataset='centred'` として実験用に保持する。両立には**容量増（より大きな transformer）またはカリキュラム/マルチタスク学習**が要る、が次の本筋の future work。
+
 ### Mode A: 障害物スレッディング（回り込み通過）
 
 learned Mode A は open では goal 到達するが、`controller_benchmark` の *frontal / side / corridor* では障害物が egocentric patch に入った時点で **drift → 安全候補なし → 安全停止**（障害物の手前、衝突なし）。これは:

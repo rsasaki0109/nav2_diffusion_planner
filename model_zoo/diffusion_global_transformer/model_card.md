@@ -57,7 +57,13 @@ models report *no path* on both. It keeps *clear*, *side obstacle*, and the on-l
 that the flow and recurrent siblings thread trivially. The two CNN-embedding families
 and the attention transformer are therefore **complementary** — dead-ahead gaps vs
 off-axis slots — not strictly ordered. A centred-sample rebalance of the `'both'`
-dataset is the likely path to having both (future work).
+dataset **was tried** to get both (`make_costmap_path_centred_gap_dataset`,
+`dataset='centred'`): in the real C++ benchmark it only **shifted** the trade-off —
+it gained *centred*/*narrow* but **lost the off-centre gap** (the headline) and
+*double gate*, and off-centre threading is flaky across GPU runs. So it is a genuine
+small-model capacity limit, not a data-mix oversight; the shipped model keeps the
+off-centre headline and `'both'` stays two-way. Closing it needs more capacity or
+curriculum/multi-task training (see docs/generative_limits.md).
 
 ## Honest scope — what it does NOT do
 
