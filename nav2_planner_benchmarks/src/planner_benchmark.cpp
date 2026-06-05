@@ -168,7 +168,7 @@ int main(int argc, char ** argv)
         rclcpp::Parameter("model_path", learned_model),
         rclcpp::Parameter("provide_costmap", true)}},
     {"Diffusion (Mode B, transformer)", "nav2_diffusion_global_planner::DiffusionGlobalPlanner",
-      "generative transformer + costmap (fanned proposals)",
+      "generative transformer + costmap (footprint-aware; threads off-centre gap)",
       {rclcpp::Parameter("model_plugin", std::string("nav2_diffusion_onnx::OnnxPathModel")),
         rclcpp::Parameter("model_path", transformer_model),
         rclcpp::Parameter("provide_costmap", true)}},
@@ -239,15 +239,17 @@ int main(int argc, char ** argv)
     "**learned (recurrent)** loads the GRU-rollout Mode B model (a third family that "
     "emits each path one waypoint at a time). All are pure "
     "generative, so unlike the search planners they are not complete: if no proposal "
-    "threads the gap they report no path. The three learned models read the costmap and "
-    "bias proposals to the open side, clearing *clear* and *side obstacle* but not the "
-    "2 m swing of *off-centre gap* or the S of *slalom* — so on this benchmark they "
-    "behave alike. (Their difference is at the proposal level: the transformer *aims* "
-    "its proposals at an off-centre slot where the flow and recurrent models' 16-d CNN "
-    "embedding cannot — a representational result that still does not thread the narrow "
-    "footprint-validated slot here; the recurrent model shares the flow model's "
-    "free-side competence with a sequential inductive bias; see "
-    "docs/generative_limits.md.) The **hybrid** "
+    "threads the gap they report no path. The flow and recurrent models read the "
+    "costmap and bias proposals to the open side, clearing *clear* and *side obstacle* "
+    "but not the 2 m swing of *off-centre gap* (their 16-d CNN embedding can pick a "
+    "free side but cannot localize an off-centre slot). The transformer goes further: "
+    "attention over explicit costmap tokens lets it *aim* at the slot, and training it "
+    "with a **differentiable footprint-clearance loss** pulls each proposal's wall "
+    "crossing into the free slot with margin — so it **threads the footprint-validated "
+    "*off-centre gap*** as a pure-generative planner (12-pose generative path, no "
+    "fallback), the first Mode B model here to do so. Even so, no pure-generative "
+    "variant clears the S-shaped *slalom* (two staggered walls); that still needs the "
+    "hybrid (see docs/generative_limits.md). The **hybrid** "
     "variant "
     "keeps the learned proposal but adds a classical (JPS) fallback: when no "
     "proposal threads the map it hands off to a complete search, so it solves every "

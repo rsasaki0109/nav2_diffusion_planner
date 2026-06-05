@@ -228,3 +228,82 @@ def test_gap_dataset_shapes_and_routes_through_slot():
     assert targets.shape[1:] == (PATH_H, PATH_DIM)
     # The first sample's slot is on +y, so the expert bows to +y at mid-path.
     assert targets[0, PATH_H // 2, 1].item() > 0.5
+
+
+def test_footprint_penalty_prefers_routing_through_the_slot():
+    """The footprint-clearance term penalizes a wall-crossing path over a slot one.
+
+    A straight path crosses the wall (occupied); a path that detours to the slot
+    offset at the wall stays in free space. The differentiable penalty must rank
+    the slot path strictly lower — the signal that makes it validator-aware.
+    """
+    from nav2_diffusion_training.path_planners import (
+        PATH_H, PATCH_FWD, _footprint_penalty, _gap_patch)
+    slot_y = -2.0
+    patch = _gap_patch(slot_y, x_lo=1.6, x_hi=2.4, slot_hw=0.5).unsqueeze(0)  # [1,1,24,24]
+    xs = torch.linspace(0.0, PATCH_FWD * 0.7, PATH_H)
+    straight = torch.stack([xs, torch.zeros(PATH_H)], dim=-1).view(1, 1, PATH_H, 2)
+    t = torch.linspace(0.0, 1.0, PATH_H)
+    bow = torch.exp(-((t - 0.5) / 0.22) ** 2) * slot_y           # dips to the slot at mid
+    slot = torch.stack([xs, bow], dim=-1).view(1, 1, PATH_H, 2)
+    pen_straight = _footprint_penalty(straight, patch, blur_sigma=2.5)
+    pen_slot = _footprint_penalty(slot, patch, blur_sigma=2.5)
+    assert pen_slot.item() < pen_straight.item()
+
+
+def test_footprint_training_lowers_clearance_vs_recon_only(tmp_path):
+    """The footprint term yields proposals with less occupancy overlap than recon.
+
+    The full benchmark gap-threading is guarded in the C++ planner_benchmark; here
+    we keep a fast CPU check that, trained for the same budget on the gap dataset,
+    a recon+footprint model has a strictly lower footprint-clearance penalty than a
+    recon-only model — the validator-aware signal at work — and that the 2-input
+    ONNX still exports with the contract shape.
+    """
+    from nav2_diffusion_training.path_planners import (
+        CostmapPathTransformerPlanner, _footprint_penalty, _path_dataset,
+        train_and_export_costmap_path)
+    ort = pytest.importorskip('onnxruntime')
+    import numpy as np
+    context, costmap, target = _path_dataset('gap', 16)
+
+    def fan_recon(out, model):
+        tgt_x = target[..., 0].unsqueeze(1).expand(-1, model.fan.numel(), -1)
+        tgt_y = target[..., 1].unsqueeze(1) + model.fan.view(1, -1, 1)
+        return ((out - torch.stack([tgt_x, tgt_y], dim=-1)) ** 2).mean()
+
+    def train(footprint):
+        torch.manual_seed(0)
+        model = CostmapPathTransformerPlanner()
+        opt = torch.optim.Adam(model.parameters(), lr=0.01)
+        for _ in range(150):
+            opt.zero_grad()
+            out = model(context, costmap)
+            loss = fan_recon(out, model)
+            if footprint:
+                loss = loss + 3.0 * _footprint_penalty(out, costmap, blur_sigma=2.5)
+            loss.backward()
+            opt.step()
+        with torch.no_grad():
+            return _footprint_penalty(model(context, costmap), costmap, blur_sigma=2.5).item()
+
+    assert train(footprint=True) < train(footprint=False)
+
+    out = str(tmp_path / 'fp.onnx')
+    train_and_export_costmap_path(
+        out, num_samples=16, epochs=2, kind='transformer', dataset='gap',
+        footprint=3.0, blur_sigma=2.5)
+    sess = ort.InferenceSession(out)
+    paths = sess.run(['paths'], {
+        'context': np.array([[4.0, 0.0]], dtype=np.float32),
+        'costmap': np.zeros((1, 1, 24, 24), dtype=np.float32)})[0]
+    assert paths.shape == (1, 5, 12, 2)
+
+
+def test_footprint_loss_rejected_for_flow_kind(tmp_path):
+    """The footprint term needs the fan set-prediction kinds; flow must error."""
+    from nav2_diffusion_training.path_planners import train_and_export_costmap_path
+    with pytest.raises(ValueError):
+        train_and_export_costmap_path(
+            str(tmp_path / 'x.onnx'), num_samples=8, epochs=1, kind='flow',
+            dataset='gap', footprint=1.0)

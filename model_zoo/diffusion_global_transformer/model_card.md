@@ -1,9 +1,10 @@
 # Model Card: diffusion_global_costmap_transformer_v0
 
 > The curated generative **global path** (Mode B) model in the **transformer**
-> family — a DETR-style set-prediction planner whose raw proposals **aim at an
-> off-centre slot** where the flow Mode B model's proposals cannot. Manifest:
-> [manifest.yaml](manifest.yaml). Reproduce: [export.py](export.py). Sibling:
+> family — a DETR-style set-prediction planner that **threads the footprint-validated
+> off-centre gap** as a pure-generative planner (the first Mode B model here to do so
+> without a classical fallback). Manifest: [manifest.yaml](manifest.yaml). Reproduce:
+> [export.py](export.py). Sibling:
 > [../diffusion_global/model_card.md](../diffusion_global/model_card.md).
 
 ## Summary
@@ -19,57 +20,66 @@
 - **Artifact:** `costmap_transformer.onnx` (small, checked in, reproducible from
   `export.py`).
 
-## What it shows — a representational advance, not a benchmark win
+## What it shows — pure-generative threading of the validated off-centre gap
 
-[docs/generative_limits.md](../../docs/generative_limits.md) documented that the
-flow Mode B model could **not** aim a proposal at an off-centre gap (a wall blocking
-the straight line with a slot ~2 m off-axis): trained on gap data it stayed
-near-straight or veered to the wrong side, because a 16-dimensional CNN embedding
-cannot localize a thin slot.
+[docs/generative_limits.md](../../docs/generative_limits.md) documented a ceiling:
+the off-centre gap (a wall blocking the straight line with a 1 m slot ~2 m off-axis)
+could **not** be threaded by a pure-generative Mode B model. The flow / recurrent
+models (a 16-d CNN embedding) cannot even *aim* at an off-centre slot; an earlier
+gap-trained transformer could aim but its proposals still grazed the slot edge, so
+the footprint-validity layer found no survivor (`no path`). Three pure-imitation
+levers — aim, candidate fan, plateau expert — did not cross it.
 
-This transformer, trained on the **same** gap data, **aims its proposals at the
-slot on both sides**. The difference is architectural: a strided conv tokenizes the
-patch into spatial cells with learned positions, and K query tokens **cross-attend**
-over those tokens, so the model localizes the slot and bends every candidate toward
-it. Measured (held-out gap patches, exported ONNX): slot at +2.0 m → candidates'
-lateral offset at the wall ≈ +2.0 m; slot at −2.0 m → ≈ −2.0 m. In a direct A/B on
-the same gap-only data the flow model does not (flow loss 0.12, stays near-straight /
-wrong side; transformer loss 0.009, aims on both sides).
+This model crosses it by combining two ingredients:
 
-**Honest scope — a benchmark *peer* of the flow model, plus the slot-aiming
-property; not a gap-solving win.** On the footprint-validated `planner_benchmark`
-this model behaves like the flow Mode B model: it clears *clear* and *side obstacle*
-and reports *no path* on *off-centre gap* / *slalom*. (The K candidates are trained
-as a small lateral fan so the validator gets a spread of options around the aimed
-route — the flow model gets this for free from its K fixed latents; adding it fixed
-an earlier side-obstacle regression.) Its distinct property is at the *proposal*
-level: it aims proposals at the off-centre slot where the flow model cannot — a
-representational result, verified by the A/B probe and the C++ direction test
-(`OnnxPathModelTest.CuratedZooTransformerAimsAtOffCentreSlot`). But that aim still
-does **not** thread the narrow (1 m) footprint-validated slot, so pure-generative
-does not solve *off-centre gap*; the **hybrid** planner (generative propose →
-classical search dispose) remains the completeness guarantee. The value here is
-evidence that the *proposal-direction* limitation is architectural, not fundamental
-— a step toward a generative planner that could pass the validated gap with a wider
-slot / larger capacity / footprint-aware training.
+1. **Attention over costmap tokens (aim).** A strided conv tokenizes the patch into
+   spatial cells with learned positions; K query tokens **cross-attend** over them,
+   so the model localizes the off-centre slot and bends every candidate toward it —
+   which the flow / recurrent 16-d CNN embedding cannot.
+2. **Differentiable footprint-clearance loss (validator-aware).**
+   `path_planners._footprint_penalty` samples a Gaussian-blurred obstacle-proximity
+   field along the densely-interpolated path and penalizes overlap, so training
+   optimizes the proposals to be *what the validity layer accepts* — pulling each
+   candidate's wall crossing into the free slot with margin (the blur gives a gradient
+   even where a raw occupancy penalty is flat in the wall interior; the dense
+   interpolation samples the crossing like the C++ `isPathValid` does).
+
+**Result (verified in the real C++ `planner_benchmark`):** this model threads the
+footprint-validated *off-centre gap* — `Diffusion (Mode B, transformer)`: *off-centre
+gap* = **yes, ~5.5 m, 12-pose generative path, ~0.2 ms, no fallback** — while the flow
+and recurrent Mode B models still report *no path* there. It keeps the *clear* and
+*side obstacle* competence.
+
+## Honest scope — what it does NOT do
+
+- **Slalom is still no-path.** The S-shaped *slalom* (two staggered walls, two
+  crossings) is beyond a single forward-crossing generative proposal; the **hybrid**
+  planner remains the completeness guarantee there.
+- **Not complete.** Pure generative gives no any-map guarantee. Gap threading
+  generalizes to mirrored / nearer-offset slots but is **bounded to wall
+  forward-distances near the training span (~2 m aligned)**; a much nearer / farther
+  wall can fall back to no-path. The hybrid / search planners own the general routing
+  problem and the completeness guarantee.
+- **GPU training is not bit-exact** run-to-run, so which candidates thread can vary,
+  but the **committed artifact threads the gap in the C++ benchmark** (checksum fixed
+  in the manifest).
 
 ## Intended use
 
-Research demonstration of architecture-dependent spatial routing in the *propose*
-stage. Not a deployment model and not a drop-in upgrade over the flow Mode B model
-for the benchmark; the deterministic costmap-validity layer gates every proposal and
-the hybrid planner remains the completeness guarantee.
+Research demonstration that the proposal-stage gap ceiling is a matter of
+representation (attention) and loss (validator-aware footprint term), not a
+fundamental limit — and a drop-in costmap-conditioned Mode B model that, unlike the
+flow / recurrent siblings, threads the validated off-centre gap. Not a deployment
+model; the deterministic costmap-validity layer gates every proposal and the hybrid
+planner remains the completeness guarantee for slalom and general maps.
 
 ## Out-of-scope / limitations
 
 - **Synthetic data only.** Never validated on a real robot or rosbag.
-- **Benchmark peer, not a gap solver.** On `planner_benchmark` it matches the flow
-  model (clears *clear* + *side obstacle*); it does **not** pass *off-centre gap* (its
-  proposals aim at the slot but pure-generative validation still fails on the 1 m
-  slot). The hybrid planner solves the gap.
-- **Window-bounded.** Slot aiming demonstrated for offsets up to ~2 m inside the
-  24×24 / 6×6 m goal-aligned patch; classical search / the hybrid planner own the
-  general routing problem.
+- **Slalom unsolved by pure generative** (two-crossing S); the hybrid solves it.
+- **Window / distance bounded.** Gap threading demonstrated for slots up to ~2 m
+  off-axis with the wall near the training forward-distance, inside the 24×24 / 6×6 m
+  patch; classical search / the hybrid own the general problem.
 - **Research model.** Do not deploy on hardware; the validity layer is the authority.
 
 ## Training data
@@ -77,22 +87,20 @@ the hybrid planner remains the completeness guarantee.
 `make_costmap_path_dataset` (one-sided obstacle → bow to the free side) +
 `make_costmap_path_gap_dataset` (wall with one off-centre slot → expert routes through
 the slot via a Gaussian detour peaking at the slot offset where the path crosses the
-wall), combined as the `'both'` dataset (192 samples). Mirrored +y/−y pairs and clear
+wall), combined as the `'both'` dataset (240 samples). Mirrored +y/−y pairs and clear
 samples keep the response symmetric. Fully procedural; no real data.
 
 ## Benchmark results
 
-Research placeholder → checked **behaviourally** at the proposal level:
-
-- **Off-centre-slot aiming (exported ONNX):** wall + slot at ±2 m → every candidate's
-  lateral offset at the wall ≈ the slot offset. The flow Mode B model fails the same
-  probe. Guarded by `OnnxPathModelTest.CuratedZooTransformerAimsAtOffCentreSlot`.
-- **One-sided obstacle:** candidates veer to the free side.
-- **Footprint-validated planner benchmark:** a peer of the flow Mode B model —
-  clears *clear* and *side obstacle*, *no path* on *off-centre gap* / *slalom* (the
-  hybrid planner solves those); see
-  [docs/planner_comparison.md](../../docs/planner_comparison.md) and
+- **Footprint-validated planner benchmark (real C++):** **threads *off-centre gap***
+  (yes, ~5.5 m, 12 poses) in addition to *clear* and *side obstacle*; *slalom* remains
+  *no path* (hybrid solves it). The flow and recurrent Mode B models report *no path*
+  on the gap. See [docs/planner_comparison.md](../../docs/planner_comparison.md) and
   [docs/generative_limits.md](../../docs/generative_limits.md).
+- **Off-centre-slot aiming (exported ONNX):** wall + slot at ±2 m → every candidate's
+  lateral offset at the wall ≈ the slot offset (flow / recurrent fail this probe).
+  Guarded by `OnnxPathModelTest.CuratedZooTransformerAimsAtOffCentreSlot`.
+- **One-sided obstacle:** candidates veer to the free side.
 - **Collisions:** the planner's deterministic costmap-validity layer gates every
   proposal regardless of model quality.
 
@@ -105,12 +113,14 @@ Research placeholder → checked **behaviourally** at the proposal level:
 ## Reproducibility
 
 - **Command:** `PYTHONPATH=../../nav2_diffusion_training python3 export.py`
-  (CUDA when available; `CUDA_VISIBLE_DEVICES= ` forces a deterministic CPU build)
+  (CUDA when available; `CUDA_VISIBLE_DEVICES= ` forces a CPU build)
 - **Seed:** 0 · **Toolchain:** torch 2.10.0+cu128, onnx 1.21.0; trained on CUDA,
   exported on CPU
-- **Hyperparameters:** transformer, `'both'` dataset, 192 samples, 3000 epochs, lr 0.01
-- Bit-for-bit reproduction may vary across torch versions / hardware; behaviour
-  (slot aiming, side selection) is stable.
+- **Hyperparameters:** transformer, `'both'` dataset, 240 samples, 2500 epochs,
+  lr 0.01, footprint 3.0, blur_sigma 2.5
+- GPU training is not bit-exact across runs/hardware; a re-export may vary slightly in
+  which candidates thread but reproduces the capability (gap threading verified for the
+  committed artifact).
 
 ## License
 

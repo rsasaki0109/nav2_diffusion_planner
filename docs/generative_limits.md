@@ -11,11 +11,11 @@
 | costmap を読んで**回避側を選ぶ**（片側障害物 → 反対へ寄せる） | ✅ できる（両モード、全候補が空き側へ） | v0.6.0 出荷・end-to-end C++ テストで検証 |
 | 学習分布内の patch での**側選択の頑健性** | ✅ できる | 同上 |
 | Mode A: **open での閉ループ goal 到達** | ✅ できる（pure-pursuit 弧 expert で carrot 追従） | v0.6.0 出荷 |
-| Mode B: **off-centre gap の方向検出（スロットを狙う）** | ⚠️ flow（CNN）は不可 → ✅ **transformer（attention）は raw 提案でスロット方向を向く** | 下記「追記」参照（A/B + C++ 方向テスト） |
-| Mode B: **off-centre gap を実際に通る（footprint 検証 benchmark）** | ❌ 学習単体では天井（transformer でも狭スロット未貫通）→ ✅ **ハイブリッドで解決** | 下記参照 |
+| Mode B: **off-centre gap の方向検出（スロットを狙う）** | ⚠️ flow/recurrent（CNN）は不可 → ✅ **transformer（attention）は raw 提案でスロット方向を向く** | 下記「追記」参照（A/B + C++ 方向テスト） |
+| Mode B: **off-centre gap を実際に通る（footprint 検証 benchmark）** | ✅ **transformer + footprint-aware 損失で純生成貫通**（flow/recurrent は依然不可）／ slalom は依然ハイブリッド | 下記「天井突破」参照（実 C++ benchmark で検証） |
 | Mode A: **障害物のスレッディング（回り込み通過）** | ❌ 学習単体では天井 → ✅ **ハイブリッドで解決** | 下記参照 |
 
-要点: **side-selection と open goal 到達は小型モデルでも実機構で動く**。一方 **gap-routing と obstacle-threading は探索/分布シフトの問題**で、小型・合成学習モデル単体の天井。これは偶然ではなく、**classical search / reactive 法が本来勝つ領域**であり、本リポジトリが 8 種の classical planner と 2 種の reactive controller を併載する理由そのもの。そして **ハイブリッド**（generative 提案 + classical fallback）はこの天井を実際に超える: Mode B の off-centre gap / slalom は learned+JPS の hybrid が解く（後述）。
+要点: **side-selection と open goal 到達は小型モデルでも実機構で動く**。**off-centre gap（壁のスロット貫通）は、当初は天井だったが、token attention で aim できる transformer に footprint-aware 損失を足すと pure-generative で貫通できるようになった**（後述、実 C++ benchmark で検証）。一方 **slalom（S 字二段壁）と Mode A の obstacle-threading（閉ループ分布シフト）は依然天井**で、小型・合成学習モデル単体では解けない — **classical search / reactive 法が本来勝つ領域**であり、本リポジトリが 8 種の classical planner と 2 種の reactive controller を併載する理由そのもの。そして **ハイブリッド**（generative 提案 + classical fallback）は残る天井も超え、かつ**任意地図での完全性保証**を与える: Mode B の slalom は learned+JPS の hybrid が解く（後述）。
 
 ## 何が効くか（v0.6.0 で出荷済み）
 
@@ -46,14 +46,30 @@
 - 直接 A/B（同一 gap データ・同一 patch）: flow は loss 0.12 で **routing せず**（直進/逆側）、transformer は loss 0.002 で **両側ともスロット方向**（wall での横ズレ ≈ ±2 m）。C++ 方向テスト `OnnxPathModelTest.CuratedZooTransformerAimsAtOffCentreSlot` で出荷バイナリを検証。
 - **つまり「方向検出が小型 encoder の脆さで転移しない」は容量/アーキの問題**であり、本質的限界ではない。
 
-**ただし、これは benchmark の gap 突破ではない（正直なスコープ）**:
+aim は出るが、これだけでは benchmark の gap は通らなかった（履歴・負の結果）:
 
-- footprint 検証付きの `planner_comparison.md` *off-centre gap*（幅 1 m の狭スロット）では、transformer の提案も**有効 path を通せず** `DiffusionGlobalPlanner` は *no path*（flow と同じ）。提案はスロットを「狙う」が、狭スロットを footprint 余裕込みで**貫通**するには至らない。
-- **候補多様性の修正（重要）**: 初期実装は K 候補が**ほぼ同一**に collapse し（recon を単一 expert に回帰）、1 つ詰まると全滅して **side obstacle すら no path** になった。**候補を expert 周りの横方向ファン（±0.4 m）として学習**する（flow が K 個の固定 latent から得る spread の代替）と、validator に選択肢が出て **side obstacle は解ける peer に回復**。それでも 1 m スロットは貫通せず。
-- **直進 plateau expert も試したが gap は通らず（負の結果）**: 斜め横断で狭スロット端を擦るのが原因と見て、expert を **slot_y で平坦に壁帯+マージンを通過する plateau** に替え、壁を aligned x≈2 m（benchmark 幾何）に寄せて再学習した。raw では正しく狙うが、**footprint 検証付き benchmark の *off-centre gap* は依然 *no path***（clear/side は peer のまま）。→ **aim・候補多様性ファン・直進 plateau の3つの原理的な手を尽くしても、幅 1 m の検証付きスロットは pure-generative では貫通できない**（analytic fan と hybrid は解く）。天井は頑健。
-- 現状の benchmark 結果: transformer は **flow と同等の peer**（*clear* と *side obstacle* を解き、*off-centre gap* / *slalom* は *no path*）。**gap の完全な解は引き続き hybrid**。transformer が示したのは「**提案ステージの方向限界は表現（アーキ）の問題**」という知見であって、現時点の gap 勝利ではない。検証付き gap を pure-generative で本当に通すには、より広いスロット/より大きい容量/footprint を陽に学習に入れる（提案を validator が通す形に最適化する）等が要る — future work。
+- raw 提案はスロットを「狙う」が、**候補の壁横断位置が再サンプル patch でドリフト**し、幅 1 m スロットの外（壁）を擦って `DiffusionGlobalPlanner` は *no path*。
+- **候補多様性ファン**（K 候補を expert 周りの横 ±0.4 m fan に）で side obstacle は解ける peer に回復したが、gap は未貫通。
+- **直進 plateau expert**（slot_y で平坦に壁帯通過）も raw aim は正しいが benchmark gap は *no path*。
+- → 当時の結論は「aim・ファン・plateau の純 imitation 3手では幅 1 m 検証スロットは pure-generative では貫通できない、hybrid が解く」。残された future-work レバーとして **「footprint を陽に学習に入れる（提案を validator が通す形に最適化する）」** を明記していた。
 
-> 出荷: `diffusion_global_costmap_transformer_v0` を model_zoo に収録し、benchmark にも **Diffusion (Mode B, transformer)** 行として載せた（flow と同等の peer なので公平）。raw 方向の A/B と C++ 方向テスト（`CuratedZooTransformerAimsAtOffCentreSlot`）付き。gap は依然 hybrid が解く。
+#### 天井突破: footprint-aware 損失で純生成が検証付き gap を貫通（2026-06、実 C++ benchmark 検証）
+
+その future-work レバーを実装した。`path_planners._footprint_penalty` は、**costmap パッチをガウシアンでぼかした近接場**を経路に沿って密補間サンプルする**微分可能 footprint クリアランス損失**で、fan-recon に加えて学習する（`train_and_export_costmap_path(..., footprint=, blur_sigma=)`）。狙いは「expert 形状の模倣」から「**validator が通す提案への最適化**」への転換:
+
+- **ぼかし場**: 二値占有のままだと壁内部で勾配ゼロ（中央に取り残された waypoint がスロット方向へ動けない）。ガウシアンぼかしでスロットに谷を持つ滑らかな場にすると、内部からでもフリー回廊への引力が効く。
+- **密補間**: H=12 の waypoint がどこに落ちても、`isPathValid` 同様に**壁横断点**をサンプルするため、横断の擦りを直接罰せる。
+
+この transformer（attention で aim + footprint-aware で精緻化）を `dataset='both'` で学習すると、**実 C++ `planner_benchmark` の *off-centre gap* を純生成で貫通**する（`Diffusion (Mode B, transformer)`: *off-centre gap* = **yes / ~5.5 m / 12 pose / ~0.2 ms**、fallback なし）。**Mode B で classical fallback なしに検証付き gap を通した初のモデル**。flow / recurrent（16 次元 CNN embedding）は依然 *no path* で、この差が「aim できる表現 × validator-aware 学習」の効果を示す。
+
+**正直なスコープ（不変の天井もある）**:
+
+- **slalom は依然 *no path***: 二段の食い違い壁を S 字で抜けるには 2 回横断が要り、単一前進横断の純生成提案では届かない。**slalom の完全解は引き続き hybrid**。
+- **汎化は壁の前方距離に有界**: gap 貫通はミラー・近めオフセットには汎化するが、学習 span（aligned x≈2 m 中心）から外れた壁距離（例 aligned x≈1.5 m）では *no path* に戻りうる。容量・データの問題で、benchmark gap 幾何を含む範囲で確実。
+- GPU 学習は run 間で bit-exact でなく、どの候補が通るかは多少ぶれるが、**出荷アーティファクトが gap を通すことを実 benchmark で検証済み**（manifest checksum 固定）。
+- 完全性保証（任意地図で必ず解を返す）は依然 hybrid のみ。pure-generative は fail-closed のまま。
+
+> 出荷: `diffusion_global_costmap_transformer_v0`（footprint-aware 再学習）を model_zoo に更新し、benchmark の **Diffusion (Mode B, transformer)** 行も *off-centre gap* = yes に更新。raw 方向の C++ テスト（`CuratedZooTransformerAimsAtOffCentreSlot`）は継続 pass。slalom と完全性は hybrid が担保。
 
 ### Mode A: 障害物スレッディング（回り込み通過）
 
@@ -62,7 +78,7 @@ learned Mode A は open では goal 到達するが、`controller_benchmark` の
 - **閉ループの分布シフト**: 提案 → 実行 → 再観測の系で小さな誤差が累積し、モデルが学習分布の外の状態（障害物が近い + carrot が斜め）に入ると出力が崩れる。
 - **context 感度**: モデルは context（goal_x/y, max_angular など）の値に敏感で、benchmark のパラメータを学習分布に合わせる必要があった（lookahead/限界の調整で改善するが脆い）。
 
-単発の Mode B gap ですら転移しないことから、閉ループで誤差が累積する obstacle-threading は同じ（むしろ強い）天井。安全層（kinematic + footprint）が**衝突は常に防ぐ**点は意図どおり。
+単発の Mode B gap は footprint-aware 損失で貫通できたが、それは**1 回の前進横断で済む単発計画**だから。閉ループで誤差が累積する obstacle-threading（再観測のたびに分布外へ）はより強い天井で、同じ手は効かない。安全層（kinematic + footprint）が**衝突は常に防ぐ**点は意図どおり。
 
 **ただしハイブリッドで解決済み（✅）**: `DiffusionController` の `fallback_controller_plugin`（既存）に classical の reactive controller（VFH+ 等）を設定すると、安全候補が無いとき停止する代わりに委譲する。`controller_comparison.md` の **Diffusion (Mode A, hybrid)** 行は **全シナリオで goal 到達**（open は learned、障害物は VFH+ fallback が回避。corridor 行は VFH+ と完全一致 = fallback 稼働の証拠）。Mode B planner の hybrid と完全に対称。
 
@@ -70,8 +86,8 @@ learned Mode A は open では goal 到達するが、`controller_benchmark` の
 
 1. **小型 CNN/MLP の容量**: encoder 16 次元・MLP 128 隠れ。薄い・部分的な障害物信号や gap 位置の汎化に弱い。
 2. **合成 → 実 costmap の転移**: 学習 patch と C++ 再サンプル patch の微差（壁厚・gap 幅・行位置）で判断が反転。
-3. **単発 imitation の限界**: 探索（gap-routing）は完全性が要る問題で、提案分布の被覆だけでは安定して解けない。
-4. **閉ループの分布シフト**: open は安定だが、障害物近傍は訪問状態が学習分布から外れる。
+3. **純 imitation の限界（→ validator-aware で部分的に克服）**: expert 形状の模倣だけでは検証付き gap を安定して通せない（提案が再サンプル patch で擦る）。**footprint-aware 損失で「validator が通す提案」へ直接最適化**すると単発 gap は貫通する。ただし完全性保証ではない（学習 span 外の壁距離・slalom は依然 no-path）。
+4. **閉ループの分布シフト**: open は安定だが、障害物近傍は訪問状態が学習分布から外れる。単発計画と違い、validator-aware 学習だけでは閉ループの累積誤差は塞げない。
 
 ## 天井を超える道筋（future work）
 
@@ -84,4 +100,4 @@ learned Mode A は open では goal 到達するが、`controller_benchmark` の
 
 ## 結論
 
-小型・合成学習モデルでも **side-selection と open goal 到達は実機構で動く**（v0.6.0 出荷）。**gap-routing と obstacle-threading は classical が勝つ探索/分布シフトの領域**で、学習単体の天井。だが **ハイブリッド**は両モードでその天井を実際に超える: Mode B planner は `fallback_planner_plugin`（learned 提案 → classical search が完全性を保証）で、Mode A controller は `fallback_controller_plugin`（learned → classical reactive が回避）で、いずれも**全シナリオを解く**。この境界を正直に測り、両者を組み合わせて最良を取れること自体が「generative propose / classical dispose」設計の価値であり、両者を同一リポジトリ・同一土俵に載せている理由である。
+小型・合成学習モデルでも **side-selection と open goal 到達は実機構で動く**（v0.6.0 出荷）。さらに **off-centre gap（壁のスロット貫通）は、token attention で aim できる transformer に footprint-aware（validator-aware）損失を足すと pure-generative で貫通できる**ことを実 C++ benchmark で示した（flow / recurrent は不可）——「提案ステージの限界は表現とロスの問題で、必ずしも本質的天井ではない」。一方 **slalom（多段横断）と Mode A の obstacle-threading（閉ループ分布シフト）は依然学習単体の天井**で、classical が勝つ領域。そして **ハイブリッド**は残る天井を超え、かつ**任意地図での完全性を保証**する: Mode B planner は `fallback_planner_plugin`（learned 提案 → classical search）、Mode A controller は `fallback_controller_plugin`（learned → classical reactive）で、いずれも**全シナリオを解く**。境界を正直に測り、学習で押し上げられる所は押し上げ（footprint-aware gap）、残りは classical と組んで完全性を取る——これが「generative propose / classical dispose」設計の価値であり、両者を同一リポジトリ・同一土俵に載せている理由である。

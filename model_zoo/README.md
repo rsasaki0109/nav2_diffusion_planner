@@ -18,13 +18,14 @@ curated model metadata, not necessarily large binaries。
 これらが「**実際に C++ 推論経路でループに入っている学習済みモデル**」（unit-test fixture ではない）。いずれも costmap を読んで全提案を空き側へ寄せる。**Mode B** は `nav2_diffusion_global_planner` で `OnnxPathModel` 経由、**Mode A** は `nav2_diffusion_controller` で `OnnxTrajectoryModel` 経由でロードされ、決定論的安全層が検証・選択する。横断比較は [../docs/planner_comparison.md](../docs/planner_comparison.md)（Mode B）/ [../docs/controller_comparison.md](../docs/controller_comparison.md)（Mode A）、限界・失敗ケースは各 model card を参照。
 
 > **`diffusion_global_costmap_transformer_v0` の位置づけ（正直なスコープ）**:
-> `planner_benchmark` 上では **flow Mode B と同等の peer**（*clear* と *side obstacle*
-> を解き、*off-centre gap* / *slalom* は *no path*）。**独自の性質**は提案レベルにあり、
-> flow が off-centre slot に提案を向けられないのに対し、transformer は**スロット方向へ
-> 提案を向ける**（A/B 実証 + C++ 方向テスト `CuratedZooTransformerAimsAtOffCentreSlot`）。
-> 候補は expert 周りの**横ファン**で学習し（flow の固定 latent spread の代替）、validator
-> に選択肢を与える。**ただしその aim でも狭い 1 m スロットは footprint 検証を通らず**、
-> gap の完全な解は引き続き **hybrid プランナ**。詳細は
+> `planner_benchmark` 上で **footprint 検証付き *off-centre gap* を純生成で貫通する初の
+> Mode B モデル**（*off-centre gap* = yes / ~5.5 m / 12 pose / fallback なし、実 C++ で検証）。
+> *clear* / *side obstacle* も維持。flow / recurrent（16 次元 CNN embedding）は依然 *no path*。
+> 効くのは2点の合わせ技: ① token attention で off-centre slot に提案を**向ける**（A/B + C++
+> テスト `CuratedZooTransformerAimsAtOffCentreSlot`）、② **微分可能 footprint クリアランス損失**
+> （`export.py` の `footprint` / `blur_sigma`）で提案を **validator が通す形に最適化**し、壁横断を
+> スロット中心へ余裕込みで引き込む。**残る天井**: *slalom*（S 字二段壁）は純生成では *no path*、
+> gap 貫通も学習 span 付近の壁距離に有界。完全性保証は引き続き **hybrid プランナ**。詳細は
 > [model_card](diffusion_global_transformer/model_card.md) と
 > [../docs/generative_limits.md](../docs/generative_limits.md)。
 

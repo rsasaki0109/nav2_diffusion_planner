@@ -130,7 +130,7 @@ flowchart LR
 
 <p align="center"><em>出荷モデル <code>PathFlowPlanner</code>（flow matching）が start→goal の大域パス候補を生成し、決定論的 costmap 検証層が障害物に当たる候補（赤）を棄却、最短の安全パス（緑）を選択する propose→validate→select パイプライン。障害物が左右に動くと選択パスが反対側へ切り替わる。再現は <a href="tools/mode_b_demo.py">tools/mode_b_demo.py</a>。</em></p>
 
-これは local controller（Mode A）と対称の **Nav2 GlobalPlanner（Mode B）**。生成型モデルを `nav2_core::GlobalPlanner` に統合した OSS は調査時点で存在せず、`PathModel` seam（analytic `FanPathModel` / 学習済み `OnnxPathModel`、costmap 条件付きも同 seam）として実装している（[nav2_diffusion_global_planner](nav2_diffusion_global_planner)）。学習済み Mode B も Mode A と同様に **flow / transformer / recurrent（GRU 自己回帰ロールアウト）の 3 系統**を `model_zoo` に出荷済み（transformer のみ off-centre slot に提案を向け、flow / recurrent は空き側選択の peer。横断比較は [docs/planner_comparison.md](docs/planner_comparison.md)）。
+これは local controller（Mode A）と対称の **Nav2 GlobalPlanner（Mode B）**。生成型モデルを `nav2_core::GlobalPlanner` に統合した OSS は調査時点で存在せず、`PathModel` seam（analytic `FanPathModel` / 学習済み `OnnxPathModel`、costmap 条件付きも同 seam）として実装している（[nav2_diffusion_global_planner](nav2_diffusion_global_planner)）。学習済み Mode B も Mode A と同様に **flow / transformer / recurrent（GRU 自己回帰ロールアウト）の 3 系統**を `model_zoo` に出荷済み。**transformer は token attention で off-centre slot に提案を向け、さらに footprint-aware（validator-aware）損失で学習することで、footprint 検証付き *off-centre gap* を純生成で貫通する初の Mode B モデル**（実 C++ benchmark で検証、fallback なし）。flow / recurrent は空き側選択の peer（gap は *no path*）。残る *slalom* と完全性保証は hybrid 領域。横断比較は [docs/planner_comparison.md](docs/planner_comparison.md)、効きどころと天井は [docs/generative_limits.md](docs/generative_limits.md)。
 
 ## ドキュメント地図
 

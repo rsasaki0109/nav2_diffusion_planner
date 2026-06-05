@@ -6,6 +6,39 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 
 ## [Unreleased]
 
+### Added
+- **Differentiable footprint-clearance loss for Mode B path training**
+  (`nav2_diffusion_training.path_planners._footprint_penalty`, exposed via
+  `train_and_export_costmap_path(..., footprint=, blur_sigma=, inflate_cells=)`).
+  It samples a Gaussian-blurred obstacle-proximity field along the densely
+  interpolated candidate path and penalizes overlap, optimizing the proposals to be
+  *what the deterministic validity layer accepts* rather than only imitating an
+  expert. The blur supplies a gradient even in the wall interior (where a raw
+  occupancy penalty is flat); the dense interpolation samples the wall crossing the
+  way the C++ `isPathValid` does. Python tests:
+  `test_footprint_penalty_prefers_routing_through_the_slot`,
+  `test_footprint_training_lowers_clearance_vs_recon_only`,
+  `test_footprint_loss_rejected_for_flow_kind`.
+
+### Changed
+- **Mode B transformer now threads the footprint-validated off-centre gap as a
+  pure-generative planner — the documented gap ceiling is broken.** Retraining
+  `diffusion_global_costmap_transformer_v0` with the footprint-aware loss (token
+  attention *aims* at the off-centre slot; the footprint term pulls each candidate's
+  wall crossing into the free slot with margin) makes the real C++ `planner_benchmark`
+  report `Diffusion (Mode B, transformer)` *off-centre gap* = **yes (~5.5 m, 12-pose
+  generative path, ~0.2 ms, no fallback)** — the first Mode B model here to thread the
+  1 m footprint-validated slot without a classical fallback. It keeps the *clear* /
+  *side obstacle* competence; the flow and recurrent Mode B models still report
+  *no path* on the gap. Updated the model artifact + checksum, `model_card.md`,
+  `manifest.yaml`, `export.py` (footprint 3.0 / blur_sigma 2.5, 240 samples / 2500
+  epochs), the `planner_benchmark` narrative + family label, and regenerated
+  `docs/planner_comparison.md`. Rewrote the off-centre-gap section of
+  `docs/generative_limits.md` to record the breakthrough and its honest scope:
+  *slalom* (two-crossing S) is still no-path for pure generative, gap threading is
+  bounded to wall forward-distances near the training span (~2 m aligned), and the
+  hybrid planner remains the any-map completeness guarantee.
+
 ## [0.9.0] - 2026-06-05
 
 Theme: **generative family expansion across both seams.** v0.6.0–v0.8.0 put the first

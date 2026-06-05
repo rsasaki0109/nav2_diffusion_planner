@@ -362,6 +362,70 @@ class CostmapPathRecurrentPlanner(nn.Module):
         return ((out - tgt) ** 2).mean()
 
 
+def _gauss_kernel2d(sigma, device, dtype):
+    """Build a normalized 2-D Gaussian conv kernel [1, 1, 2r+1, 2r+1]."""
+    r = max(1, int(round(3.0 * sigma)))
+    xs = torch.arange(-r, r + 1, device=device, dtype=dtype)
+    g = torch.exp(-(xs ** 2) / (2.0 * sigma * sigma))
+    g = g / g.sum()
+    return torch.outer(g, g).view(1, 1, 2 * r + 1, 2 * r + 1), r
+
+
+def _footprint_penalty(paths, costmap, inflate_cells=0, blur_sigma=0.0, interp=8):
+    """Differentiable footprint-clearance penalty against the goal-aligned patch.
+
+    Samples a (constant) obstacle-proximity field built from the costmap patch at
+    points densely interpolated along each candidate and penalizes overlap, so
+    training optimizes the proposals to be *what the deterministic validity layer
+    accepts* — not just to imitate an expert. This is the "footprint enters the
+    loss" lever flagged as future work in docs/generative_limits.md.
+
+    Two refinements make the gradient actually route a centred path into an
+    off-centre slot:
+
+    * **Dense interpolation** (``interp`` points per segment) samples the wall
+      *crossing* like the C++ ``isPathValid`` does, regardless of where the H
+      waypoints happen to land — a raw per-waypoint penalty misses the crossing.
+    * **Gaussian blur** (``blur_sigma`` cells) turns the binary occupancy into a
+      smooth proximity field with a valley at the slot, so a waypoint stranded in
+      the wall interior — where raw occupancy is flat and its gradient is zero —
+      still feels a pull toward the free channel.
+
+    ``paths`` is [B, K, H, 2] in the aligned frame (x forward, y lateral, metres);
+    ``costmap`` is [B, 1, S, S] occupancy in [0, 1] (row -> forward x, col ->
+    lateral y), matching the C++ ``alignedPatch`` resampling. ``inflate_cells``
+    dilates obstacles by a max-pool first (the benchmark validator itself uses no
+    inflation, so keep it small).
+    """
+    field = costmap
+    if inflate_cells > 0:
+        ksz = 2 * inflate_cells + 1
+        field = nn.functional.max_pool2d(field, ksz, stride=1, padding=inflate_cells)
+    if blur_sigma > 0.0:
+        kern, r = _gauss_kernel2d(blur_sigma, field.device, field.dtype)
+        field = nn.functional.conv2d(field, kern, padding=r)
+    b, k, h, _ = paths.shape
+    if interp > 1:
+        a = paths[:, :, :-1, :].unsqueeze(3)                # [B,K,H-1,1,2]
+        c = paths[:, :, 1:, :].unsqueeze(3)
+        ts = torch.linspace(0.0, 1.0, interp, device=paths.device,
+                            dtype=paths.dtype).view(1, 1, 1, interp, 1)
+        pts = (a + (c - a) * ts).reshape(b, k, -1, 2)       # densified along H
+    else:
+        pts = paths
+    x = pts[..., 0]
+    y = pts[..., 1]
+    # Aligned metres -> grid_sample normalized coords. grid[...,0]=width (cols ->
+    # lateral y in [-half, half]); grid[...,1]=height (rows -> forward x in [0, fwd]).
+    gx = (y / PATCH_HALF).clamp(-1.2, 1.2)
+    gy = (2.0 * x / PATCH_FWD - 1.0).clamp(-1.2, 1.2)
+    n = x.shape[-1]
+    grid = torch.stack([gx, gy], dim=-1).reshape(b, k * n, 1, 2)
+    occ = nn.functional.grid_sample(
+        field, grid, mode='bilinear', align_corners=False, padding_mode='border')
+    return (occ ** 2).mean()
+
+
 def _aligned_patch(side, inner=0.0, x_lo=1.5, x_hi=4.0):
     """
     Build a patch (row->fwd x, col->lateral y) with an obstacle on one side.
@@ -523,7 +587,8 @@ def _path_dataset(dataset, num_samples):
 
 
 def train_and_export_costmap_path(path, num_samples=96, epochs=400, lr=0.01, steps=4,
-                                  kind='flow', dataset='side', device=None):
+                                  kind='flow', dataset='side', device=None,
+                                  footprint=0.0, inflate_cells=0, blur_sigma=0.0):
     """Train a costmap-conditioned Mode B path planner and export a 2-input ONNX.
 
     ``kind`` selects the family: ``'flow'`` (CostmapPathFlowPlanner),
@@ -533,6 +598,12 @@ def train_and_export_costmap_path(path, num_samples=96, epochs=400, lr=0.01, ste
     ``'gap'`` (off-centre slot routing), or ``'both'``. ``device`` selects the
     training device (e.g. ``'cuda'``); the model is always exported on CPU so the
     artifact is portable.
+
+    ``footprint`` (> 0) adds a differentiable footprint-clearance term
+    (``_footprint_penalty``) on top of the fan-recon loss for the set-prediction
+    families (``transformer`` / ``recurrent``), optimizing the proposals to thread
+    the actual free channel of each patch — the validator-aware lever for the
+    off-centre-gap ceiling. ``inflate_cells`` dilates obstacles in that term.
     """
     torch.manual_seed(0)
     dev = torch.device(device) if device is not None else torch.device('cpu')
@@ -544,6 +615,9 @@ def train_and_export_costmap_path(path, num_samples=96, epochs=400, lr=0.01, ste
         model = CostmapPathRecurrentPlanner()
     else:
         raise ValueError('unknown path planner kind: ' + kind)
+    if footprint > 0.0 and kind == 'flow':
+        raise ValueError('footprint loss requires a fan set-prediction kind '
+                         '(transformer / recurrent), not flow')
     model.to(dev)
     context, costmap, target = _path_dataset(dataset, num_samples)
     context, costmap, target = context.to(dev), costmap.to(dev), target.to(dev)
@@ -553,7 +627,17 @@ def train_and_export_costmap_path(path, num_samples=96, epochs=400, lr=0.01, ste
     loss = torch.tensor(0.0)
     for _ in range(max(1, epochs)):
         optimizer.zero_grad()
-        if kind == 'flow':
+        if footprint > 0.0:
+            # Validator-aware training: one full-batch forward feeds fan-recon,
+            # smoothness and the footprint-clearance penalty together.
+            out = model(context, costmap)                   # [B, K, H, 2]
+            tgt_x = target[..., 0].unsqueeze(1).expand(-1, PATH_K, -1)
+            tgt_y = target[..., 1].unsqueeze(1) + model.fan.view(1, PATH_K, 1)
+            tgt = torch.stack([tgt_x, tgt_y], dim=-1)
+            loss = ((out - tgt) ** 2).mean()
+            loss = loss + footprint * _footprint_penalty(
+                out, costmap, inflate_cells, blur_sigma)
+        elif kind == 'flow':
             loss = model.flow_loss(context, costmap, target)
             out = model(context[:16], costmap[:16])         # [B, K, H, 2]
         else:
