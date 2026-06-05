@@ -153,6 +153,20 @@ headless:=True`（`TURTLEBOT3_MODEL=waffle`）で:
 > 双方向 liveliness 交換等）を阻んでいると見られる。**コード/設定側で回避する手は尽きた**。
 > 実 ROS ホスト（または適切にネットワークされたコンテナ）では成立する。参考: cyclone の
 > participant index は [rmw_cyclonedds#458](https://github.com/ros2/rmw_cyclonedds/issues/458) を適用。
+>
+> **追記3（2026-06-06、根本原因の確定 — 訂正）**: 制約の正体が判明した。**ブロックしていたのは
+> エージェント（Claude Code）のコマンド実行サンドボックス**で、マシンでも DDS でもない。
+> 検証ツールの**サンドボックスを外して前景実行**すると、同一マシンで:
+> ① 生 multicast loopback が通る（JOIN_OK・受信 2/2）、② **demo talker/listener が discover して
+> 受信成功**（heard 9）、③ `tb3_gazebo_mission.launch.py` が **Gazebo spawn → AMCL active →
+> bt_navigator ロードまで実走**（DDS discovery エラーなし）。つまり「全 DDS 不通」は**サンドボックス
+> 起因**で、ROS/プロジェクトは健全。背景タスクは無効化が効かず（再サンドボックス化）前景のみ有効。
+> **残る唯一の壁は DDS でなく起動性能**: このコンテキストでは nav2 コンポジションのコールド起動が
+> 異常に遅く（localization active まで ~230 s、`load_node` サービス応答が繰り返し timeout）、
+> mission の `navigate_to_pose` 待ち（300 s に延長しても）に間に合わないことがある。重量級起動を
+> 繰り返すとマシンが劣化し更に遅くなる。**結論: live 閉ループはこのセッションでも原理的に可能
+> （不通ではない）だが、クリーンで負荷の低いマシンと時間が要る**。実数値の取得は専用実行が筋。
+> 関連修正: mission 待機既定を延長（`tb3_gazebo_mission.launch.py` の `server_wait_sec`、既定 180 s）。
 
 ### 完走に必要なもの（next_phase.md 段3 へ）
 

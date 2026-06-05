@@ -84,6 +84,7 @@ def _launch_setup(context, *args, **kwargs):
             'missions': missions if missions else [''],
             'course': LaunchConfiguration('course'),
             'timeout_sec': LaunchConfiguration('timeout_sec'),
+            'server_wait_sec': LaunchConfiguration('server_wait_sec'),
             'stop_on_failure': LaunchConfiguration('stop_on_failure'),
             'label': LaunchConfiguration('label'),
             'results_file': LaunchConfiguration('results_file'),
@@ -116,6 +117,12 @@ def generate_launch_description():
             description='Named course preset (default / there_and_back / patrol); '
                         'used when `missions` is empty'),
         DeclareLaunchArgument('timeout_sec', default_value='120.0'),
+        DeclareLaunchArgument(
+            'server_wait_sec', default_value='180.0',
+            description='How long the mission node waits for the Nav2 '
+                        'navigate_to_pose action server / first odom. A cold '
+                        'Gazebo + Nav2 composition start can exceed 60 s, so the '
+                        'default is generous.'),
         DeclareLaunchArgument(
             'stop_on_failure', default_value='False',
             description='Abort the remaining legs after the first one that fails'),

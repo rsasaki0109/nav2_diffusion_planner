@@ -7,6 +7,18 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 ## [Unreleased]
 
 ### Changed
+- **Root-caused the sandbox "no live ROS" limit and corrected the record.** With the
+  agent command sandbox disabled (foreground), DDS works on this very machine —
+  multicast loopback (JOIN_OK, 2/2), demo talker→listener discovery (heard 9), and
+  `tb3_gazebo_mission.launch.py` runs the full stack (Gazebo spawn → AMCL active →
+  bt_navigator loaded). So the blocker was the **agent's command sandbox**, not the
+  machine, ROS, or the project. The only remaining barrier is the nav2 composition's
+  pathologically slow cold start in that context (~230 s to localization;
+  repeated `load_node` service timeouts), which can outlast the mission's wait.
+  Documented in `docs/simulation.md` §10.5 (追記3).
+- **Raised the Gazebo mission node's server wait** — `tb3_gazebo_mission.launch.py`
+  gains a `server_wait_sec` arg (default 180 s) since a cold Gazebo + Nav2
+  composition start routinely exceeds the previous 60 s default.
 - **Documented opening the demo MCAP in the Foxglove web app** (no install:
   app.foxglove.dev → Open local file) alongside the desktop app, in
   `docs/visualization.md`.
