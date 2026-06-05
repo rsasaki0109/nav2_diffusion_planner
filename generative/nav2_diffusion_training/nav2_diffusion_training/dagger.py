@@ -104,7 +104,8 @@ def carrot_base_frame(start, goal, x, y, yaw):
 
 
 def expert_target(gx, gy, patch):
-    """Expert label at a visited state: pure-pursuit toward the carrot + avoidance.
+    """
+    Expert label at a visited state: pure-pursuit toward the carrot + avoidance.
 
     The avoidance side is read from the patch (col 0 = +y): more obstacle mass on
     the +y (low-col) half -> obstacle on the left -> veer right (side=+1 in

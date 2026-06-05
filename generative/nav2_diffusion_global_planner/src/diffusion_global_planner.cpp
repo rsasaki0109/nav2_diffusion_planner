@@ -368,21 +368,21 @@ nav_msgs::msg::Path DiffusionGlobalPlanner::guidedSearch(
   }
 
   auto traversable = [&](int mx, int my) {
-    const unsigned char c = costmap_->getCost(mx, my);
-    if (c == nav2_costmap_2d::LETHAL_OBSTACLE ||
-      c == nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE)
-    {
-      return false;
-    }
-    return c != nav2_costmap_2d::NO_INFORMATION || allow_unknown_;
-  };
+      const unsigned char c = costmap_->getCost(mx, my);
+      if (c == nav2_costmap_2d::LETHAL_OBSTACLE ||
+        c == nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE)
+      {
+        return false;
+      }
+      return c != nav2_costmap_2d::NO_INFORMATION || allow_unknown_;
+    };
   auto heuristic = [&](int mx, int my) {
-    const int dx = std::abs(mx - gx);
-    const int dy = std::abs(my - gy);
-    const int lo = std::min(dx, dy);
-    const int hi = std::max(dx, dy);
-    return (hi + (M_SQRT2 - 1.0) * lo) * res;
-  };
+      const int dx = std::abs(mx - gx);
+      const int dy = std::abs(my - gy);
+      const int lo = std::min(dx, dy);
+      const int hi = std::max(dx, dy);
+      return (hi + (M_SQRT2 - 1.0) * lo) * res;
+    };
 
   std::vector<double> g(ncells, std::numeric_limits<double>::max());
   std::vector<int> came_from(ncells, -1);

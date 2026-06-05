@@ -372,7 +372,8 @@ def _gauss_kernel2d(sigma, device, dtype):
 
 
 def _footprint_penalty(paths, costmap, inflate_cells=0, blur_sigma=0.0, interp=8):
-    """Differentiable footprint-clearance penalty against the goal-aligned patch.
+    """
+    Differentiable footprint-clearance penalty against the goal-aligned patch.
 
     Samples a (constant) obstacle-proximity field built from the costmap patch at
     points densely interpolated along each candidate and penalizes overlap, so
@@ -501,7 +502,8 @@ def make_costmap_path_dataset(num_samples):
 
 
 def _gap_patch(slot_y, x_lo, x_hi, slot_hw):
-    """Build a wall spanning the patch width at forward band [x_lo, x_hi] with one slot.
+    """
+    Build a wall spanning the patch width at forward band [x_lo, x_hi] with one slot.
 
     The wall fills every column except a gap of half-width ``slot_hw`` centred at
     lateral ``slot_y`` (metres). Routing through the slot — not picking a free side
@@ -589,7 +591,8 @@ def _path_dataset(dataset, num_samples):
 def train_and_export_costmap_path(path, num_samples=96, epochs=400, lr=0.01, steps=4,
                                   kind='flow', dataset='side', device=None,
                                   footprint=0.0, inflate_cells=0, blur_sigma=0.0):
-    """Train a costmap-conditioned Mode B path planner and export a 2-input ONNX.
+    """
+    Train a costmap-conditioned Mode B path planner and export a 2-input ONNX.
 
     ``kind`` selects the family: ``'flow'`` (CostmapPathFlowPlanner),
     ``'transformer'`` (CostmapPathTransformerPlanner) or ``'recurrent'``

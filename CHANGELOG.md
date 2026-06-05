@@ -6,6 +6,20 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 
 ## [Unreleased]
 
+### Fixed
+- **Greened CI, which had been red for 15+ commits.** The root cause was an
+  invalid `<buildtool_depend>ament_python</buildtool_depend>` in
+  `nav2_diffusion_training` (`ament_python` is a build type, not a rosdep key):
+  it made the CI rosdep step fail, so the rosidl typesupport packages were never
+  installed and `nav2_diffusion_msgs` failed to configure — masking every later
+  test. With the build unblocked, fixed the lint debt CI could finally reach:
+  added `#include <vector>` to `diffusion_global_planner.hpp` (cpplint), uncrustify-
+  reformatted `diffusion_global_planner.cpp`, and converted 20 multi-line docstrings
+  in `nav2_diffusion_training` to D213 (second-line summary) style so `ament_pep257`
+  passes while `ament_flake8` still does. (Locally-only false positives — a stray
+  in-package `install/` dir tripping `ament_copyright`, and a colcon result-capture
+  race on the JPS gtest — are not present in a fresh CI checkout.)
+
 ### Changed
 - **Grouped the 21 ROS packages into role subdirectories** — `generative/`
   (the generative framework, `nav2_diffusion_*`), `classical_planners/`

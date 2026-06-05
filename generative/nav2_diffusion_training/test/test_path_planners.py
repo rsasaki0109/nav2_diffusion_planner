@@ -109,7 +109,8 @@ def test_costmap_path_planner_exports_two_input_contract(tmp_path):
 
 
 def test_costmap_path_loss_decreases_and_reads_costmap():
-    """Costmap-conditioned flow loss decreases and the encoder uses the patch.
+    """
+    Costmap-conditioned flow loss decreases and the encoder uses the patch.
 
     The trained model's learned avoidance *direction* is checked deterministically
     in the C++ backend gtest (OnnxPathModelTest.CostmapConditionedVeersAwayFrom
@@ -181,7 +182,8 @@ def test_costmap_path_recurrent_exports_contract(tmp_path):
 
 
 def test_costmap_path_recurrent_reads_costmap_and_veers():
-    """Recurrent loss decreases, candidates roll out forward, and the patch is read.
+    """
+    Recurrent loss decreases, candidates roll out forward, and the patch is read.
 
     The full routing direction is guarded deterministically in the C++ backend
     gtest (CuratedZooPathRecurrentVeersAwayFromObstacle); here we keep a fast check
@@ -214,7 +216,8 @@ def test_costmap_path_recurrent_reads_costmap_and_veers():
 
 
 def test_gap_dataset_shapes_and_routes_through_slot():
-    """The off-centre-gap dataset has the seam shapes and a slot-routing expert.
+    """
+    The off-centre-gap dataset has the seam shapes and a slot-routing expert.
 
     The full routing *behaviour* of the trained model is guarded in the C++ backend
     gtest (OnnxPathModelTest.CuratedZooTransformerRoutesThroughGap); here we check
@@ -231,7 +234,8 @@ def test_gap_dataset_shapes_and_routes_through_slot():
 
 
 def test_footprint_penalty_prefers_routing_through_the_slot():
-    """The footprint-clearance term penalizes a wall-crossing path over a slot one.
+    """
+    The footprint-clearance term penalizes a wall-crossing path over a slot one.
 
     A straight path crosses the wall (occupied); a path that detours to the slot
     offset at the wall stays in free space. The differentiable penalty must rank
@@ -252,7 +256,8 @@ def test_footprint_penalty_prefers_routing_through_the_slot():
 
 
 def test_footprint_training_lowers_clearance_vs_recon_only(tmp_path):
-    """The footprint term yields proposals with less occupancy overlap than recon.
+    """
+    The footprint term yields proposals with less occupancy overlap than recon.
 
     The full benchmark gap-threading is guarded in the C++ planner_benchmark; here
     we keep a fast CPU check that, trained for the same budget on the gap dataset,

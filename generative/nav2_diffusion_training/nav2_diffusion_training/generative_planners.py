@@ -208,7 +208,8 @@ class _CostmapEncoder(nn.Module):
 
 
 class _CrossAttnBlock(nn.Module):
-    """One pre-norm transformer decoder block (multi-head cross-attention + FFN).
+    """
+    One pre-norm transformer decoder block (multi-head cross-attention + FFN).
 
     Implemented from primitives (matmul / softmax / layernorm / gelu) rather than
     ``nn.MultiheadAttention`` so the ONNX export is small and self-contained with no
@@ -244,7 +245,8 @@ class _CrossAttnBlock(nn.Module):
 
 
 class _CostmapTokenizer(nn.Module):
-    """Tokenize an egocentric costmap patch into spatial tokens for attention.
+    """
+    Tokenize an egocentric costmap patch into spatial tokens for attention.
 
     A strided conv turns the COSTMAP_SIZE patch into a coarse feature grid whose
     cells become a token sequence with learned positional embeddings.
@@ -398,7 +400,8 @@ _TF_LAYERS = 2
 
 
 class TransformerPlanner(nn.Module):
-    """Context-only transformer set-prediction planner (no costmap).
+    """
+    Context-only transformer set-prediction planner (no costmap).
 
     A DETR-style decoder: ``NUM_CANDIDATES`` learned query tokens cross-attend to a
     single context token and each decodes a full SE(2) trajectory in one forward
@@ -429,7 +432,8 @@ class TransformerPlanner(nn.Module):
 
 
 class CostmapTransformerPlanner(nn.Module):
-    """Costmap+goal conditioned transformer set-prediction planner.
+    """
+    Costmap+goal conditioned transformer set-prediction planner.
 
     The memory is a context token concatenated with costmap patch tokens; the K
     learned query tokens cross-attend over it and each decodes a full SE(2)
@@ -469,7 +473,8 @@ _GRU_HID = 64     # recurrent rollout hidden width
 
 
 def _gru_rollout(cell, head, seeds, cond):
-    """Autoregressively roll out ``NUM_CANDIDATES`` SE(2) trajectories with a GRU.
+    """
+    Autoregressively roll out ``NUM_CANDIDATES`` SE(2) trajectories with a GRU.
 
     Each candidate ``k`` gets a distinct conditioning ``cond + seeds[k]`` that both
     initialises the hidden state and is fed at every step alongside the previously
@@ -493,7 +498,8 @@ def _gru_rollout(cell, head, seeds, cond):
 
 
 class RecurrentRolloutPlanner(nn.Module):
-    """Context-only recurrent (GRU) autoregressive rollout planner.
+    """
+    Context-only recurrent (GRU) autoregressive rollout planner.
 
     Instead of proposing a whole trajectory at once (flow / diffusion / consistency
     / transformer), a GRU emits the SE(2) points one step at a time, feeding the
@@ -517,7 +523,8 @@ class RecurrentRolloutPlanner(nn.Module):
 
 
 class CostmapRecurrentPlanner(nn.Module):
-    """Costmap+goal conditioned recurrent (GRU) autoregressive rollout planner.
+    """
+    Costmap+goal conditioned recurrent (GRU) autoregressive rollout planner.
 
     The costmap patch is encoded to an embedding that, with the context, forms the
     rollout conditioning; a GRU then emits the trajectory one point at a time. The
@@ -546,7 +553,8 @@ class CostmapRecurrentPlanner(nn.Module):
 
 
 def _expert_trajectory(gx, gy, side, speed):
-    """Build a ~1 s pure-pursuit expert arc toward the carrot with an avoidance bow.
+    """
+    Build a ~1 s pure-pursuit expert arc toward the carrot with an avoidance bow.
 
     A ~1 s expert that *pursues* the carrot (gx, gy) along a constant-curvature arc
     (pure-pursuit), travelling ``speed`` * horizon metres, plus a half-sine lateral
@@ -656,7 +664,8 @@ _COSTMAP_LOSS = {
 def train_and_export_costmap(
         path, kind='flow', num_samples=32, epochs=60, lr=0.01,
         steps=None, sample_weight=0.0, device=None):
-    """Train a costmap planner (flow/diffusion/consistency/transformer/recurrent).
+    """
+    Train a costmap planner (flow/diffusion/consistency/transformer/recurrent).
 
     Exports the 2-input ONNX seam (``context [1,4]`` + ``costmap [1,1,S,S]`` ->
     ``[1,K,H,3]``).

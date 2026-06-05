@@ -86,7 +86,8 @@ def test_flow_training_reduces_loss():
 
 
 def test_costmap_transformer_reads_costmap_and_reduces_loss():
-    """The transformer set-prediction planner fits the costmap-aware expert.
+    """
+    The transformer set-prediction planner fits the costmap-aware expert.
 
     A short run reduces the reconstruction loss, and after training every candidate
     veers away from a one-sided obstacle — i.e. the queries actually attend to the
@@ -120,7 +121,8 @@ def test_costmap_transformer_reads_costmap_and_reduces_loss():
 
 
 def test_costmap_recurrent_reads_costmap_and_rolls_out():
-    """The recurrent (GRU) rollout planner fits the costmap-aware expert.
+    """
+    The recurrent (GRU) rollout planner fits the costmap-aware expert.
 
     A short run reduces the reconstruction loss, the autoregressive rollout drives
     forward (x increases along the horizon), and every candidate bows away from a

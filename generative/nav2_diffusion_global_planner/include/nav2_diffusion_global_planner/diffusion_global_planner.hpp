@@ -18,6 +18,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "nav2_core/global_planner.hpp"
 #include "nav2_costmap_2d/costmap_2d.hpp"
