@@ -139,6 +139,20 @@ headless:=True`（`TURTLEBOT3_MODEL=waffle`）で:
 > ネットワークのハード遮断ではなく **DDS discovery がこの環境で接続できないこと**。実 ROS ホスト
 > （または discovery-server を入れた環境）なら成立する。可搬な可視化は MCAP + Foxglove
 > （[visualization.md](visualization.md)）でサンドボックス内でも完結する。
+>
+> **追記2（2026-06-05、web 調査 + 全 RMW 横断検証）**: さらに踏み込んで切り分けた。
+> NIC は `lo`（**MULTICAST フラグ無し**）と `eno1`（MULTICAST 有・192.168.100.106）。生 unicast UDP は
+> **127.0.0.1 にもホスト自身の eno1 IP にも loopback する**（各 2/2 受信）ので素のデータ経路は健全。
+> それでも **全 DDS 構成で「talker は publish するが listener 受信 0」が一貫**:
+> Fast DDS（SHM / UDPv4 / `ROS_LOCALHOST_ONLY` / 明示ポート unicast / eno1 multicast /
+> **`fast-discovery-server` を 127.0.0.1 に立てた discovery-server 経由**）、CycloneDDS
+> （既定 / `ParticipantIndex=none`＋lo＝participant 生成は成功するが discovery 不成立 /
+> issue #458 推奨の `ParticipantIndex=auto`＋`MaxAutoParticipantIndex=100`＝eno1 では index 確保失敗）。
+> → 律速は**素の datagram 転送ではなく DDS の participant discovery / matching ハンドシェイク**で、
+> この環境の seccomp / network policy が DDS の使う socket 操作（multicast group join や
+> 双方向 liveliness 交換等）を阻んでいると見られる。**コード/設定側で回避する手は尽きた**。
+> 実 ROS ホスト（または適切にネットワークされたコンテナ）では成立する。参考: cyclone の
+> participant index は [rmw_cyclonedds#458](https://github.com/ros2/rmw_cyclonedds/issues/458) を適用。
 
 ### 完走に必要なもの（next_phase.md 段3 へ）
 
