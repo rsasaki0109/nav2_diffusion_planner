@@ -6,6 +6,18 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 
 ## [Unreleased]
 
+### Changed
+- **Documented opening the demo MCAP in the Foxglove web app** (no install:
+  app.foxglove.dev → Open local file) alongside the desktop app, in
+  `docs/visualization.md`.
+- **Refined the sandbox DDS diagnosis in `docs/simulation.md` §10.5.** Raw loopback
+  UDP between two processes *does* work here (3/5 datagrams), so the blocker is not
+  a hard IPC wall — it is the DDS discovery layer specifically: Fast DDS publishes
+  but peers never discover each other (SHM / UDPv4 / localhost-only / explicit-port
+  unicast all yield 0 received), and CycloneDDS cannot allocate a participant index.
+  Conclusion unchanged (no live inter-process ROS 2 in this sandbox) but the cause
+  is now precisely located; a real ROS host (or a discovery server) works.
+
 ### Added
 - **Foxglove-openable MCAP recording of the real Mode B pipeline**
   (`tools/foxglove_mcap_demo.py` → `docs/mode_b_demo.mcap`). It runs the shipped

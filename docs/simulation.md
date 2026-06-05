@@ -128,6 +128,18 @@ headless:=True`（`TURTLEBOT3_MODEL=waffle`）で:
      `navigate_to_pose action server unavailable`・`/odom` 受信 0 で終わる
      （mission は結果ファイルを正しく書き出した＝ハーネスは健全、通信のみが壁）。
 
+> **追記（2026-06-05、切り分け精緻化）**: 「全面的に不可」は不正確だったので訂正する。
+> **生の loopback UDP は通る**——別プロセスの Python 2 つで `127.0.0.1` 宛 UDP を送受信すると
+> 受信できた（3/5 datagram）。つまり**サンドボックスは IPC 自体を遮断していない**。詰まるのは
+> **DDS の discovery 層**に限局する: Fast DDS は participant 生成・publish までは動く（talker は
+> "Publishing" 10 回）が、SHM / UDPv4 / `ROS_LOCALHOST_ONLY=1` / unicast-localhost プロファイル
+> （明示ポート 7410–7416 含む）いずれでも listener が peer を discover できず受信 0。CycloneDDS は
+> loopback 専用設定でも participant index を確保できず（ポート probe 失敗）ノード生成に失敗。
+> **結論は不変（このサンドボックスでは live な inter-process ROS 2 は成立しない）**が、原因は
+> ネットワークのハード遮断ではなく **DDS discovery がこの環境で接続できないこと**。実 ROS ホスト
+> （または discovery-server を入れた環境）なら成立する。可搬な可視化は MCAP + Foxglove
+> （[visualization.md](visualization.md)）でサンドボックス内でも完結する。
+
 ### 完走に必要なもの（next_phase.md 段3 へ）
 
 - **inter-process DDS が成立する実 ROS ホスト**（`/dev/shm` 制限・multicast 遮断のない

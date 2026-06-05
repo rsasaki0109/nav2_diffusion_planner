@@ -61,10 +61,15 @@ pip install torch mcap mcap-ros2-support
 PYTHONPATH=generative/nav2_diffusion_training python3 tools/foxglove_mcap_demo.py
 ```
 
-Foxglove Studio で **File → Open local file** から `docs/mode_b_demo.mcap` を開き、**3D**
-パネルを追加して `/local_costmap`・`/path_best`（選択パス）・`/candidates_safe` /
+開き方は 2 通り（どちらも同じ MCAP）:
+
+- **Web 版（インストール不要・一番手軽）**: ブラウザで <https://app.foxglove.dev> を開き、
+  **Open local file** から `docs/mode_b_demo.mcap` を選ぶだけ。アプリ導入なしで閲覧できる。
+- **デスクトップ版**: Foxglove Studio で **File → Open local file**。
+
+どちらでも **3D** パネルを追加して `/local_costmap`・`/path_best`（選択パス）・`/candidates_safe` /
 `/candidates_rejected`・`/goal_pose` を表示。タイムラインを再生すると、障害物の移動に追従して
-選択パス（緑）が左右へ切り替わる。**Foxglove の Export → Video** でそのまま動画化できる。
+選択パス（緑）が左右へ切り替わる。**Export → Video** でそのまま動画化できる。
 
 > 正直なスコープ: これは**モデル出力を可搬ファイルに収録したもの**で、Gazebo の閉ループ実走
 > ではない（このリポジトリのサンドボックスは inter-process DDS 不通かつ画面なしのため、
