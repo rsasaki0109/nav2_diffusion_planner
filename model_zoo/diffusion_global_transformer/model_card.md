@@ -31,22 +31,27 @@ This transformer, trained on the **same** gap data, **aims its proposals at the
 slot on both sides**. The difference is architectural: a strided conv tokenizes the
 patch into spatial cells with learned positions, and K query tokens **cross-attend**
 over those tokens, so the model localizes the slot and bends every candidate toward
-it. Measured (held-out gap patches, exported ONNX): slot at +2.0 m → all candidates'
-lateral offset at the wall ≈ +2.0 m; slot at −2.0 m → ≈ −2.0 m. The flow model on the
-identical data does not (loss 0.12 vs 0.002; stays near-straight / wrong side).
+it. Measured (held-out gap patches, exported ONNX): slot at +2.0 m → candidates'
+lateral offset at the wall ≈ +2.0 m; slot at −2.0 m → ≈ −2.0 m. In a direct A/B on
+the same gap-only data the flow model does not (flow loss 0.12, stays near-straight /
+wrong side; transformer loss 0.009, aims on both sides).
 
-**Honest scope — this is NOT a benchmark win.** Aiming a proposal at the slot is a
-*representational* result, verified by the direct A/B probe and the C++ direction
-test (`OnnxPathModelTest.CuratedZooTransformerAimsAtOffCentreSlot`). It does **not**
-mean the full planner solves the gap: in the footprint-validated
-`planner_benchmark`, the proposed path does **not** thread the narrow (1 m) slot
-without clipping, so `DiffusionGlobalPlanner` reports *no path* on *off-centre gap*
-— same as the flow model — and this `'both'`-trained model is currently **weaker than
-the flow model on the side-obstacle scenario** too. The complete solution for the gap
-remains the **hybrid** planner (generative propose → classical search dispose). What
-this model adds is evidence that the *proposal* limitation is architectural, not
-fundamental — a step toward a generative planner that could one day pass the
-validated benchmark with a wider slot / larger capacity / footprint-aware training.
+**Honest scope — a benchmark *peer* of the flow model, plus the slot-aiming
+property; not a gap-solving win.** On the footprint-validated `planner_benchmark`
+this model behaves like the flow Mode B model: it clears *clear* and *side obstacle*
+and reports *no path* on *off-centre gap* / *slalom*. (The K candidates are trained
+as a small lateral fan so the validator gets a spread of options around the aimed
+route — the flow model gets this for free from its K fixed latents; adding it fixed
+an earlier side-obstacle regression.) Its distinct property is at the *proposal*
+level: it aims proposals at the off-centre slot where the flow model cannot — a
+representational result, verified by the A/B probe and the C++ direction test
+(`OnnxPathModelTest.CuratedZooTransformerAimsAtOffCentreSlot`). But that aim still
+does **not** thread the narrow (1 m) footprint-validated slot, so pure-generative
+does not solve *off-centre gap*; the **hybrid** planner (generative propose →
+classical search dispose) remains the completeness guarantee. The value here is
+evidence that the *proposal-direction* limitation is architectural, not fundamental
+— a step toward a generative planner that could pass the validated gap with a wider
+slot / larger capacity / footprint-aware training.
 
 ## Intended use
 
@@ -58,9 +63,10 @@ the hybrid planner remains the completeness guarantee.
 ## Out-of-scope / limitations
 
 - **Synthetic data only.** Never validated on a real robot or rosbag.
-- **Proposal-level result only.** Aims at the slot in raw output; does **not** pass
-  the footprint-validated `planner_benchmark` off-centre gap (no collision-free path
-  through the 1 m slot), and underperforms the flow model on *side obstacle*.
+- **Benchmark peer, not a gap solver.** On `planner_benchmark` it matches the flow
+  model (clears *clear* + *side obstacle*); it does **not** pass *off-centre gap* (its
+  proposals aim at the slot but pure-generative validation still fails on the 1 m
+  slot). The hybrid planner solves the gap.
 - **Window-bounded.** Slot aiming demonstrated for offsets up to ~2 m inside the
   24×24 / 6×6 m goal-aligned patch; classical search / the hybrid planner own the
   general routing problem.
@@ -81,9 +87,10 @@ Research placeholder → checked **behaviourally** at the proposal level:
 - **Off-centre-slot aiming (exported ONNX):** wall + slot at ±2 m → every candidate's
   lateral offset at the wall ≈ the slot offset. The flow Mode B model fails the same
   probe. Guarded by `OnnxPathModelTest.CuratedZooTransformerAimsAtOffCentreSlot`.
-- **One-sided obstacle:** candidates veer to the free side (raw output).
-- **Footprint-validated planner benchmark:** does **not** yield a valid path through
-  the off-centre gap (the hybrid planner does); see
+- **One-sided obstacle:** candidates veer to the free side.
+- **Footprint-validated planner benchmark:** a peer of the flow Mode B model —
+  clears *clear* and *side obstacle*, *no path* on *off-centre gap* / *slalom* (the
+  hybrid planner solves those); see
   [docs/planner_comparison.md](../../docs/planner_comparison.md) and
   [docs/generative_limits.md](../../docs/generative_limits.md).
 - **Collisions:** the planner's deterministic costmap-validity layer gates every

@@ -15,12 +15,15 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
   (loss 0.12, near-straight / wrong side); the transformer's attention over costmap
   tokens **aims every proposal at the slot on both sides** (loss 0.002, lateral at the
   wall ≈ ±2 m), guarded by `OnnxPathModelTest.CuratedZooTransformerAimsAtOffCentreSlot`.
-  **Honest scope:** this is a *proposal-direction* advance, **not** a benchmark win —
-  in the footprint-validated `planner_benchmark` the proposal does not thread the
-  narrow 1 m slot (off-centre gap stays *no path*, same as flow) and the `'both'`-
-  trained model underperforms flow on side obstacle, so it is shipped as a research
-  demonstration (not added to the planner leaderboard); the hybrid planner remains the
-  completeness guarantee. See `docs/generative_limits.md`.
+  **Honest scope:** a *proposal-direction* advance, not a gap-solving win. The K
+  candidates are trained as a small lateral fan (the flow model gets this spread from
+  its K fixed latents), which makes it a **peer of the flow model on the
+  `planner_benchmark`** — clears *clear* + *side obstacle*, *no path* on *off-centre
+  gap* / *slalom* — and it is shipped as a `Diffusion (Mode B, transformer)`
+  leaderboard row. Its distinct property is that its proposals *aim* at the off-centre
+  slot where flow's cannot, but that aim still does not thread the narrow 1 m
+  footprint-validated slot; the hybrid planner remains the completeness guarantee for
+  the gap. See `docs/generative_limits.md`.
 - **Transformer trajectory model family** (`TransformerPlanner` /
   `CostmapTransformerPlanner` in `nav2_diffusion_training.generative_planners`) —
   the fourth generative family on the `OnnxTrajectoryModel` contract, alongside

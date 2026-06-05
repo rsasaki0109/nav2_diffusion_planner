@@ -144,6 +144,9 @@ int main(int argc, char ** argv)
   const std::string learned_model =
     ament_index_cpp::get_package_share_directory("nav2_planner_benchmarks") +
     "/models/costmap_flow.onnx";
+  const std::string transformer_model =
+    ament_index_cpp::get_package_share_directory("nav2_planner_benchmarks") +
+    "/models/diffusion_global_costmap_transformer.onnx";
 
   const std::vector<PlannerEntry> planners = {
     {"RRT*", "nav2_rrt_planner::RRTStarPlanner", "sampling (optimal)", {}},
@@ -160,6 +163,11 @@ int main(int argc, char ** argv)
       "generative flow + costmap (propose + validate)",
       {rclcpp::Parameter("model_plugin", std::string("nav2_diffusion_onnx::OnnxPathModel")),
         rclcpp::Parameter("model_path", learned_model),
+        rclcpp::Parameter("provide_costmap", true)}},
+    {"Diffusion (Mode B, transformer)", "nav2_diffusion_global_planner::DiffusionGlobalPlanner",
+      "generative transformer + costmap (fanned proposals)",
+      {rclcpp::Parameter("model_plugin", std::string("nav2_diffusion_onnx::OnnxPathModel")),
+        rclcpp::Parameter("model_path", transformer_model),
         rclcpp::Parameter("provide_costmap", true)}},
     {"Diffusion (Mode B, hybrid)", "nav2_diffusion_global_planner::DiffusionGlobalPlanner",
       "generative propose + classical (JPS) fallback",
@@ -205,7 +213,8 @@ int main(int argc, char ** argv)
     "path-length / shape columns.\n\n";
   std::cout << "Planners (all `nav2_core::GlobalPlanner` plugins absent from "
     "upstream Nav2 — eight classical plus four generative Mode B variants: "
-    "analytic, learned, learned+classical fallback hybrid, and guided hybrid):\n\n";
+    "analytic, learned (flow), learned (transformer), learned+classical fallback "
+    "hybrid, and guided hybrid):\n\n";
   for (const auto & p : planners) {
     std::cout << "- **" << p.label << "** — " << p.family << "\n";
   }
@@ -214,15 +223,20 @@ int main(int argc, char ** argv)
     "The others replan from scratch each call.\n\n";
   std::cout << "> **Diffusion (Mode B)** is the generative planner — a model "
     "*proposes* candidate paths and the deterministic validity layer *disposes* of "
-    "colliding ones, keeping the shortest survivor. Three variants run here. "
+    "colliding ones, keeping the shortest survivor. Five variants run here. "
     "**analytic** uses the built-in `FanPathModel` (a symmetric bowed fan, no ONNX); "
-    "**learned** loads the curated costmap-conditioned flow model from `model_zoo` "
-    "via `OnnxPathModel` (real ONNX inference). Both are pure generative, so unlike "
-    "the search planners they are not complete: if no proposal threads the gap they "
-    "report no path. The learned model reads the costmap and biases every proposal "
-    "to the open side (see its model card), but its synthetic training distribution "
-    "caps the detour size — so it clears *clear* and *side obstacle* yet cannot make "
-    "the 2 m swing of *off-centre gap* or the S of *slalom*. The **hybrid** variant "
+    "**learned (flow)** loads the curated costmap-conditioned flow model from "
+    "`model_zoo` via `OnnxPathModel` (real ONNX inference); **learned (transformer)** "
+    "loads the transformer Mode B model (attention over costmap tokens). All are pure "
+    "generative, so unlike the search planners they are not complete: if no proposal "
+    "threads the gap they report no path. The two learned models read the costmap and "
+    "bias proposals to the open side, clearing *clear* and *side obstacle* but not the "
+    "2 m swing of *off-centre gap* or the S of *slalom* — so on this benchmark they "
+    "behave alike. (Their difference is at the proposal level: the transformer *aims* "
+    "its proposals at an off-centre slot where the flow model's 16-d CNN embedding "
+    "cannot — a representational result that still does not thread the narrow "
+    "footprint-validated slot here; see docs/generative_limits.md.) The **hybrid** "
+    "variant "
     "keeps the learned proposal but adds a classical (JPS) fallback: when no "
     "proposal threads the map it hands off to a complete search, so it solves every "
     "scenario while still using the fast generative path on the easy ones. This is "

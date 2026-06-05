@@ -236,6 +236,7 @@ class CostmapPathFlowPlanner(nn.Module):
 _PATH_TF_DIM = 32
 _PATH_TF_HEADS = 4
 _PATH_TF_LAYERS = 2
+_PATH_FAN_W = 0.4     # half-width [m] of the lateral candidate fan (set-prediction diversity)
 
 
 class _PathCostmapTokenizer(nn.Module):
@@ -264,9 +265,14 @@ class CostmapPathTransformerPlanner(nn.Module):
     memory and each decodes a full start->goal path in one deterministic forward
     pass. Attention over explicit costmap tokens (vs the flow model's 16-d CNN
     embedding) lets it *aim* its proposals at an off-centre slot, which the flow
-    model cannot (docs/generative_limits.md). NOTE: this is a proposal-direction
-    advance, not a benchmark win — the footprint-validated planner does not thread
-    the narrow slot from these proposals; the hybrid planner remains the solution.
+    model cannot (docs/generative_limits.md).
+
+    The K candidates are trained as a small **lateral fan** around the expert
+    (candidate k targets ``expert.y + fan[k]``, ``fan`` a fixed linspace over
+    ``+/-_PATH_FAN_W``). Without the fan the queries collapse to one path, so a
+    single clipped proposal means the footprint validator finds *no* clear path;
+    the fan gives the validator a spread of options around the aimed route (the
+    flow model gets this spread for free from its K fixed latents).
     """
 
     def __init__(self):
@@ -278,6 +284,7 @@ class CostmapPathTransformerPlanner(nn.Module):
         self.queries = nn.Parameter(torch.randn(PATH_K, _PATH_TF_DIM) * 0.1)
         self.head = nn.Sequential(
             nn.LayerNorm(_PATH_TF_DIM), nn.Linear(_PATH_TF_DIM, PATH_VEC))
+        self.register_buffer('fan', torch.linspace(-_PATH_FAN_W, _PATH_FAN_W, PATH_K))
 
     def forward(self, context, costmap):
         b = context.shape[0]
@@ -290,8 +297,12 @@ class CostmapPathTransformerPlanner(nn.Module):
         return self.head(q).reshape(b, PATH_K, PATH_H, PATH_DIM)
 
     def recon_loss(self, context, costmap, target):
-        """Direct regression of the K candidate paths onto the routing expert."""
-        return ((self(context, costmap) - target.unsqueeze(1)) ** 2).mean()
+        """Regress the K candidates onto a lateral fan around the routing expert."""
+        out = self(context, costmap)                        # [B, K, H, 2]
+        tgt_x = target[..., 0].unsqueeze(1).expand(-1, PATH_K, -1)
+        tgt_y = target[..., 1].unsqueeze(1) + self.fan.view(1, PATH_K, 1)
+        tgt = torch.stack([tgt_x, tgt_y], dim=-1)           # [B, K, H, 2]
+        return ((out - tgt) ** 2).mean()
 
 
 def _aligned_patch(side, inner=0.0, x_lo=1.5, x_hi=4.0):
@@ -401,11 +412,14 @@ def make_costmap_path_gap_dataset(num_samples):
     patches = []
     targets = []
     slot_offsets = [1.2, 1.6, 2.0]            # |lateral| offset of the slot [m]
-    spans = [(2.5, 3.3), (2.2, 3.0), (2.8, 3.6)]
-    slot_hws = [0.5, 0.6, 0.45]               # slot half-width [m]
+    # Wall forward-extent (m). Includes a band centred near 2 m so the training
+    # distribution covers the catalog off-centre-gap scenario (wall at aligned x~2,
+    # goal distance ~4) rather than only the 2.5-3.3 m bands used before.
+    spans = [(1.6, 2.4), (2.5, 3.3), (2.2, 3.0), (2.8, 3.6)]
+    slot_hws = [0.5, 0.6, 0.45, 0.5]          # slot half-width [m]
     i = 0
     while len(contexts) < num_samples:
-        d = 4.5 + 1.0 * ((i * 3) % 5) / 4.0   # goal distance 4.5..5.5 m
+        d = 4.0 + 1.5 * ((i * 3) % 5) / 4.0   # goal distance 4.0..5.5 m
         off = slot_offsets[i % len(slot_offsets)]
         x_lo, x_hi = spans[(i // 2) % len(spans)]
         slot_hw = slot_hws[(i // 2) % len(slot_hws)]

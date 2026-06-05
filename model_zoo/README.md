@@ -15,14 +15,15 @@ curated model metadata, not necessarily large binaries。
 
 これらが「**実際に C++ 推論経路でループに入っている学習済みモデル**」（unit-test fixture ではない）。いずれも costmap を読んで全提案を空き側へ寄せる。**Mode B** は `nav2_diffusion_global_planner` で `OnnxPathModel` 経由、**Mode A** は `nav2_diffusion_controller` で `OnnxTrajectoryModel` 経由でロードされ、決定論的安全層が検証・選択する。横断比較は [../docs/planner_comparison.md](../docs/planner_comparison.md)（Mode B）/ [../docs/controller_comparison.md](../docs/controller_comparison.md)（Mode A）、限界・失敗ケースは各 model card を参照。
 
-> **`diffusion_global_costmap_transformer_v0` の位置づけ（正直なスコープ）**: これは
-> **表現上の研究デモ**であって、ベンチを更新する出荷モデルではない。flow Mode B が
-> off-centre slot に提案を向けられないのに対し、transformer は raw 出力で**スロット
-> 方向へ提案を向ける**（A/B 実証 + C++ 方向テスト
-> `CuratedZooTransformerAimsAtOffCentreSlot`）。**ただし footprint 検証付きの
-> `planner_benchmark` では狭い 1 m スロットを通る有効 path を出せず**（off-centre gap は
-> flow 同様 *no path*、side obstacle では flow に劣る）、gap の完全な解は引き続き
-> **hybrid プランナ**。詳細は [model_card](diffusion_global_transformer/model_card.md) と
+> **`diffusion_global_costmap_transformer_v0` の位置づけ（正直なスコープ）**:
+> `planner_benchmark` 上では **flow Mode B と同等の peer**（*clear* と *side obstacle*
+> を解き、*off-centre gap* / *slalom* は *no path*）。**独自の性質**は提案レベルにあり、
+> flow が off-centre slot に提案を向けられないのに対し、transformer は**スロット方向へ
+> 提案を向ける**（A/B 実証 + C++ 方向テスト `CuratedZooTransformerAimsAtOffCentreSlot`）。
+> 候補は expert 周りの**横ファン**で学習し（flow の固定 latent spread の代替）、validator
+> に選択肢を与える。**ただしその aim でも狭い 1 m スロットは footprint 検証を通らず**、
+> gap の完全な解は引き続き **hybrid プランナ**。詳細は
+> [model_card](diffusion_global_transformer/model_card.md) と
 > [../docs/generative_limits.md](../docs/generative_limits.md)。
 
 ## ルール

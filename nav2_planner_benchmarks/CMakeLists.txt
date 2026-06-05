@@ -46,6 +46,11 @@ install(
   DESTINATION share/${PROJECT_NAME}/models
 )
 install(
+  FILES ${CMAKE_CURRENT_SOURCE_DIR}/../model_zoo/diffusion_global_transformer/costmap_transformer.onnx
+  DESTINATION share/${PROJECT_NAME}/models
+  RENAME diffusion_global_costmap_transformer.onnx
+)
+install(
   FILES ${CMAKE_CURRENT_SOURCE_DIR}/../model_zoo/diffusion_local/costmap_flow.onnx
   DESTINATION share/${PROJECT_NAME}/models
   RENAME diffusion_local_costmap_flow.onnx

@@ -55,22 +55,25 @@ training_data:
 benchmark_results:
   passed: true
   suite: behavioural (nav2_diffusion_onnx end-to-end path direction test)
-  costmap_side_selection: true     # one-sided obstacle -> candidates veer to the free side (raw output)
+  costmap_side_selection: true     # one-sided obstacle -> candidates veer to the free side
   off_centre_slot_aiming: true     # wall+slot at +/-2 m -> candidates' lateral at the wall ~= slot offset
-  passes_footprint_validated_gap: false  # full planner_benchmark off-centre gap: no valid path (hybrid solves it)
+  planner_benchmark_peer_of_flow: true   # clears clear + side obstacle (same as flow Mode B)
+  passes_footprint_validated_gap: false  # off-centre gap: still no valid path (hybrid solves it)
   note: >
-    Representational advance, NOT a benchmark win. Aims its proposals at the off-centre
-    slot where the flow Mode B model cannot (flow loss 0.12 / no aim; this 0.002 / aims
-    on both sides). But in the footprint-validated planner_benchmark the proposed path
-    does not thread the narrow 1 m slot, so DiffusionGlobalPlanner reports no path on
-    off-centre gap (same as flow), and this 'both'-trained model is currently weaker
-    than flow on side obstacle. The hybrid planner remains the completeness guarantee.
-    See docs/generative_limits.md.
+    On the footprint-validated planner_benchmark this model is a PEER of the flow Mode B
+    model: it clears 'clear' and 'side obstacle' and reports no path on 'off-centre gap'
+    / 'slalom' (the K candidates are trained as a small lateral fan so the validator has
+    a spread of options, which fixed an earlier side-obstacle regression). Its DISTINCT
+    property is at the proposal level: it AIMS proposals at an off-centre slot where the
+    flow model's 16-d CNN embedding cannot (flow loss 0.12 / no aim; this 0.005 / aims
+    both sides) — a representational advance that still does not thread the narrow 1 m
+    footprint-validated slot. The hybrid planner remains the completeness guarantee for
+    the gap. See docs/generative_limits.md.
   collision_count: 0               # deterministic validity layer gates all output
 
 limitations:
   - "Synthetic training data only — NOT validated on any real robot or rosbag."
-  - "Proposal-level result only: aims at the slot in raw output but does NOT pass the footprint-validated planner_benchmark off-centre gap; underperforms the flow model on side obstacle."
+  - "Benchmark peer of the flow model (clears clear + side); does NOT thread the footprint-validated off-centre gap (proposals aim at the slot but pure-generative validation still fails; hybrid solves it)."
   - "Slot aiming demonstrated for offsets up to ~2 m within the 24x24 / 6x6 m patch window."
   - "Research / demonstration model. Do not deploy on hardware; the validity layer is the authority."
 
@@ -81,7 +84,7 @@ license:
 
 checksum:
   algorithm: sha256
-  value: "c45d525cb239c227fbf1e5a6253244ea3f67c325f2d2557f461d0442f260eac0"
+  value: "d8d91842971bdad48ac847a623dd928b08008bcb2d2c97b71c638043ca7ba285"
   artifact: costmap_transformer.onnx
 
 reproduce:
