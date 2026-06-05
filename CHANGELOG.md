@@ -6,6 +6,23 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-06-05
+
+Theme: **the off-centre-gap ceiling falls, and the evaluation gets honest and
+closed-loop.** A differentiable footprint-clearance loss lets the Mode B
+transformer thread the footprint-validated off-centre gap as a pure-generative
+planner (the documented ceiling, broken) — while an expanded 8-course benchmark
+surfaces the honest trade-off (it over-aims and misses dead-ahead gaps that flow /
+recurrent thread; threading is *not* forward-distance bounded — that claim is
+retracted). The closed-loop side grows up too: the Gazebo mission harness goes
+from one goal to a multi-leg leaderboard with named presets, and
+`nav2_diffusion_sim` ships single-source obstacle courses (world + map + goals
+generated together) mirroring the off-line scenarios. The 21 packages are grouped
+into role subdirectories (`generative/` / `classical_planners/` /
+`reactive_controllers/` / `benchmarks/`; names unchanged, build unaffected), the
+README is now English, and CI — red for 15+ commits from an invalid rosdep key —
+is green again, now running inside the official `ros:jazzy` container.
+
 ### Fixed
 - **Greened CI, which had been red for 15+ commits.** The root cause was an
   invalid `<buildtool_depend>ament_python</buildtool_depend>` in
