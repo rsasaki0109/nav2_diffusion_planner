@@ -7,6 +7,22 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 ## [Unreleased]
 
 ### Added
+- **Strengthened the headless Gazebo closed-loop harness from a single goal to a
+  multi-leg mission course with a leaderboard.** `sim_mission.py` now drives a
+  *sequence* of named `NavigateToPose` legs (each sent from where the previous ended)
+  and writes a Markdown leaderboard (one row per leg + a reached-count / total-path /
+  total-time summary) — the closed-loop counterpart of the offline `planner_benchmark`
+  sweep. Legs are passed via a `missions` string array (`"label|x|y|yaw|timeout"`);
+  with none given it falls back to the single `goal_x`/`goal_y`/`goal_yaw` goal
+  (backward compatible). `tb3_gazebo_mission.launch.py` gained a `;`-separated
+  `missions` argument and a `stop_on_failure` flag. The leg-spec parsing, metric
+  aggregation, and leaderboard formatting are refactored into pure (no-ROS) functions
+  and **unit-tested** (`nav2_diffusion_bringup/test/test_sim_mission.py`, 8 cases wired
+  into `colcon test` via `ament_add_pytest_test`); only the driving loop needs a live
+  Nav2 + Gazebo. ROS imports are now lazy so the module imports without a ROS runtime.
+  Updated `docs/simulation.md` section 10.5. (The sandbox still cannot run the
+  closed-loop sim — inter-process DDS is blocked — so no fabricated sim numbers are
+  added; the harness produces the leaderboard on a real ROS host.)
 - **Expanded the Mode B planner benchmark from 4 to 8 courses** (`centred gap`,
   `narrow gap`, `far off-centre gap`, `double gate` join `clear` / `off-centre gap` /
   `slalom` / `side obstacle`) in `nav2_planner_benchmarks/planner_benchmark.cpp`, and

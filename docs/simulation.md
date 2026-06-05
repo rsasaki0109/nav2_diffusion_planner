@@ -87,14 +87,23 @@ headless:=True`（`TURTLEBOT3_MODEL=waffle`）で:
    map→odom が出て global_costmap が activate する。
 2. **in-launch mission ノード**
    [`sim_mission.py`](../nav2_diffusion_bringup/scripts/sim_mission.py): nav2 の
-   `navigate_to_pose` を待ち、`/odom` を購読して、1 ゴールへ誘導し、到達/タイムアウト・
-   経路長・時間を集計して **Markdown 結果ファイルに書き出す**。結果は topic でなく
-   **ファイル**なので、DDS グラフに join できない環境でも成果物を検証できる。
+   `navigate_to_pose` を待ち、`/odom` を購読して、**複数 leg のミッション・コースを順に
+   誘導**し、各 leg の到達/タイムアウト・経路長・時間を集計して **Markdown leaderboard
+   （1 leg = 1 行 + サマリ）に書き出す**。これは offline `planner_benchmark` の多コース
+   sweep を**閉ループに持ち込んだ**もの: 各 leg は前 leg の終端から送る 1 ゴールなので、
+   同一ワールドで複数ゴールを 1 起動で走査できる。結果は topic でなく**ファイル**なので、
+   DDS グラフに join できない環境でも成果物を検証できる。leg は `missions` 文字列配列
+   （`"label|x|y|yaw|timeout"` 各 leg）で渡し、未指定なら従来どおり単一 `goal_x/goal_y/
+   goal_yaw` ゴールにフォールバック（後方互換）。**leg 解析・指標集計・leaderboard 整形は
+   ROS 非依存の純関数に切り出し、pytest で検証**（[`test/test_sim_mission.py`](../nav2_diffusion_bringup/test/test_sim_mission.py)、
+   8 ケース・`colcon test` 緑）——閉ループ駆動だけが実 Nav2＋Gazebo を要する。
 3. **専用 launch**
    [`tb3_gazebo_mission.launch.py`](../nav2_diffusion_bringup/launch/tb3_gazebo_mission.launch.py):
    sim＋mission を 1 launch で起動し、mission 終了で launch を Shutdown。
-   `ros2 launch nav2_diffusion_bringup tb3_gazebo_mission.launch.py goal_x:=0.0
+   単発: `ros2 launch nav2_diffusion_bringup tb3_gazebo_mission.launch.py goal_x:=0.0
    goal_y:=-0.5 results_file:=/tmp/sim_mission_result.md`。
+   コース: `... missions:="out|0.0|-0.5|0.0|120;back|-2.0|-0.5|0.0|120"
+   results_file:=/tmp/sim_course_result.md`（`stop_on_failure:=True` で最初の失敗 leg で中断）。
 
 ### それでも完走をブロックする壁（このサンドボックス固有・厳密に特定）
 
@@ -122,7 +131,8 @@ headless:=True`（`TURTLEBOT3_MODEL=waffle`）で:
 - 得られた実 sim numbers を [model_comparison.md](model_comparison.md) /
   [controller_comparison.md](controller_comparison.md) に実 sim 列として追加。
 
-結論: **bring-up・GPU センサ描画・mission ハーネス（初期姿勢＋goal＋集計＋ファイル出力）は
-実装し実走で確認済み**。残る律速はコードではなく、**このサンドボックスの inter-process
-DDS が完全に不通**であること。実 ROS ホストに移せば mission launch がそのまま実 sim
-numbers を出す。番号はその時点で比較表に追加し、でっち上げ値は載せない。
+結論: **bring-up・GPU センサ描画・mission ハーネス（初期姿勢＋複数 leg コース＋leaderboard
+集計＋ファイル出力、純ロジックは pytest 緑）は実装し実走で確認済み**。残る律速はコードでは
+なく、**このサンドボックスの inter-process DDS が完全に不通**であること。実 ROS ホストに
+移せば mission launch がそのまま実 sim numbers（コース leaderboard）を出す。番号はその時点で
+比較表に追加し、でっち上げ値は載せない。

@@ -17,6 +17,12 @@ install(
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   ament_lint_auto_find_test_dependencies()
+
+  # Unit-test the pure (no-ROS) helpers of the mission harness: leg-spec parsing,
+  # metric aggregation, leaderboard formatting. The closed-loop drive itself needs
+  # a live Nav2 + Gazebo (docs/simulation.md section 10.5).
+  find_package(ament_cmake_pytest REQUIRED)
+  ament_add_pytest_test(test_sim_mission test/test_sim_mission.py)
 endif()
 
 ament_package()

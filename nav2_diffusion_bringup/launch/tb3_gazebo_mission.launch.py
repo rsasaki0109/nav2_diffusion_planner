@@ -16,16 +16,22 @@ r"""
 Automated headless Gazebo closed-loop benchmark for the DiffusionController.
 
 Brings up the TB3 Gazebo sim (reusing tb3_gazebo_diffusion.launch.py, headless, no
-RViz) and an in-launch ``sim_mission`` node that sends one NavigateToPose goal,
-records the executed odometry, and writes a Markdown result file. The mission node
-runs *inside* this launch so it shares the DDS graph (external-process discovery is
-unreliable in restricted sandboxes — docs/simulation.md section 10.5). When the
-mission node exits, the whole launch shuts down.
+RViz) and an in-launch ``sim_mission`` node that drives a **course of NavigateToPose
+legs**, records the executed odometry per leg, and writes a single Markdown
+leaderboard. The mission node runs *inside* this launch so it shares the DDS graph
+(external-process discovery is unreliable in restricted sandboxes —
+docs/simulation.md section 10.5). When the mission node exits, the launch shuts down.
 
-Example::
+Single goal (backward compatible)::
 
     ros2 launch nav2_diffusion_bringup tb3_gazebo_mission.launch.py \\
         goal_x:=0.0 goal_y:=-0.5 results_file:=/tmp/sim_mission_result.md
+
+Multi-leg course (';'-separated 'label|x|y|yaw|timeout' legs)::
+
+    ros2 launch nav2_diffusion_bringup tb3_gazebo_mission.launch.py \\
+        missions:="out|0.0|-0.5|0.0|120;back|-2.0|-0.5|0.0|120" \\
+        results_file:=/tmp/sim_course_result.md
 """
 
 import os
@@ -34,7 +40,7 @@ from ament_index_python.packages import get_package_share_directory
 
 from launch import LaunchDescription
 from launch.actions import (
-    DeclareLaunchArgument, EmitEvent, IncludeLaunchDescription,
+    DeclareLaunchArgument, EmitEvent, IncludeLaunchDescription, OpaqueFunction,
     RegisterEventHandler,
 )
 from launch.event_handlers import OnProcessExit
@@ -44,26 +50,13 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
-def generate_launch_description():
+def _launch_setup(context, *args, **kwargs):
     pkg_dir = get_package_share_directory('nav2_diffusion_bringup')
 
-    goal_x = LaunchConfiguration('goal_x')
-    goal_y = LaunchConfiguration('goal_y')
-    goal_yaw = LaunchConfiguration('goal_yaw')
-    timeout_sec = LaunchConfiguration('timeout_sec')
-    label = LaunchConfiguration('label')
-    results_file = LaunchConfiguration('results_file')
-
-    declare_args = [
-        DeclareLaunchArgument('goal_x', default_value='0.0'),
-        DeclareLaunchArgument('goal_y', default_value='-0.5'),
-        DeclareLaunchArgument('goal_yaw', default_value='0.0'),
-        DeclareLaunchArgument('timeout_sec', default_value='120.0'),
-        DeclareLaunchArgument(
-            'label', default_value='Diffusion (Mode A) in Gazebo'),
-        DeclareLaunchArgument(
-            'results_file', default_value='/tmp/sim_mission_result.md'),
-    ]
+    # Split the ';'-separated course string into a list parameter the node parses
+    # per leg ('label|x|y|yaw|timeout'). Empty -> node falls back to the goal_* args.
+    missions_str = LaunchConfiguration('missions').perform(context)
+    missions = [leg.strip() for leg in missions_str.split(';') if leg.strip()]
 
     sim = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -79,12 +72,14 @@ def generate_launch_description():
         output='screen',
         parameters=[{
             'use_sim_time': True,
-            'goal_x': goal_x,
-            'goal_y': goal_y,
-            'goal_yaw': goal_yaw,
-            'timeout_sec': timeout_sec,
-            'label': label,
-            'results_file': results_file,
+            'goal_x': LaunchConfiguration('goal_x'),
+            'goal_y': LaunchConfiguration('goal_y'),
+            'goal_yaw': LaunchConfiguration('goal_yaw'),
+            'missions': missions if missions else [''],
+            'timeout_sec': LaunchConfiguration('timeout_sec'),
+            'stop_on_failure': LaunchConfiguration('stop_on_failure'),
+            'label': LaunchConfiguration('label'),
+            'results_file': LaunchConfiguration('results_file'),
         }],
     )
 
@@ -96,5 +91,26 @@ def generate_launch_description():
         )
     )
 
-    return LaunchDescription(
-        declare_args + [sim, mission, shutdown_on_mission_exit])
+    return [sim, mission, shutdown_on_mission_exit]
+
+
+def generate_launch_description():
+    declare_args = [
+        DeclareLaunchArgument('goal_x', default_value='0.0'),
+        DeclareLaunchArgument('goal_y', default_value='-0.5'),
+        DeclareLaunchArgument('goal_yaw', default_value='0.0'),
+        DeclareLaunchArgument(
+            'missions', default_value='',
+            description="';'-separated course legs: 'label|x|y|yaw|timeout' each; "
+                        'empty uses the single goal_x/goal_y/goal_yaw goal'),
+        DeclareLaunchArgument('timeout_sec', default_value='120.0'),
+        DeclareLaunchArgument(
+            'stop_on_failure', default_value='False',
+            description='Abort the remaining legs after the first one that fails'),
+        DeclareLaunchArgument(
+            'label', default_value='Diffusion (Mode A) in Gazebo'),
+        DeclareLaunchArgument(
+            'results_file', default_value='/tmp/sim_mission_result.md'),
+    ]
+
+    return LaunchDescription(declare_args + [OpaqueFunction(function=_launch_setup)])
