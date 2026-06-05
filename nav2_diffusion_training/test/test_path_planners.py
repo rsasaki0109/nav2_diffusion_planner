@@ -159,6 +159,60 @@ def test_costmap_path_transformer_exports_contract(tmp_path):
     assert np.isfinite(out).all()
 
 
+def test_costmap_path_recurrent_exports_contract(tmp_path):
+    """The recurrent Mode B planner exports the same context+costmap ONNX seam."""
+    from nav2_diffusion_training.path_planners import (
+        PATH_COSTMAP_SIZE, PATH_H, PATH_K, train_and_export_costmap_path)
+
+    path = os.path.join(str(tmp_path), 'costmap_path_recurrent.onnx')
+    train_and_export_costmap_path(
+        path, num_samples=12, epochs=3, kind='recurrent', dataset='side')
+
+    ort = pytest.importorskip('onnxruntime')
+    import numpy as np
+    session = ort.InferenceSession(path, providers=['CPUExecutionProvider'])
+    names = {i.name for i in session.get_inputs()}
+    assert names == {'context', 'costmap'}
+    ctx = np.array([[5.0, 0.0]], dtype=np.float32)
+    cm = np.zeros((1, 1, PATH_COSTMAP_SIZE, PATH_COSTMAP_SIZE), dtype=np.float32)
+    out = session.run(None, {'context': ctx, 'costmap': cm})[0]
+    assert out.shape == (1, PATH_K, PATH_H, 2)
+    assert np.isfinite(out).all()
+
+
+def test_costmap_path_recurrent_reads_costmap_and_veers():
+    """Recurrent loss decreases, candidates roll out forward, and the patch is read.
+
+    The full routing direction is guarded deterministically in the C++ backend
+    gtest (CuratedZooPathRecurrentVeersAwayFromObstacle); here we keep a fast check
+    that training reduces the loss, that the GRU rollout advances in x, and that
+    swapping the obstacle side flips the mean lateral offset of the proposals.
+    """
+    from nav2_diffusion_training.path_planners import (
+        _aligned_patch, CostmapPathRecurrentPlanner, make_costmap_path_dataset)
+    torch.manual_seed(0)
+    model = CostmapPathRecurrentPlanner()
+    context, costmap, target = make_costmap_path_dataset(24)
+    opt = torch.optim.Adam(model.parameters(), lr=0.02)
+    first = model.recon_loss(context, costmap, target).item()
+    for _ in range(80):
+        opt.zero_grad()
+        loss = model.recon_loss(context, costmap, target)
+        loss.backward()
+        opt.step()
+    assert loss.item() < first
+    model.eval()
+    ctx = torch.tensor([[4.0, 0.0]])
+    with torch.no_grad():
+        # Obstacle on +y -> expert (and proposals) bow to the open -y side.
+        left = model(ctx, _aligned_patch(1.0).unsqueeze(0))[0]    # [K, H, 2]
+        right = model(ctx, _aligned_patch(-1.0).unsqueeze(0))[0]
+    # The rollout advances forward (x grows from first to last waypoint).
+    assert left[:, -1, 0].mean().item() > left[:, 0, 0].mean().item()
+    # Swapping the obstacle side flips the mean lateral offset of the proposals.
+    assert left[:, :, 1].mean().item() < right[:, :, 1].mean().item()
+
+
 def test_gap_dataset_shapes_and_routes_through_slot():
     """The off-centre-gap dataset has the seam shapes and a slot-routing expert.
 

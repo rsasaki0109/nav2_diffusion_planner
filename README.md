@@ -130,7 +130,7 @@ flowchart LR
 
 <p align="center"><em>出荷モデル <code>PathFlowPlanner</code>（flow matching）が start→goal の大域パス候補を生成し、決定論的 costmap 検証層が障害物に当たる候補（赤）を棄却、最短の安全パス（緑）を選択する propose→validate→select パイプライン。障害物が左右に動くと選択パスが反対側へ切り替わる。再現は <a href="tools/mode_b_demo.py">tools/mode_b_demo.py</a>。</em></p>
 
-これは local controller（Mode A）と対称の **Nav2 GlobalPlanner（Mode B）**。生成型モデルを `nav2_core::GlobalPlanner` に統合した OSS は調査時点で存在せず、`PathModel` seam（analytic `FanPathModel` / 学習済み `OnnxPathModel`、costmap 条件付きも同 seam）として実装している（[nav2_diffusion_global_planner](nav2_diffusion_global_planner)）。
+これは local controller（Mode A）と対称の **Nav2 GlobalPlanner（Mode B）**。生成型モデルを `nav2_core::GlobalPlanner` に統合した OSS は調査時点で存在せず、`PathModel` seam（analytic `FanPathModel` / 学習済み `OnnxPathModel`、costmap 条件付きも同 seam）として実装している（[nav2_diffusion_global_planner](nav2_diffusion_global_planner)）。学習済み Mode B も Mode A と同様に **flow / transformer / recurrent（GRU 自己回帰ロールアウト）の 3 系統**を `model_zoo` に出荷済み（transformer のみ off-centre slot に提案を向け、flow / recurrent は空き側選択の peer。横断比較は [docs/planner_comparison.md](docs/planner_comparison.md)）。
 
 ## ドキュメント地図
 
@@ -148,7 +148,7 @@ flowchart LR
 | [docs/getting_started.md](docs/getting_started.md) | Nav2 ユーザー向け導入（Controller 差し替え / demo） |
 | [docs/contributing.md](docs/contributing.md) | 貢献ガイド（plugin / model / benchmark 追加） |
 | [docs/model_zoo.md](docs/model_zoo.md) | Model Zoo（model card / manifest 一覧） |
-| [docs/model_comparison.md](docs/model_comparison.md) | 8生成構成のオフライン比較 leaderboard（`tools/benchmark_models.py` 自動生成） |
+| [docs/model_comparison.md](docs/model_comparison.md) | 10生成構成のオフライン比較 leaderboard（`tools/benchmark_models.py` 自動生成） |
 | [docs/planner_comparison.md](docs/planner_comparison.md) | classical GlobalPlanner 8種のオフライン比較（経路長/pose/時間。`nav2_planner_benchmarks` 自動生成） |
 | [docs/controller_comparison.md](docs/controller_comparison.md) | reactive Controller（VFH+ / ND）の閉ループ比較（到達/クリアランス/操舵/中央寄せ。`nav2_planner_benchmarks` 自動生成） |
 | [docs/choosing_a_planner.md](docs/choosing_a_planner.md) | planner / controller 選択ガイド（状況別の推奨・決定フロー） |

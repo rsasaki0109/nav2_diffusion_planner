@@ -305,6 +305,63 @@ class CostmapPathTransformerPlanner(nn.Module):
         return ((out - tgt) ** 2).mean()
 
 
+_PATH_GRU_HID = 64
+
+
+class CostmapPathRecurrentPlanner(nn.Module):
+    """
+    Costmap+goal conditioned GRU-rollout set-prediction global-path planner (Mode B).
+
+    The Mode B (global path) analogue of the recurrent trajectory model: the
+    goal-aligned costmap patch is encoded to a conditioning vector and a GRU emits
+    each path one waypoint at a time, feeding the previous point back in, so the
+    sequential inductive bias matches a path's waypoint-by-waypoint structure
+    (vs the transformer's one-shot set decode and the flow model's iterative
+    denoising). K learned seed vectors give the candidates distinct initial
+    states; like the transformer they are trained as a lateral fan around the
+    routing expert (candidate k targets ``expert.y + fan[k]``) so the footprint
+    validator gets a spread of proposals instead of one collapsed path. Static
+    PATH_H / PATH_K python loops unroll into an ONNX-clean graph (no custom ops;
+    GRUCell decomposes cleanly).
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.encoder = _PathCostmapEncoder()
+        self.cond = nn.Linear(CTX_DIM + PATH_EMBED, _PATH_GRU_HID)
+        self.seeds = nn.Parameter(torch.randn(PATH_K, _PATH_GRU_HID) * 0.1)
+        self.cell = nn.GRUCell(PATH_DIM + _PATH_GRU_HID, _PATH_GRU_HID)
+        self.head = nn.Linear(_PATH_GRU_HID, PATH_DIM)
+        self.register_buffer('fan', torch.linspace(-_PATH_FAN_W, _PATH_FAN_W, PATH_K))
+
+    def _conditioning(self, context, costmap):
+        return self.cond(torch.cat([context, self.encoder(costmap)], dim=-1))
+
+    def forward(self, context, costmap):
+        cond = self._conditioning(context, costmap)
+        b = cond.shape[0]
+        outs = []
+        for k in range(PATH_K):
+            cond_k = cond + self.seeds[k].unsqueeze(0)
+            h = cond_k
+            prev = torch.zeros(b, PATH_DIM, device=cond.device, dtype=cond.dtype)
+            steps = []
+            for _ in range(PATH_H):
+                h = self.cell(torch.cat([prev, cond_k], dim=-1), h)
+                prev = self.head(h)
+                steps.append(prev)
+            outs.append(torch.stack(steps, dim=1).unsqueeze(1))
+        return torch.cat(outs, dim=1)
+
+    def recon_loss(self, context, costmap, target):
+        """Regress the K candidates onto a lateral fan around the routing expert."""
+        out = self(context, costmap)                        # [B, K, H, 2]
+        tgt_x = target[..., 0].unsqueeze(1).expand(-1, PATH_K, -1)
+        tgt_y = target[..., 1].unsqueeze(1) + self.fan.view(1, PATH_K, 1)
+        tgt = torch.stack([tgt_x, tgt_y], dim=-1)           # [B, K, H, 2]
+        return ((out - tgt) ** 2).mean()
+
+
 def _aligned_patch(side, inner=0.0, x_lo=1.5, x_hi=4.0):
     """
     Build a patch (row->fwd x, col->lateral y) with an obstacle on one side.
@@ -469,8 +526,9 @@ def train_and_export_costmap_path(path, num_samples=96, epochs=400, lr=0.01, ste
                                   kind='flow', dataset='side', device=None):
     """Train a costmap-conditioned Mode B path planner and export a 2-input ONNX.
 
-    ``kind`` selects the family: ``'flow'`` (CostmapPathFlowPlanner) or
-    ``'transformer'`` (CostmapPathTransformerPlanner). ``dataset`` selects the
+    ``kind`` selects the family: ``'flow'`` (CostmapPathFlowPlanner),
+    ``'transformer'`` (CostmapPathTransformerPlanner) or ``'recurrent'``
+    (CostmapPathRecurrentPlanner). ``dataset`` selects the
     training data: ``'side'`` (one-sided obstacle, the default / shipped behaviour),
     ``'gap'`` (off-centre slot routing), or ``'both'``. ``device`` selects the
     training device (e.g. ``'cuda'``); the model is always exported on CPU so the
@@ -482,6 +540,8 @@ def train_and_export_costmap_path(path, num_samples=96, epochs=400, lr=0.01, ste
         model = CostmapPathFlowPlanner(steps=steps)
     elif kind == 'transformer':
         model = CostmapPathTransformerPlanner()
+    elif kind == 'recurrent':
+        model = CostmapPathRecurrentPlanner()
     else:
         raise ValueError('unknown path planner kind: ' + kind)
     model.to(dev)

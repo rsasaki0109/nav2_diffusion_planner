@@ -7,6 +7,26 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 ## [Unreleased]
 
 ### Added
+- **Recurrent (GRU) rollout Mode B global-path family** (`CostmapPathRecurrentPlanner`
+  in `nav2_diffusion_training.path_planners`) — the **third** generative family on the
+  `OnnxPathModel` (Mode B) contract, alongside flow and transformer, bringing the
+  recurrent family to the global-path seam too. A 16-d CNN embedding of the goal-aligned
+  patch plus the goal-distance context conditions a GRU that emits each path one
+  waypoint at a time; K=5 learned seed vectors make the candidates distinct and they are
+  trained as a lateral fan around the routing expert so the footprint validator gets a
+  spread. Shipped in the loop as `model_zoo/diffusion_global_recurrent/`
+  (`diffusion_global_costmap_recurrent_v0`, ≈1.0 MB, GPU-trained, CPU-exported, final
+  loss 0.0025); a curated-zoo C++ test (`CuratedZooPathRecurrentVeersAwayFromObstacle`)
+  guards the shipped binary and a `Diffusion (Mode B, recurrent)` row is added to
+  `planner_benchmark` (regenerated into `docs/planner_comparison.md`). Honest scope:
+  conditioning on a CNN embedding (like the flow model, **not** the transformer's token
+  attention) makes it a **benchmark peer of the flow Mode B model** — it picks the free
+  side of a one-sided obstacle (clears *clear* / *side obstacle*, *no path* on
+  *off-centre gap* / *slalom*) and does **not** aim at an off-centre slot; the
+  gap-routing ceiling and the hybrid completeness guarantee are unchanged. Cost: the
+  H=12 autoregressive rollout is the highest-latency Mode B family (flow 4 steps,
+  transformer 1 forward). Demonstrates the seam carries the same sequential family on
+  both the Mode A and Mode B contracts.
 - **Recurrent (GRU) rollout trajectory model family** (`RecurrentRolloutPlanner` /
   `CostmapRecurrentPlanner` in `nav2_diffusion_training.generative_planners`) — the
   **fifth** generative family on the `OnnxTrajectoryModel` contract, alongside flow /

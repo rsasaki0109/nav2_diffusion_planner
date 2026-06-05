@@ -35,6 +35,10 @@
 #ifndef ONNX_ZOO_COSTMAP_PATH_TRANSFORMER_MODEL
 #define ONNX_ZOO_COSTMAP_PATH_TRANSFORMER_MODEL ""
 #endif
+// The recurrent (GRU rollout) Mode B sibling shipped in model_zoo/ (same contract).
+#ifndef ONNX_ZOO_COSTMAP_PATH_RECURRENT_MODEL
+#define ONNX_ZOO_COSTMAP_PATH_RECURRENT_MODEL ""
+#endif
 
 using nav2_diffusion_onnx::OnnxPathModel;
 
@@ -156,6 +160,34 @@ TEST(OnnxPathModelTest, CuratedZooModelVeersAwayFromObstacle)
   const std::string zoo = ONNX_ZOO_COSTMAP_PATH_MODEL;
   if (zoo.empty()) {
     GTEST_SKIP() << "model_zoo costmap path model path not provided";
+  }
+  OnnxPathModel model(zoo);
+  EXPECT_EQ(model.name(), "onnx_path");
+
+  // Obstacle on the +y (left) side ahead -> ALL candidates should lean -y.
+  const auto left = model.generate(costmapContext(+1.0));
+  ASSERT_FALSE(left.empty());
+  for (const auto & c : left) {
+    EXPECT_LT(c.points[c.points.size() / 2].y, 0.0);
+  }
+  // Obstacle on the -y (right) side ahead -> ALL candidates should lean +y.
+  const auto right = model.generate(costmapContext(-1.0));
+  ASSERT_FALSE(right.empty());
+  for (const auto & c : right) {
+    EXPECT_GT(c.points[c.points.size() / 2].y, 0.0);
+  }
+}
+
+// The recurrent Mode B sibling (diffusion_global_costmap_recurrent_v0): a GRU
+// rollout conditioned on the same 16-d CNN costmap embedding as the flow model, so
+// it learns to pick the FREE SIDE of a one-sided obstacle (it does NOT route through
+// an off-centre gap — that needs the transformer's token attention). Guards that the
+// shipped binary still bows every candidate away from the obstacle.
+TEST(OnnxPathModelTest, CuratedZooPathRecurrentVeersAwayFromObstacle)
+{
+  const std::string zoo = ONNX_ZOO_COSTMAP_PATH_RECURRENT_MODEL;
+  if (zoo.empty()) {
+    GTEST_SKIP() << "model_zoo recurrent path model path not provided";
   }
   OnnxPathModel model(zoo);
   EXPECT_EQ(model.name(), "onnx_path");

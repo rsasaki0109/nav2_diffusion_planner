@@ -10,6 +10,7 @@ curated model metadata, not necessarily large binaries。
 |---|---|---|---|---|
 | `diffusion_global_costmap_flow_v0` | flow matching（学習済み） | Mode B `PathModel`（global path） | [diffusion_global/costmap_flow.onnx](diffusion_global/costmap_flow.onnx)（≈349 KB, 直接コミット・[export.py](diffusion_global/export.py) で再現可） | [model_card.md](diffusion_global/model_card.md) / [manifest.yaml](diffusion_global/manifest.yaml) |
 | `diffusion_global_costmap_transformer_v0` | transformer set-prediction（学習済み・GPU 学習） | Mode B `PathModel`（global path） | [diffusion_global_transformer/costmap_transformer.onnx](diffusion_global_transformer/costmap_transformer.onnx)（≈224 KB, 直接コミット・[export.py](diffusion_global_transformer/export.py) で再現可） | [model_card.md](diffusion_global_transformer/model_card.md) / [manifest.yaml](diffusion_global_transformer/manifest.yaml) |
+| `diffusion_global_costmap_recurrent_v0` | recurrent（GRU 自己回帰ロールアウト・学習済み・GPU 学習） | Mode B `PathModel`（global path） | [diffusion_global_recurrent/costmap_recurrent.onnx](diffusion_global_recurrent/costmap_recurrent.onnx)（≈1.0 MB, 直接コミット・[export.py](diffusion_global_recurrent/export.py) で再現可） | [model_card.md](diffusion_global_recurrent/model_card.md) / [manifest.yaml](diffusion_global_recurrent/manifest.yaml) |
 | `diffusion_local_costmap_flow_v0` | flow matching（学習済み） | Mode A `TrajectoryModel`（local controller） | [diffusion_local/costmap_flow.onnx](diffusion_local/costmap_flow.onnx)（≈268 KB, 直接コミット・[export.py](diffusion_local/export.py) で再現可） | [model_card.md](diffusion_local/model_card.md) / [manifest.yaml](diffusion_local/manifest.yaml) |
 | `diffusion_local_costmap_transformer_v0` | transformer set-prediction（学習済み・GPU 学習） | Mode A `TrajectoryModel`（local controller） | [diffusion_local_transformer/costmap_transformer.onnx](diffusion_local_transformer/costmap_transformer.onnx)（≈224 KB, 直接コミット・[export.py](diffusion_local_transformer/export.py) で再現可） | [model_card.md](diffusion_local_transformer/model_card.md) / [manifest.yaml](diffusion_local_transformer/manifest.yaml) |
 | `diffusion_local_costmap_recurrent_v0` | recurrent（GRU 自己回帰ロールアウト・学習済み・GPU 学習） | Mode A `TrajectoryModel`（local controller） | [diffusion_local_recurrent/costmap_recurrent.onnx](diffusion_local_recurrent/costmap_recurrent.onnx)（≈592 KB, 直接コミット・[export.py](diffusion_local_recurrent/export.py) で再現可） | [model_card.md](diffusion_local_recurrent/model_card.md) / [manifest.yaml](diffusion_local_recurrent/manifest.yaml) |
@@ -26,6 +27,15 @@ curated model metadata, not necessarily large binaries。
 > gap の完全な解は引き続き **hybrid プランナ**。詳細は
 > [model_card](diffusion_global_transformer/model_card.md) と
 > [../docs/generative_limits.md](../docs/generative_limits.md)。
+
+> **`diffusion_global_costmap_recurrent_v0` の位置づけ（正直なスコープ）**:
+> Mode B 3 系統目（flow / transformer に GRU 自己回帰ロールアウトを追加）。flow と
+> **同じ 16 次元 CNN embedding** に条件付けするため、**一方向障害物の空き側を選ぶ点で
+> flow と同等の peer**（*clear* / *side obstacle* を解き、*off-centre gap* / *slalom* は
+> *no path*）。transformer のような off-centre slot へのエイムは**しない**（token attention が
+> 必要）。意義は seam が Mode A・Mode B 双方で同一ファミリ（逐次帰納バイアス）を運べることの
+> 実証。コストは H=12 の逐次ロールアウトで **Mode B 3 系統中レイテンシ最大**（flow 4 step /
+> transformer 1 forward）。C++ 方向テスト `CuratedZooPathRecurrentVeersAwayFromObstacle` 付き。
 
 ## ルール
 

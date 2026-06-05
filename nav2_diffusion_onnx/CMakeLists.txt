@@ -141,7 +141,8 @@ if(BUILD_TESTING)
     PRIVATE ONNX_PATH_MODEL="${_path_model}"
             ONNX_COSTMAP_PATH_MODEL="${_costmap_path_model}"
             ONNX_ZOO_COSTMAP_PATH_MODEL="${CMAKE_CURRENT_SOURCE_DIR}/../model_zoo/diffusion_global/costmap_flow.onnx"
-            ONNX_ZOO_COSTMAP_PATH_TRANSFORMER_MODEL="${CMAKE_CURRENT_SOURCE_DIR}/../model_zoo/diffusion_global_transformer/costmap_transformer.onnx")
+            ONNX_ZOO_COSTMAP_PATH_TRANSFORMER_MODEL="${CMAKE_CURRENT_SOURCE_DIR}/../model_zoo/diffusion_global_transformer/costmap_transformer.onnx"
+            ONNX_ZOO_COSTMAP_PATH_RECURRENT_MODEL="${CMAKE_CURRENT_SOURCE_DIR}/../model_zoo/diffusion_global_recurrent/costmap_recurrent.onnx")
 endif()
 
 ament_package()
