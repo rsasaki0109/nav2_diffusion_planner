@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>nav2_diffusion_sim</name>
+  <version>0.9.0</version>
+  <description>
+    Closed-loop Gazebo course assets for nav2_experimental_planner: obstacle
+    worlds (gz-sim SDF), matching occupancy maps, and mission goals generated
+    from a single course spec so the world, map, and goals stay consistent. The
+    courses mirror the off-line planner_benchmark obstacle scenarios (centred gap
+    / off-centre gap / slalom). See docs/simulation.md.
+  </description>
+
+  <maintainer email="rsasaki0109@gmail.com">Ryohei Sasaki</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_python</buildtool_depend>
+
+  <exec_depend>nav2_bringup</exec_depend>
+  <exec_depend>nav2_minimal_tb3_sim</exec_depend>
+  <exec_depend>nav2_diffusion_bringup</exec_depend>
+  <exec_depend>ros_gz_sim</exec_depend>
+  <exec_depend>xacro</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+  <test_depend>ament_cmake_pytest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

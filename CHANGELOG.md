@@ -7,6 +7,25 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 ## [Unreleased]
 
 ### Added
+- **Closed-loop Gazebo obstacle courses (`nav2_diffusion_sim`) mirroring the
+  off-line `planner_benchmark` scenarios.** A single-source generator
+  (`nav2_diffusion_sim/gen_courses.py`) defines each course once (map extent +
+  start + goals + wall boxes) and emits three mutually-consistent artifacts: a
+  self-contained gz-sim world (`worlds/<course>.sdf.xacro`, mirroring the stock
+  `tb3_sandbox` plugin set so the LiDAR renders), a matching occupancy map
+  (`maps/<course>.pgm` + `.yaml`, so AMCL / the global costmap see the same walls),
+  and the mission goals. Three courses ship — `centred` (gap dead ahead), `gap`
+  (~2 m off-centre), `slalom` (two staggered gaps) — driven by
+  `tb3_gazebo_course.launch.py course:=<name>` (loads the world+map, spawns TB3 at
+  the start, brings up Nav2 + DiffusionController, runs the mission, writes a
+  leaderboard). This brings the multi-course evaluation to the **full closed-loop
+  stack** (global planner + controller + costmap), complementing the proposal-stage
+  `planner_benchmark`. The package is made a real `ament_cmake` package (was a
+  skeleton README); geometry / artifact-consistency is **unit-tested**
+  (`test/test_gen_courses.py`, 7 cases: start/goals clear, obstacle courses block
+  the straight line, map↔walls↔goals consistent, committed artifacts match the
+  spec). The closed-loop run needs a real ROS host (the sandbox blocks
+  inter-process DDS), so no fabricated sim numbers are committed.
 - **Strengthened the headless Gazebo closed-loop harness from a single goal to a
   multi-leg mission course with a leaderboard.** `sim_mission.py` now drives a
   *sequence* of named `NavigateToPose` legs (each sent from where the previous ended)
