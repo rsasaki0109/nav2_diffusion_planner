@@ -12,7 +12,7 @@
 | 学習分布内の patch での**側選択の頑健性** | ✅ できる | 同上 |
 | Mode A: **open での閉ループ goal 到達** | ✅ できる（pure-pursuit 弧 expert で carrot 追従） | v0.6.0 出荷 |
 | Mode B: **off-centre gap の方向検出（スロットを狙う）** | ⚠️ flow/recurrent（CNN）は不可 → ✅ **transformer（attention）は raw 提案でスロット方向を向く** | 下記「追記」参照（A/B + C++ 方向テスト） |
-| Mode B: **off-centre gap を実際に通る（footprint 検証 benchmark）** | ✅ **transformer + footprint-aware 損失で純生成貫通**（flow/recurrent は依然不可）／ slalom は依然ハイブリッド | 下記「天井突破」参照（実 C++ benchmark で検証） |
+| Mode B: **off-centre gap を実際に通る（footprint 検証 benchmark）** | ✅ **transformer + footprint-aware 損失で純生成貫通**（far off-centre も貫通／ flow・recurrent は不可）。ただし**特化のトレードオフ**で transformer は直進の隙間（centred/narrow gap）を取りこぼす（flow/recurrent は通す）／ slalom は依然ハイブリッド | 下記「天井突破」「多コース評価」参照（実 C++ benchmark で検証） |
 | Mode A: **障害物のスレッディング（回り込み通過）** | ❌ 学習単体では天井 → ✅ **ハイブリッドで解決** | 下記参照 |
 
 要点: **side-selection と open goal 到達は小型モデルでも実機構で動く**。**off-centre gap（壁のスロット貫通）は、当初は天井だったが、token attention で aim できる transformer に footprint-aware 損失を足すと pure-generative で貫通できるようになった**（後述、実 C++ benchmark で検証）。一方 **slalom（S 字二段壁）と Mode A の obstacle-threading（閉ループ分布シフト）は依然天井**で、小型・合成学習モデル単体では解けない — **classical search / reactive 法が本来勝つ領域**であり、本リポジトリが 8 種の classical planner と 2 種の reactive controller を併載する理由そのもの。そして **ハイブリッド**（generative 提案 + classical fallback）は残る天井も超え、かつ**任意地図での完全性保証**を与える: Mode B の slalom は learned+JPS の hybrid が解く（後述）。
@@ -65,11 +65,30 @@ aim は出るが、これだけでは benchmark の gap は通らなかった（
 **正直なスコープ（不変の天井もある）**:
 
 - **slalom は依然 *no path***: 二段の食い違い壁を S 字で抜けるには 2 回横断が要り、単一前進横断の純生成提案では届かない。**slalom の完全解は引き続き hybrid**。
-- **汎化は壁の前方距離に有界**: gap 貫通はミラー・近めオフセットには汎化するが、学習 span（aligned x≈2 m 中心）から外れた壁距離（例 aligned x≈1.5 m）では *no path* に戻りうる。容量・データの問題で、benchmark gap 幾何を含む範囲で確実。
 - GPU 学習は run 間で bit-exact でなく、どの候補が通るかは多少ぶれるが、**出荷アーティファクトが gap を通すことを実 benchmark で検証済み**（manifest checksum 固定）。
 - 完全性保証（任意地図で必ず解を返す）は依然 hybrid のみ。pure-generative は fail-closed のまま。
 
 > 出荷: `diffusion_global_costmap_transformer_v0`（footprint-aware 再学習）を model_zoo に更新し、benchmark の **Diffusion (Mode B, transformer)** 行も *off-centre gap* = yes に更新。raw 方向の C++ テスト（`CuratedZooTransformerAimsAtOffCentreSlot`）は継続 pass。slalom と完全性は hybrid が担保。
+
+#### 多コース評価で判明したトレードオフ（2026-06、8 コースに拡張）
+
+`planner_comparison.md` を 4 → 8 コースに拡張し（*centred gap* / *narrow gap* / *far off-centre gap* / *double gate* を追加）、3 生成ファミリの競合範囲を**正直に切り分けた**。当初の予想と異なる発見が 2 点:
+
+- **off-centre 特化は「上位互換」ではなくトレードオフ**: footprint-aware で off-centre slot を狙うよう特化した transformer は、**直線上の隙間（*centred gap* / *narrow gap*）を取りこぼす**（*no path*）——flow / recurrent は同じ隙間を難なく通す。つまり transformer は「off-axis スロットを狙う」能力と「直進の隙間を通す」能力を**交換**しており、厳密な改善ではない。学習データ（`dataset='both'`）が off-centre 側に寄った over-aim が原因と見られ、centred サンプルの追加で両立を狙えるはず（future work）。
+- **前方距離の汎化はむしろ広い**（旧主張の撤回）: 以前は「gap 貫通は学習 span（aligned x≈2 m）付近に有界」と書いていたが、壁をゴール寄りに押した *far off-centre gap*（world_x=4.0、前方約 3 m）でも **transformer は貫通**した（5.591 m / 12 pose）。前方距離の汎化は当初の見立てより広く、有界性の主張は撤回する。
+
+3 ファミリの競合範囲を 1 表に:
+
+| コース | flow | transformer | recurrent | 解釈 |
+|---|:-:|:-:|:-:|---|
+| *clear* | ✅ | ✅ | ✅ | 全員 |
+| *centred gap* / *narrow gap*（直進の隙間） | ✅ | ❌ | ✅ | transformer が over-aim で取りこぼす |
+| *side obstacle* | ✅ | ✅ | ✅ | 全員（側選択） |
+| *double gate*（直進 2 連隙間） | ✅ | ✅ | ✅ | 全員（連続前進横断） |
+| *off-centre gap* / *far off-centre gap* | ❌ | ✅ | ❌ | transformer のみ（attention で aim） |
+| *slalom*（S 字二段壁） | ❌ | ❌ | ❌ | hybrid のみ |
+
+要するに **flow/recurrent と transformer は相補的**: 前者は dead-ahead の隙間に強く off-axis に弱い、後者は逆。両者を seam 上の peer として併載する価値がここに出る（用途に応じて選べる、または hybrid が両方を内包する）。
 
 ### Mode A: 障害物スレッディング（回り込み通過）
 

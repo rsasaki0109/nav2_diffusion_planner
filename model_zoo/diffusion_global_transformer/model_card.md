@@ -46,20 +46,32 @@ This model crosses it by combining two ingredients:
 
 **Result (verified in the real C++ `planner_benchmark`):** this model threads the
 footprint-validated *off-centre gap* — `Diffusion (Mode B, transformer)`: *off-centre
-gap* = **yes, ~5.5 m, 12-pose generative path, ~0.2 ms, no fallback** — while the flow
-and recurrent Mode B models still report *no path* there. It keeps the *clear* and
-*side obstacle* competence.
+gap* = **yes, ~5.5 m, 12-pose generative path, ~0.2 ms, no fallback** — and also the
+*far off-centre gap* (wall pushed ~3 m forward), while the flow and recurrent Mode B
+models report *no path* on both. It keeps *clear*, *side obstacle*, and the on-line
+*double gate*.
+
+**Honest trade-off (an 8-course sweep surfaced this).** The off-centre aim is a
+**specialization, not a strict upgrade**: this transformer **over-aims** and now
+**fails the *centred gap* and *narrow gap*** (a slot dead ahead on the straight line)
+that the flow and recurrent siblings thread trivially. The two CNN-embedding families
+and the attention transformer are therefore **complementary** — dead-ahead gaps vs
+off-axis slots — not strictly ordered. A centred-sample rebalance of the `'both'`
+dataset is the likely path to having both (future work).
 
 ## Honest scope — what it does NOT do
 
+- **Centred / narrow on-line gaps are no-path (the specialization cost).** Having been
+  trained to aim off-axis, this model misses a slot sitting **dead ahead** on the
+  straight line — the flow and recurrent siblings (and the hybrid) cover those.
 - **Slalom is still no-path.** The S-shaped *slalom* (two staggered walls, two
   crossings) is beyond a single forward-crossing generative proposal; the **hybrid**
   planner remains the completeness guarantee there.
-- **Not complete.** Pure generative gives no any-map guarantee. Gap threading
-  generalizes to mirrored / nearer-offset slots but is **bounded to wall
-  forward-distances near the training span (~2 m aligned)**; a much nearer / farther
-  wall can fall back to no-path. The hybrid / search planners own the general routing
-  problem and the completeness guarantee.
+- **Not complete.** Pure generative gives no any-map guarantee. Off-centre gap
+  threading generalizes well across wall forward-distance (it threads both the ~2 m and
+  the ~3 m-forward *far off-centre gap*) — an earlier claim that threading was *bounded*
+  to the ~2 m training span is **retracted** — but completeness on arbitrary maps is
+  still the hybrid / search planners' job.
 - **GPU training is not bit-exact** run-to-run, so which candidates thread can vary,
   but the **committed artifact threads the gap in the C++ benchmark** (checksum fixed
   in the manifest).
@@ -76,10 +88,12 @@ planner remains the completeness guarantee for slalom and general maps.
 ## Out-of-scope / limitations
 
 - **Synthetic data only.** Never validated on a real robot or rosbag.
+- **Centred / narrow on-line gaps unsolved** (over-aim trade-off); flow / recurrent /
+  hybrid solve them.
 - **Slalom unsolved by pure generative** (two-crossing S); the hybrid solves it.
-- **Window / distance bounded.** Gap threading demonstrated for slots up to ~2 m
-  off-axis with the wall near the training forward-distance, inside the 24×24 / 6×6 m
-  patch; classical search / the hybrid own the general problem.
+- **Off-axis bounded, not forward-distance bounded.** Gap threading is demonstrated for
+  slots up to ~2 m off-axis (and across wall forward-distance, ~2–3 m), inside the
+  24×24 / 6×6 m patch; classical search / the hybrid own the general problem.
 - **Research model.** Do not deploy on hardware; the validity layer is the authority.
 
 ## Training data
@@ -92,10 +106,12 @@ samples keep the response symmetric. Fully procedural; no real data.
 
 ## Benchmark results
 
-- **Footprint-validated planner benchmark (real C++):** **threads *off-centre gap***
-  (yes, ~5.5 m, 12 poses) in addition to *clear* and *side obstacle*; *slalom* remains
-  *no path* (hybrid solves it). The flow and recurrent Mode B models report *no path*
-  on the gap. See [docs/planner_comparison.md](../../docs/planner_comparison.md) and
+- **Footprint-validated planner benchmark (real C++, 8 courses):** **threads
+  *off-centre gap*** (yes, ~5.5 m, 12 poses) **and *far off-centre gap*** (~3 m-forward
+  wall), plus *clear*, *side obstacle*, and the on-line *double gate*. **Trade-off:**
+  it reports *no path* on *centred gap* / *narrow gap* (dead-ahead slots that flow /
+  recurrent thread). *slalom* remains *no path* (hybrid solves it). See
+  [docs/planner_comparison.md](../../docs/planner_comparison.md) and
   [docs/generative_limits.md](../../docs/generative_limits.md).
 - **Off-centre-slot aiming (exported ONNX):** wall + slot at ±2 m → every candidate's
   lateral offset at the wall ≈ the slot offset (flow / recurrent fail this probe).

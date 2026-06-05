@@ -7,6 +7,19 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 ## [Unreleased]
 
 ### Added
+- **Expanded the Mode B planner benchmark from 4 to 8 courses** (`centred gap`,
+  `narrow gap`, `far off-centre gap`, `double gate` join `clear` / `off-centre gap` /
+  `slalom` / `side obstacle`) in `nav2_planner_benchmarks/planner_benchmark.cpp`, and
+  regenerated `docs/planner_comparison.md`. The sweep surfaced two honest findings that
+  correct the shipped scope: (1) the off-centre-trained transformer is a
+  **specialization, not a strict upgrade** — it *over-aims* and reports **no path on the
+  centred / narrow dead-ahead gaps** that the flow and recurrent siblings thread
+  trivially (the three families are complementary, not ordered); (2) gap threading is
+  **not bounded to the ~2 m training forward-distance** — the transformer also threads
+  the `far off-centre gap` (wall ~3 m forward), so the earlier "bounded forward-distance"
+  claim is **retracted**. Updated `docs/generative_limits.md`, the transformer
+  `model_card.md` / `manifest.yaml`, `model_zoo/README.md`, and the benchmark narrative
+  accordingly.
 - **Differentiable footprint-clearance loss for Mode B path training**
   (`nav2_diffusion_training.path_planners._footprint_penalty`, exposed via
   `train_and_export_costmap_path(..., footprint=, blur_sigma=, inflate_cells=)`).
@@ -35,9 +48,9 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
   epochs), the `planner_benchmark` narrative + family label, and regenerated
   `docs/planner_comparison.md`. Rewrote the off-centre-gap section of
   `docs/generative_limits.md` to record the breakthrough and its honest scope:
-  *slalom* (two-crossing S) is still no-path for pure generative, gap threading is
-  bounded to wall forward-distances near the training span (~2 m aligned), and the
-  hybrid planner remains the any-map completeness guarantee.
+  *slalom* (two-crossing S) is still no-path for pure generative, and the hybrid planner
+  remains the any-map completeness guarantee. (The 8-course sweep above later refined
+  this scope — see the Added entry.)
 
 ## [0.9.0] - 2026-06-05
 

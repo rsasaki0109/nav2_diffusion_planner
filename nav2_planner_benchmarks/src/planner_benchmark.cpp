@@ -194,8 +194,27 @@ int main(int argc, char ** argv)
 
   std::vector<Scenario> scenarios = {
     {"clear", "Empty 6x6 m map, off-axis goal", 1.0, 1.0, 5.0, 5.0, {}},
+    {"centred gap", "Vertical wall with a gap centred on the straight line; the gap "
+      "sits dead ahead so no off-axis localization is needed (isolates threading "
+      "ability from slot localization)",
+      1.0, 3.0, 5.0, 3.0,
+      {{{3.0, 3.0, 0.5, 2}}}},
+    {"narrow gap", "Vertical wall with a tight gap centred on the line; halves the "
+      "clearance of *centred gap* to probe the footprint margin",
+      1.0, 3.0, 5.0, 3.0,
+      {{{3.0, 3.0, 0.3, 2}}}},
     {"off-centre gap", "Vertical wall with a gap well off the straight line", 1.0, 3.0, 5.0, 3.0,
       {{{3.0, 1.0, 0.5, 2}}}},
+    {"far off-centre gap", "Same 2 m off-axis gap but pushed toward the goal "
+      "(world_x 4.0); probes whether gap threading holds when the wall sits beyond "
+      "the learned forward span (~2 m aligned)",
+      1.0, 3.0, 5.0, 3.0,
+      {{{4.0, 1.0, 0.5, 2}}}},
+    {"double gate", "Two vertical walls in series, both gaps on the straight line; "
+      "two sequential crossings without an S-detour (between *side obstacle* and "
+      "*slalom* in difficulty)",
+      1.0, 3.0, 5.0, 3.0,
+      {{{2.2, 3.0, 0.6, 2}}, {{3.8, 3.0, 0.6, 2}}}},
     {"slalom", "Two staggered walls (gap low then high) forcing an S-shaped detour",
       1.0, 3.0, 5.0, 3.0,
       {{{2.2, 1.0, 0.8, 2}}, {{3.8, 5.0, 0.8, 2}}}},
@@ -239,17 +258,23 @@ int main(int argc, char ** argv)
     "**learned (recurrent)** loads the GRU-rollout Mode B model (a third family that "
     "emits each path one waypoint at a time). All are pure "
     "generative, so unlike the search planners they are not complete: if no proposal "
-    "threads the gap they report no path. The flow and recurrent models read the "
-    "costmap and bias proposals to the open side, clearing *clear* and *side obstacle* "
-    "but not the 2 m swing of *off-centre gap* (their 16-d CNN embedding can pick a "
-    "free side but cannot localize an off-centre slot). The transformer goes further: "
-    "attention over explicit costmap tokens lets it *aim* at the slot, and training it "
-    "with a **differentiable footprint-clearance loss** pulls each proposal's wall "
-    "crossing into the free slot with margin — so it **threads the footprint-validated "
-    "*off-centre gap*** as a pure-generative planner (12-pose generative path, no "
-    "fallback), the first Mode B model here to do so. Even so, no pure-generative "
-    "variant clears the S-shaped *slalom* (two staggered walls); that still needs the "
-    "hybrid (see docs/generative_limits.md). The **hybrid** "
+    "threads the gap they report no path. The three learned families split the "
+    "scenarios along a clear axis. The flow and recurrent models read the costmap and "
+    "bias proposals to the open side: they thread every gap that sits **dead ahead** "
+    "(*centred gap*, *narrow gap*, *double gate*) and clear *side obstacle*, but their "
+    "16-d CNN embedding can only pick a free *side* — it cannot localize a slot that is "
+    "swung off-axis, so they fail *off-centre gap* and *far off-centre gap*. The "
+    "transformer is the mirror image: attention over explicit costmap tokens lets it "
+    "*aim* at an off-axis slot, and a **differentiable footprint-clearance loss** pulls "
+    "each proposal's wall crossing into the free slot with margin — so it is the only "
+    "pure-generative variant that **threads the footprint-validated *off-centre gap*** "
+    "(and even *far off-centre gap*, where the wall sits 3 m forward — the threading is "
+    "not tightly bounded to the training span). That aim is a **specialization, not a "
+    "strict win**: the off-centre-trained transformer *over-aims* and now **misses the "
+    "centred and narrow on-line gaps** that flow and recurrent thread trivially — a "
+    "real trade-off, documented honestly in docs/generative_limits.md. No pure-"
+    "generative variant clears the S-shaped *slalom* (two staggered walls); that still "
+    "needs the hybrid. The **hybrid** "
     "variant "
     "keeps the learned proposal but adds a classical (JPS) fallback: when no "
     "proposal threads the map it hands off to a complete search, so it solves every "

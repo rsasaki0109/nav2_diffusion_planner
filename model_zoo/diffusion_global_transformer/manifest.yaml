@@ -58,28 +58,35 @@ benchmark_results:
   costmap_side_selection: true     # one-sided obstacle -> candidates veer to the free side
   off_centre_slot_aiming: true     # wall+slot at +/-2 m -> candidates' lateral at the wall ~= slot offset
   passes_footprint_validated_gap: true   # off-centre gap: a valid generative path threads the 1 m slot
-  exceeds_flow_and_recurrent: true # flow / recurrent (16-d CNN embedding) still report no path on the gap
+  passes_far_off_centre_gap: true  # off-centre slot with the wall pushed ~3 m forward also threads
+  exceeds_flow_and_recurrent_off_axis: true  # flow / recurrent (16-d CNN embedding) report no path on off-centre gaps
+  misses_centred_on_line_gap: true # TRADE-OFF: over-aimed model fails centred/narrow dead-ahead gaps that flow/recurrent thread
   note: >
-    On the footprint-validated planner_benchmark this model THREADS the off-centre gap
-    as a pure-generative planner — the first Mode B model here to do so without a
-    classical fallback. It clears 'clear', 'side obstacle' AND 'off-centre gap'
-    (12-pose generative path, ~5.5 m), where the flow and recurrent Mode B models report
-    no path. Two ingredients combine: (1) attention over explicit costmap tokens lets it
-    AIM proposals at the off-centre slot (the flow / recurrent 16-d CNN embedding cannot);
-    (2) a differentiable footprint-clearance loss (FOOTPRINT / BLUR_SIGMA in export.py)
-    optimizes the proposals to be what the validity layer accepts, pulling each
-    candidate's wall crossing into the free slot with margin so the validator keeps a
-    survivor. The S-shaped 'slalom' (two staggered walls) is still no-path for pure
-    generative; the hybrid planner remains the completeness guarantee there. Gap
-    threading generalizes to mirrored / nearer-offset slots but is bounded to wall
-    forward-distances near the training span (~2 m aligned). See docs/generative_limits.md.
+    On the footprint-validated planner_benchmark (8 courses) this model THREADS the
+    off-centre gap as a pure-generative planner — the first Mode B model here to do so
+    without a classical fallback — AND the far off-centre gap (wall pushed ~3 m forward),
+    plus 'clear', 'side obstacle', and the on-line 'double gate', where the flow and
+    recurrent Mode B models report no path on the off-axis gaps. Two ingredients combine:
+    (1) attention over explicit costmap tokens lets it AIM proposals at the off-centre
+    slot (the flow / recurrent 16-d CNN embedding cannot); (2) a differentiable
+    footprint-clearance loss (FOOTPRINT / BLUR_SIGMA in export.py) optimizes the proposals
+    to be what the validity layer accepts, pulling each candidate's wall crossing into the
+    free slot with margin so the validator keeps a survivor. HONEST TRADE-OFF surfaced by
+    the 8-course sweep: this off-centre specialization is NOT a strict upgrade — the
+    over-aimed model reports no path on 'centred gap' / 'narrow gap' (slots dead ahead on
+    the straight line) that the flow and recurrent siblings thread trivially; the two
+    families are complementary, not ordered. The S-shaped 'slalom' (two staggered walls)
+    is still no-path for pure generative; the hybrid planner remains the completeness
+    guarantee there. (An earlier claim that gap threading was bounded to wall
+    forward-distances near the ~2 m training span is RETRACTED: the far off-centre gap
+    threads.) See docs/generative_limits.md.
   collision_count: 0               # deterministic validity layer gates all output
 
 limitations:
   - "Synthetic training data only — NOT validated on any real robot or rosbag."
-  - "Threads the footprint-validated off-centre gap, but the S-shaped slalom (two staggered walls) is still no-path for pure generative (hybrid solves it)."
-  - "Gap threading is bounded to wall forward-distances near the training span (~2 m aligned); a much nearer/farther wall can fall back to no-path."
-  - "Slot aiming / threading demonstrated for offsets up to ~2 m within the 24x24 / 6x6 m patch window."
+  - "TRADE-OFF: over-aimed for off-axis slots, so it reports no path on centred/narrow dead-ahead gaps that flow/recurrent thread (the families are complementary)."
+  - "Threads the footprint-validated off-centre gap (and far off-centre gap), but the S-shaped slalom (two staggered walls) is still no-path for pure generative (hybrid solves it)."
+  - "Off-axis slot aiming / threading demonstrated for offsets up to ~2 m within the 24x24 / 6x6 m patch window; threading holds across wall forward-distance (~2-3 m)."
   - "Research / demonstration model. Do not deploy on hardware; the validity layer is the authority."
 
 license:
