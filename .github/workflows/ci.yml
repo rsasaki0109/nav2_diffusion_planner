@@ -31,6 +31,17 @@ jobs:
       - name: Mark workspace safe for git
         run: git config --global --add safe.directory "${GITHUB_WORKSPACE}"
 
+      # action-ros-ci aggregates coverage with `colcon lcov-result` /
+      # `colcon coveragepy-result` after the tests. The ros-base image lacks
+      # those colcon extensions (the host setup-ros flow apt-installed them), so
+      # add them here — otherwise the post-test coverage step fails even though
+      # every test passed.
+      - name: Install colcon coverage extensions
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            lcov python3-colcon-lcov-result python3-colcon-coveragepy-result
+
       # Builds the C++/msgs packages with colcon and runs colcon test, which
       # includes the ament lints (copyright, cpplint, uncrustify, lint_cmake,
       # xmllint) and the gtest suites. See docs/architecture.md section 12.4.
