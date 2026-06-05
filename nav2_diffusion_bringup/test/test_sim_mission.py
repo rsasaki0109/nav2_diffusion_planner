@@ -66,6 +66,28 @@ def test_parse_missions_rejects_non_numeric():
         sim_mission.parse_missions(['bad|x|2.0'], default_timeout=60.0)
 
 
+def test_course_preset_expands_to_missions():
+    missions = sim_mission.course_to_missions('there_and_back', default_timeout=60.0)
+    assert [m.label for m in missions] == ['out', 'back']
+    assert all(isinstance(m, sim_mission.Mission) for m in missions)
+
+
+def test_course_empty_name_returns_empty():
+    assert sim_mission.course_to_missions('', default_timeout=60.0) == []
+
+
+def test_course_unknown_name_raises():
+    with pytest.raises(ValueError):
+        sim_mission.course_to_missions('no_such_course', default_timeout=60.0)
+
+
+def test_course_presets_all_parse():
+    # Every shipped preset must be well-formed (label|x|y|...).
+    for name in sim_mission.COURSES:
+        missions = sim_mission.course_to_missions(name, default_timeout=120.0)
+        assert missions, "course '{}' expanded to nothing".format(name)
+
+
 def test_yaw_to_quaternion_zero_and_quarter_turn():
     z, w = sim_mission.yaw_to_quaternion(0.0)
     assert z == pytest.approx(0.0)

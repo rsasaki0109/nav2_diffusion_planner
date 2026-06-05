@@ -84,6 +84,43 @@ def parse_missions(specs, default_timeout):
     return missions
 
 
+# Named course presets: a course name -> a list of "label|x|y[|yaw[|timeout]]" legs.
+# Goal poses are in the map frame and tuned for the open `tb3_sandbox` world (TB3
+# waffle spawns near x=-2.0, y=-0.5). These exercise sustained closed-loop nav
+# (out-and-back, a patrol loop); obstacle courses that mirror the off-line
+# planner_benchmark gaps/slalom need SDF walls in the world (future work) — see
+# docs/simulation.md section 10.5.
+COURSES = {
+    'default': ['goal|0.0|-0.5|0.0|120'],
+    'there_and_back': [
+        'out|0.0|-0.5|0.0|120',
+        'back|-2.0|-0.5|3.14159|120',
+    ],
+    'patrol': [
+        'east|0.0|-0.5|0.0|120',
+        'north|0.0|1.0|1.5708|120',
+        'west|-2.0|1.0|3.14159|120',
+        'home|-2.0|-0.5|-1.5708|120',
+    ],
+}
+
+
+def course_to_missions(name, default_timeout):
+    """
+    Expand a named course preset into a list of Mission.
+
+    ``name`` must be a key of ``COURSES`` (or empty -> []). Raises ValueError on an
+    unknown name so a typo fails loudly with the list of valid courses.
+    """
+    if not name or not name.strip():
+        return []
+    key = name.strip()
+    if key not in COURSES:
+        raise ValueError(
+            "unknown course '{}'; valid: {}".format(key, sorted(COURSES)))
+    return parse_missions(COURSES[key], default_timeout)
+
+
 def format_leaderboard(outcomes, frame_id, header_note):
     """Render a list of MissionOutcome as a Markdown leaderboard string."""
     reached = sum(1 for o in outcomes if o.reached)
@@ -143,6 +180,7 @@ def _run_node():
             self.declare_parameter('goal_y', -0.5)
             self.declare_parameter('goal_yaw', 0.0)
             self.declare_parameter('missions', [''])
+            self.declare_parameter('course', '')
             self.declare_parameter('frame_id', 'map')
             self.declare_parameter('timeout_sec', 120.0)
             self.declare_parameter('server_wait_sec', 60.0)
@@ -157,8 +195,12 @@ def _run_node():
             self.stop_on_failure = self.get_parameter('stop_on_failure').value
             self.results_file = self.get_parameter('results_file').value
 
+            # Precedence: explicit `missions` > named `course` preset > single goal.
             specs = [s for s in self.get_parameter('missions').value if s.strip()]
             self.missions = parse_missions(specs, self.timeout_sec)
+            if not self.missions:
+                self.missions = course_to_missions(
+                    self.get_parameter('course').value, self.timeout_sec)
             if not self.missions:
                 # Backward-compatible single-goal mission.
                 self.missions = [Mission(

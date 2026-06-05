@@ -93,16 +93,21 @@ headless:=True`（`TURTLEBOT3_MODEL=waffle`）で:
    sweep を**閉ループに持ち込んだ**もの: 各 leg は前 leg の終端から送る 1 ゴールなので、
    同一ワールドで複数ゴールを 1 起動で走査できる。結果は topic でなく**ファイル**なので、
    DDS グラフに join できない環境でも成果物を検証できる。leg は `missions` 文字列配列
-   （`"label|x|y|yaw|timeout"` 各 leg）で渡し、未指定なら従来どおり単一 `goal_x/goal_y/
-   goal_yaw` ゴールにフォールバック（後方互換）。**leg 解析・指標集計・leaderboard 整形は
-   ROS 非依存の純関数に切り出し、pytest で検証**（[`test/test_sim_mission.py`](../nav2_diffusion_bringup/test/test_sim_mission.py)、
-   8 ケース・`colcon test` 緑）——閉ループ駆動だけが実 Nav2＋Gazebo を要する。
+   （`"label|x|y|yaw|timeout"` 各 leg）で渡すか、**名前付きコース・プリセット** `course`
+   （`default` / `there_and_back` / `patrol`）で指定する。優先順位は `missions`（明示）＞
+   `course`（プリセット）＞単一 `goal_x/goal_y/goal_yaw` ゴール（後方互換）。プリセットの
+   goal 列は開けた `tb3_sandbox` 用に調整した持続走行（往復・巡回）で、planner_benchmark の
+   gap/slalom を閉ループで再現するには world に SDF 壁が要る（future work）。**leg/コース
+   解析・指標集計・leaderboard 整形は ROS 非依存の純関数に切り出し、pytest で検証**
+   （[`test/test_sim_mission.py`](../nav2_diffusion_bringup/test/test_sim_mission.py)、
+   12 ケース・`colcon test` 緑）——閉ループ駆動だけが実 Nav2＋Gazebo を要する。
 3. **専用 launch**
    [`tb3_gazebo_mission.launch.py`](../nav2_diffusion_bringup/launch/tb3_gazebo_mission.launch.py):
    sim＋mission を 1 launch で起動し、mission 終了で launch を Shutdown。
    単発: `ros2 launch nav2_diffusion_bringup tb3_gazebo_mission.launch.py goal_x:=0.0
    goal_y:=-0.5 results_file:=/tmp/sim_mission_result.md`。
-   コース: `... missions:="out|0.0|-0.5|0.0|120;back|-2.0|-0.5|0.0|120"
+   コース（プリセット）: `... course:=there_and_back results_file:=/tmp/sim_course_result.md`。
+   コース（明示）: `... missions:="out|0.0|-0.5|0.0|120;back|-2.0|-0.5|0.0|120"
    results_file:=/tmp/sim_course_result.md`（`stop_on_failure:=True` で最初の失敗 leg で中断）。
 
 ### それでも完走をブロックする壁（このサンドボックス固有・厳密に特定）

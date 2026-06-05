@@ -13,14 +13,18 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
   and writes a Markdown leaderboard (one row per leg + a reached-count / total-path /
   total-time summary) — the closed-loop counterpart of the offline `planner_benchmark`
   sweep. Legs are passed via a `missions` string array (`"label|x|y|yaw|timeout"`);
-  with none given it falls back to the single `goal_x`/`goal_y`/`goal_yaw` goal
-  (backward compatible). `tb3_gazebo_mission.launch.py` gained a `;`-separated
-  `missions` argument and a `stop_on_failure` flag. The leg-spec parsing, metric
+  or via a named **course preset** (`course:=default|there_and_back|patrol`); with
+  neither given it falls back to the single `goal_x`/`goal_y`/`goal_yaw` goal
+  (backward compatible — precedence is `missions` > `course` > single goal).
+  `tb3_gazebo_mission.launch.py` gained `;`-separated `missions`, a `course` preset
+  argument, and a `stop_on_failure` flag. The leg-spec/course parsing, metric
   aggregation, and leaderboard formatting are refactored into pure (no-ROS) functions
-  and **unit-tested** (`nav2_diffusion_bringup/test/test_sim_mission.py`, 8 cases wired
+  and **unit-tested** (`nav2_diffusion_bringup/test/test_sim_mission.py`, 12 cases wired
   into `colcon test` via `ament_add_pytest_test`); only the driving loop needs a live
   Nav2 + Gazebo. ROS imports are now lazy so the module imports without a ROS runtime.
-  Updated `docs/simulation.md` section 10.5. (The sandbox still cannot run the
+  Course presets are sustained-nav goal sequences for the open `tb3_sandbox` world;
+  obstacle courses mirroring the planner_benchmark gaps/slalom need SDF walls (future
+  work). Updated `docs/simulation.md` section 10.5. (The sandbox still cannot run the
   closed-loop sim — inter-process DDS is blocked — so no fabricated sim numbers are
   added; the harness produces the leaderboard on a real ROS host.)
 - **Expanded the Mode B planner benchmark from 4 to 8 courses** (`centred gap`,

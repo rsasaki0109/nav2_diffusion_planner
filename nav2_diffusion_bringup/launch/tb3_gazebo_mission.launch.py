@@ -27,7 +27,13 @@ Single goal (backward compatible)::
     ros2 launch nav2_diffusion_bringup tb3_gazebo_mission.launch.py \\
         goal_x:=0.0 goal_y:=-0.5 results_file:=/tmp/sim_mission_result.md
 
-Multi-leg course (';'-separated 'label|x|y|yaw|timeout' legs)::
+Named course preset (default / there_and_back / patrol)::
+
+    ros2 launch nav2_diffusion_bringup tb3_gazebo_mission.launch.py \\
+        course:=there_and_back results_file:=/tmp/sim_course_result.md
+
+Explicit multi-leg course (';'-separated 'label|x|y|yaw|timeout' legs; overrides
+the preset)::
 
     ros2 launch nav2_diffusion_bringup tb3_gazebo_mission.launch.py \\
         missions:="out|0.0|-0.5|0.0|120;back|-2.0|-0.5|0.0|120" \\
@@ -76,6 +82,7 @@ def _launch_setup(context, *args, **kwargs):
             'goal_y': LaunchConfiguration('goal_y'),
             'goal_yaw': LaunchConfiguration('goal_yaw'),
             'missions': missions if missions else [''],
+            'course': LaunchConfiguration('course'),
             'timeout_sec': LaunchConfiguration('timeout_sec'),
             'stop_on_failure': LaunchConfiguration('stop_on_failure'),
             'label': LaunchConfiguration('label'),
@@ -102,7 +109,12 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'missions', default_value='',
             description="';'-separated course legs: 'label|x|y|yaw|timeout' each; "
-                        'empty uses the single goal_x/goal_y/goal_yaw goal'),
+                        'overrides `course`; empty falls back to `course` or the '
+                        'single goal_x/goal_y/goal_yaw goal'),
+        DeclareLaunchArgument(
+            'course', default_value='',
+            description='Named course preset (default / there_and_back / patrol); '
+                        'used when `missions` is empty'),
         DeclareLaunchArgument('timeout_sec', default_value='120.0'),
         DeclareLaunchArgument(
             'stop_on_failure', default_value='False',
