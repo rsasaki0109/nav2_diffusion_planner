@@ -6,6 +6,28 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-06-05
+
+Theme: **generative family expansion across both seams.** v0.6.0–v0.8.0 put the first
+learned models in the loop and made generative+classical complete via hybrids; v0.9.0
+broadens *what* proposes. Two new generative families — **transformer** (DETR-style
+set-prediction, one deterministic forward pass) and **recurrent** (GRU autoregressive
+rollout, one waypoint at a time) — are implemented and shipped on **both** the Mode A
+local-trajectory (`OnnxTrajectoryModel`) and Mode B global-path (`OnnxPathModel`)
+contracts, taking Mode A to five families (flow / diffusion / consistency /
+transformer / recurrent) and Mode B to three (flow / transformer / recurrent). Each
+new family ships a curated, GPU-trained, CPU-exported `model_zoo` artifact running
+through the real C++ inference path, guarded by a curated-zoo C++ test and added to
+the benchmarks (`controller_benchmark` / `planner_benchmark`) and the offline
+leaderboard (now ten configurations). Honest scope: these are same-contract *peers*
+that compare inductive biases on identical scenarios — the transformer's distinct
+property is a *representational* one (its proposals **aim** at an off-centre slot
+where the flow model's CNN embedding cannot), which is verified by an A/B probe and a
+C++ direction test but still does **not** thread the narrow footprint-validated gap;
+the synthetic-data / capacity ceiling and the hybrid completeness guarantee are
+unchanged. Also adds an in-launch, discovery-free **Gazebo mission harness**
+(`sim_mission.py`) so closed-loop sim numbers can be produced on a real ROS host.
+
 ### Added
 - **Recurrent (GRU) rollout Mode B global-path family** (`CostmapPathRecurrentPlanner`
   in `nav2_diffusion_training.path_planners`) — the **third** generative family on the
@@ -683,6 +705,7 @@ deterministic safety layer and a benchmark suite. Matches the v0.1 theme
   simulated LiDAR; DDS discovery flakiness). The underlying logic is unit-tested.
 - This is not a safety-certified product; see [docs/safety.md](docs/safety.md).
 
+[0.9.0]: https://github.com/rsasaki0109/nav2_experimental_planner/releases/tag/v0.9.0
 [0.8.0]: https://github.com/rsasaki0109/nav2_experimental_planner/releases/tag/v0.8.0
 [0.7.0]: https://github.com/rsasaki0109/nav2_experimental_planner/releases/tag/v0.7.0
 [0.6.0]: https://github.com/rsasaki0109/nav2_experimental_planner/releases/tag/v0.6.0
