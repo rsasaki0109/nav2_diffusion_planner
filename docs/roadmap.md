@@ -2,7 +2,7 @@
 
 > 関連: [architecture.md](architecture.md)、[risks.md](risks.md)、[next_phase.md](next_phase.md)（データ・環境依存の前進を着手手順に落とした実行計画）
 
-## 実装状況（v0.9.0 時点）
+## 実装状況（v0.11.0 時点）
 
 以下は計画（後続セクション）に対する現状サマリ。一部は計画を先取りして実装済み。なお
 v0.4.0 以降、リポジトリの charter は「生成型」から「**Nav2 公式に無い実験的 planner 全般
@@ -23,10 +23,20 @@ v0.8.0 で **密結合 guided ハイブリッド**（常に完全 A* + 提案近
 v0.9.0 で **生成ファミリを両 seam に拡充**: **transformer**（DETR 風 set-prediction）と
 **recurrent**（GRU 自己回帰ロールアウト）を Mode A・Mode B の両契約に実装・出荷（Mode A=5
 系統、Mode B=3系統）。各々 GPU 学習した model_zoo モデルを実 C++ 推論で稼働させ curated-zoo
-テスト + ベンチ + leaderboard（10構成）に掲載。同一契約の peer 比較で、transformer の slot
-方向 aim は表現上の前進だが footprint 検証付き gap は未貫通（天井・hybrid 完全性は不変）。
-discovery-free な Gazebo mission ハーネス（`sim_mission.py`）も追加し、実 ROS ホストで閉ループ
-sim 数値が取得可能に。
+テスト + ベンチ + leaderboard（10構成）に掲載。
+v0.10.0 で **off-centre-gap の天井を突破**: 微分可能 footprint クリアランス損失で Mode B
+transformer が footprint 検証付き *off-centre gap* を**純生成で貫通**（実 C++ benchmark・
+fallback なし）。評価を 8 コースに拡張し正直なトレードオフを可視化。パッケージを役割別
+サブディレクトリへ再編、README 英語化、CI を `ros:jazzy` コンテナで復活、Gazebo 単一生成
+障害物コース（`nav2_diffusion_sim`）追加。
+v0.11.0 で **gap トレードオフを容量で解消**: transformer を dim64/8heads/3blocks に増強し
+dead-ahead サンプルを tri-mix → off-centre **と** dead-ahead（centred/narrow/double）を
+**同時貫通**（実 C++ で検証、onnx gtest 緑）。残る純生成の bound は *far off-centre gap* と
+*slalom*（容量増/カリキュラム/hybrid 領域）。MCAP + (Web)Foxglove/Lichtblick での可搬可視化
+（`/tf_static` 同梱で 3D 描画可）も追加。
+> なお「実 ROS ホストで閉ループ sim」については、エージェントのコマンドサンドボックスが DDS
+> discovery を阻むことが切り分け済み（生 loopback UDP は通る・マシン/ROS は健全）。実 ROS
+> ホストなら `tb3_gazebo_mission.launch.py` で閉ループ数値が出る（[simulation.md](simulation.md) §10.5）。
 
 | 項目 | 計画 | 状況 |
 |---|---|---|

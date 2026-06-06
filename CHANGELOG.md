@@ -7,6 +7,11 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 ## [Unreleased]
 
 ### Changed
+- **Refreshed `docs/roadmap.md` to the v0.11.0 state** (was "v0.9.0 時点"):
+  off-centre-gap ceiling break (v0.10.0) and the capacity-bump that closed the
+  off-centre/dead-ahead gap trade-off (v0.11.0), package reorg, CI revival in a
+  container, Gazebo courses, portable MCAP/Foxglove visualization, and the
+  sandbox-DDS root-cause note for the live-ROS item.
 - **The demo MCAP now ships an identity `/tf_static` (`map`→`base_link`)** so a
   Lichtblick / Foxglove 3D panel has a coordinate frame at load and renders the
   data — without it the panel shows "no frames" and stays empty. Verified by
