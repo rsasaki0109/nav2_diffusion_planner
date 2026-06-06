@@ -6,6 +6,17 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 
 ## [Unreleased]
 
+### Changed
+- **Deeper slalom diagnosis: no single fix cracks it (data / capacity / footprint /
+  head all ruled out).** Isolated each lever with slalom-only training: dropping the
+  footprint term lowers loss 0.32→0.14 but slalom still fails (and clearance
+  optimization is gone); an MLP decoder head leaves the loss unchanged (head capacity
+  isn't the bottleneck); even the unshifted centre candidate doesn't thread (fit is
+  the primary limit). Recorded in `docs/generative_limits.md`. Threading slalom needs
+  a *coordinated* redesign (slalom-aware footprint formulation + per-crossing
+  candidate diversity + output representation), not an incremental tweak; the shipped
+  model and architecture are unchanged.
+
 ### Added
 - **`make_costmap_path_slalom_dataset` + a `'slalom'` path dataset option** (two
   staggered walls + an S-shaped two-crossing expert), with a unit test — the data

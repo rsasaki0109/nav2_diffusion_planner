@@ -114,6 +114,20 @@ K 候補が全滅 → validator に生存者なし。加えて 2 回横断 S の
 **または逐次出力族**が要る、というのが実証的結論。`make_costmap_path_slalom_dataset` は将来の
 アーキ作業のために残し、**出荷 `'both'` からは外して**ある（slalom は引き続き hybrid 完全性が担保）。
 
+**さらに梃子を切り分けた（2026-06、単一修正では解けない）**: slalom 単独学習で各要因を分離:
+
+| 変更 | 学習 loss | slalom |
+|---|--:|:-:|
+| 既定（footprint=3, 単 Linear head） | 0.32 | ❌ |
+| footprint=0（clearance 項を外す） | 0.14 | ❌ |
+| MLP head（2 層）+ footprint=3 | 0.32 | ❌ |
+
+- **footprint 損失が S と本質的に衝突**: S は二段壁の「間」を縫うので壁に近く、footprint 項を下げきれず損失を支配（0.32 のうち ~0.18 が footprint）。外すと（0.14）clearance 最適化が消える。
+- **fit 自体が難**: footprint を外しても loss 0.14（単一ふくらみ ~0.04 の 3 倍）で、**MLP head に強化しても改善せず**（0.32 のまま）＝ head 容量が律速ではない。
+- 横一律 fan を 0 にした中央候補（＝素の S）でも通らない＝ fit 不足が一次律速。
+
+**結論**: slalom は data / 容量 / footprint / head の**単一修正では解けず**、tokenizer・損失定式化（footprint を slalom 対応に）・出力表現（H=12 では二段横断 S の精密化が苦しい）・候補多様化を**協調的に作り直す本格研究**が要る。現実解として slalom は引き続き **hybrid プランナ**が担保。
+
 ### Mode A: 障害物スレッディング（回り込み通過）
 
 learned Mode A は open では goal 到達するが、`controller_benchmark` の *frontal / side / corridor* では障害物が egocentric patch に入った時点で **drift → 安全候補なし → 安全停止**（障害物の手前、衝突なし）。これは:
