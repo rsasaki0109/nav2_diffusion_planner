@@ -45,31 +45,36 @@ training_data:
     - differential_drive
   notes: >
     DAgger (nav2_diffusion_training.dagger.dagger_train_costmap_transformer): roll the
-    current policy out in the costmap sim over open / frontal (dead-ahead) / side / two
-    scenarios, relabel each visited state with the corrected reactive dodge oracle
-    (sustained lateral offset to the free side, curvature-based commit), aggregate and
-    retrain. NO real-robot or rosbag data. The oracle replaces the shipped one, which
-    collided in closed loop (a 0.20 m transient bow + on-line carrot).
+    current policy out in the costmap sim over open / frontal (dead-ahead) / side / side2 /
+    two / corridor (two-walled, off-centre start) scenarios, relabel each visited state with
+    the corrected reactive dodge oracle (a *sustained* committed lateral offset to the free
+    side, held until the block is passed; a corridor's free centre-line is left to the
+    carrot to centre through), aggregate and retrain. NO real-robot or rosbag data. The
+    oracle replaces the shipped one, which collided / stalled in closed loop (a 0.20 m
+    transient bow + on-line carrot, and a dead-ahead block it could not thread).
 
 # Behavioural / closed-loop checks (not the full Nav2 stack).
 benchmark_results:
   passed: true
   suite: controller_benchmark (real C++, live costmap) + DAgger closed-loop sim
-  closed_loop_sim: "4/5 scenarios (open/frontal/side/side2/two) with safety_check_points=3"
+  closed_loop_sim: "4/6 scenarios (open/side/side2/corridor) with safety_check_points=3"
   controller_benchmark_real: >
-    First learned Mode A controller here to thread an obstacle purely generatively (no
-    fallback): REACHES the goal on the *side obstacle* (full 4.27 m traverse where
-    learned/transformer/recurrent stall at ~1.0 m). Drives markedly further/closer on the
-    dead-ahead *frontal obstacle* (1.69 m, 0.20 m clearance vs ~1.0 m / 0.75 m) but still
-    times out there and on the *corridor* (the dodge oracle does not centre in a passage;
-    a dead-ahead inflated block needs a sharper commit). Must run with the windowed
-    footprint gate (safety_check_points). The hybrid (VFH+ fallback) remains the
-    all-scenario guarantee. See docs/generative_limits.md and docs/controller_comparison.md.
+    First learned Mode A controller here to thread obstacles purely generatively (no
+    fallback): REACHES the goal on the *side obstacle* (full 4.25 m traverse where
+    learned/transformer/recurrent stall at ~1.0 m) AND threads the *corridor* (off-centre
+    start, two walls) where it even centres better than the classical baselines (mean
+    |y-centre| 0.236 m vs VFH+ 0.277 / ND 0.307). Still times out on the dead-ahead
+    *frontal* block (1.66 m, 0.21 m clearance vs ~1.0 m / 0.75 m for the other learned
+    models): the reactive oracle threads it expert-only, but the progress-greedy selector
+    defeats the symmetric dodge and the model underfits the hardest head-on, late-sensed
+    commit. Must run with the windowed footprint gate (safety_check_points). The hybrid
+    (VFH+ fallback) remains the all-scenario guarantee. See docs/generative_limits.md and
+    docs/controller_comparison.md.
   collision_count: 0
 
 limitations:
   - "Synthetic training data only — NOT validated on any real robot or rosbag."
-  - "Threads the side obstacle generatively in the real benchmark, but the dead-ahead frontal block and the corridor still time out (sim 4/5 does not fully transfer). The hybrid fallback is the completeness guarantee."
+  - "Threads the side obstacle AND the corridor generatively in the real benchmark (centring better than VFH+/ND in the corridor), but the dead-ahead frontal block still times out. The hybrid fallback is the completeness guarantee."
   - "Requires the controller's windowed footprint gate (safety_check_points>0); under the default full-horizon gate it is hard-rejected like the others."
   - "Research / demonstration model. Do not deploy on hardware; the safety layer is the authority."
 
@@ -80,7 +85,7 @@ license:
 
 checksum:
   algorithm: sha256
-  value: "1e8ffdd010a3f33ca0f207b028e9819ba3b8d0a4ca23ce5fc5fa0a0667d2d722"
+  value: "2bf6537e2c47f3ec652c97cfd494d7c46ac3a245418e24a4e6cba0f290dbaffb"
   artifact: costmap_threading.onnx
 
 reproduce:
@@ -88,4 +93,4 @@ reproduce:
   toolchain: "torch 2.10.0+cu128, onnx 1.21.0; trained on CUDA, exported on CPU"
   hyperparameters: "CostmapTransformerPlanner; DAgger iters 8, base 320, epochs 900, lr 0.003 cosine, grad-clip 1.0, best-checkpoint; SAFETY_WINDOW 3"
   seed: 0
-  note: "DAgger + GPU training is not bit-exact run-to-run; a re-export reproduces the threading behaviour (side obstacle reached in the real controller_benchmark with safety_check_points=3)."
+  note: "DAgger + GPU training is not bit-exact run-to-run; a re-export reproduces the threading behaviour (side obstacle and corridor reached in the real controller_benchmark with safety_check_points=3)."

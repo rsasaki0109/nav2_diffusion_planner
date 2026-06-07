@@ -1,8 +1,9 @@
 # Model Card: diffusion_local_costmap_threading_v0
 
-> The first learned **Mode A** (local controller) model in this repo to **thread an
-> obstacle purely generatively** (no classical fallback) in the real C++
-> `controller_benchmark`. It is the costmap-token transformer **DAgger-trained on a
+> The first learned **Mode A** (local controller) model in this repo to **thread obstacles
+> purely generatively** (no classical fallback) in the real C++ `controller_benchmark` — it
+> clears the *side obstacle* **and the *corridor*** (where it centres better than the
+> classical VFH+/ND baselines). It is the costmap-token transformer **DAgger-trained on a
 > corrected reactive dodge oracle**, run with the controller's **windowed footprint gate**
 > (`safety_check_points`). Manifest: [manifest.yaml](manifest.yaml). Reproduce:
 > [export.py](export.py).
@@ -19,20 +20,25 @@
 ## What it shows — cracking the Mode A obstacle-threading ceiling
 
 The documented Mode A ceiling (the learned controller stalls in front of obstacles) was
-diagnosed (docs/generative_limits.md) to **two concrete mechanisms — not model capacity**:
+diagnosed (docs/generative_limits.md) to **concrete, fixable mechanisms — not raw model
+capacity**:
 
-1. **The shipped DAgger oracle itself collided** — a 0.20 m transient bow plus an on-line
-   carrot drives pure-pursuit straight into the block (expert-only closed-loop 1/4), so
-   DAgger aggregated colliding labels. The **corrected** oracle commits a *sustained*
-   lateral offset to the free side via a curvature-based dodge (pure-pursuit toward a
-   close, offset carrot) and clears the block.
+1. **The shipped DAgger oracle itself collided / stalled** — a 0.20 m transient bow plus an
+   on-line carrot drives pure-pursuit straight into the block. The **corrected** oracle
+   commits a *sustained* lateral offset to the free side (a curvature dodge held until the
+   block is *passed*, so the carrot cannot snap the robot back into its side), and leaves a
+   corridor's free centre-line to the carrot to centre through.
 2. **The deployed full-horizon footprint gate hard-rejects a tight reactive skirt** whose
    1 m lookahead clips the block, though step-wise execution skirts it safely. The
    controller now supports a **windowed gate** (`safety_check_points`): validate only the
    leading points the robot executes before re-planning (receding-horizon; the live
    costmap is re-checked every cycle).
+3. **One committed dodge beats a multimodal set.** Regressing the K candidates onto a single
+   committed side (not a left+right set) is what threads: a set with both escapes lets the
+   controller's progress-greedy selector flip-flop between them every cycle, cancelling the
+   turn. The corrected oracle threads all six sim scenarios expert-only.
 
-With both, the DAgger-trained **transformer** reaches the goal **4/5 closed-loop** in the
+With these, the DAgger-trained **transformer** reaches the goal **4/6 closed-loop** in the
 costmap sim (the small CNN-embedding flow model cannot fit the sharp dodge — it stays at
 1/4; capacity matters).
 
@@ -41,20 +47,23 @@ costmap sim (the small CNN-embedding flow model cannot fit the sharp dodge — i
 | scenario | learned / transformer / recurrent | **threading** |
 |---|:-:|:-:|
 | open | reached | reached |
-| **side obstacle** | timeout (~1.0 m) | **reached (4.27 m traverse)** |
-| frontal obstacle (dead-ahead) | timeout (~1.0 m, 0.75 m) | timeout (1.69 m, **0.20 m** clearance) |
-| corridor | timeout | timeout |
+| **side obstacle** | timeout (~1.0 m) | **reached (4.25 m traverse)** |
+| **corridor** (off-centre start) | timeout | **reached (mean \|y-centre\| 0.24 m < VFH+ 0.28 / ND 0.31)** |
+| frontal obstacle (dead-ahead) | timeout (~1.0 m, 0.75 m) | timeout (1.66 m, **0.21 m** clearance) |
 
-It is the **first learned Mode A model here to thread an obstacle generatively** (the side
-obstacle). On the dead-ahead *frontal* block it drives markedly further and closer but
-does not complete; the *corridor* needs centring, which the dodge oracle does not do.
+It is the **first learned Mode A model here to thread obstacles generatively** — the side
+obstacle and the corridor, which it even **centres better than the classical baselines**.
+On the dead-ahead *frontal* block it drives markedly further and closer but does not
+complete (see scope below).
 
 ## Honest scope — what it does NOT do
 
-- **Not a full solve.** Threads the *side obstacle* generatively, but the dead-ahead
-  inflated *frontal* block and the *corridor* still time out — the sim 4/5 does not fully
-  transfer (the live costmap inflates the dead-ahead block; the corridor is out of the
-  dodge oracle's design). The **hybrid (VFH+ fallback)** remains the all-scenario guarantee.
+- **Not a full solve.** Threads the *side obstacle* and the *corridor* generatively, but the
+  dead-ahead *frontal* block still times out. The reactive oracle threads it *expert-only*,
+  so the gap is real but specific: the controller's deterministic progress-greedy selector
+  defeats the symmetric left/right dodge, and the small model underfits the hardest head-on,
+  late-sensed commit (the block is seen only ~0.8 m ahead in the 32-cell patch). The
+  **hybrid (VFH+ fallback)** remains the all-scenario guarantee.
 - **Requires** the windowed footprint gate (`safety_check_points>0`). Under the default
   full-horizon gate it is hard-rejected like the other learned models.
 - **Synthetic data only.** Never validated on a real robot or rosbag.

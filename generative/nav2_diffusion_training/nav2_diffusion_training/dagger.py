@@ -64,30 +64,56 @@ SAFETY_WINDOW = 3
 # Reactive dodge oracle geometry (egocentric patch: row -> +x forward, col -> +y left).
 _DODGE_MARGIN = 0.55        # lateral clearance past the block edge [m] (robot radius + room)
 _DODGE_LOOKAHEAD = 0.4      # carrot distance for the dodge arc [m]; small => sharp commit
+_DODGE_LOOKAHEAD_TIGHT = 0.3  # ...sharper commit for a symmetric dead-centre block (frontal):
+#                            it is sensed only ~0.8 m ahead (half the patch) and head-on, so
+#                            it needs a harder turn to descend clear in time; an off-centre
+#                            block (side / two) is already partly skirted and a tight turn
+#                            there overshoots and loops, so the sharper arc is gated to the
+#                            symmetric case (``_SYMMETRIC_BAND``) only.
+_SYMMETRIC_BAND = 0.25     # |lo + hi| below this (block centred on the path) => dead-centre
 _DODGE_FWD = 2.0            # only react to a block within this forward distance [m]
 _DODGE_LAT = 0.9            # ...and within this lateral half-width [m]
+_CENTER_HALF = 0.18        # dodge only if occupancy overlaps the centre-line within this
+#                            half-width [m] (~robot radius); a band purely to one side
+#                            (e.g. a corridor wall) is left to the carrot to centre past.
 
 
-# --- scenarios: (name, obstacle list of (wx, wy, half_cells), start, goal) ---
-# Includes a dead-ahead centred block ('frontal') matching the controller_benchmark
-# *frontal obstacle* (markBlock at (3.0, 3.0)); the half is grown vs the benchmark's 4
-# cells to give the model margin against the live costmap's inflation, which the raw sim
-# grid does not model. DAgger trains on the distribution it is evaluated against.
+# --- scenarios: (name, obstacle list, start, goal) ---
+# An obstacle is either a lethal block ``(wx, wy, half_cells)`` or a horizontal wall
+# ``('wall', wy, half_cells)`` spanning the whole grid in x. Mirrors the
+# controller_benchmark scenarios so DAgger trains on the distribution it is evaluated
+# against: a dead-ahead centred block ('frontal', markBlock at (3.0, 3.0), half 4 cells —
+# the benchmark costmap has no inflation layer, so the raw lethal block IS the geometry to
+# match); an off-centre block ('side'); and a two-walled passage ('corridor', off-centre
+# start) that the benchmark measures for centring. ('frontal' must stay at index 1;
+# test_dagger relies on it.)
 SCENARIOS = [
     ('open', [], (1.0, 3.0), (5.0, 3.0)),
-    ('frontal', [(3.0, 3.0, 6)], (1.0, 3.0), (5.0, 3.0)),
+    ('frontal', [(3.0, 3.0, 4)], (1.0, 3.0), (5.0, 3.0)),
     ('side', [(3.0, 3.3, 6)], (1.0, 3.0), (5.0, 3.0)),
     ('side2', [(3.0, 2.7, 6)], (1.0, 3.0), (5.0, 3.0)),
     ('two', [(2.4, 3.3, 5), (3.6, 2.7, 5)], (1.0, 3.0), (5.0, 3.0)),
+    ('corridor', [('wall', 2.1, 2), ('wall', 3.9, 2)], (1.0, 3.6), (5.0, 3.0)),
 ]
 
 
 def build_costmap(obstacles):
-    """Return a {0,1} occupancy grid with lethal blocks at the given world points."""
+    """Return a {0,1} occupancy grid with lethal blocks / horizontal walls.
+
+    Each obstacle is a lethal block ``(wx, wy, half)`` centred on a world point, or a
+    full-width horizontal wall ``('wall', wy, half)`` (mirrors markHWall in the C++
+    controller_benchmark corridor scenario).
+    """
     gm = np.zeros((GRID, GRID), dtype=np.float32)
-    for wx, wy, half in obstacles:
-        cx, cy = int(wx / RES), int(wy / RES)
-        gm[max(0, cy - half):cy + half + 1, max(0, cx - half):cx + half + 1] = 1.0
+    for ob in obstacles:
+        if len(ob) == 3 and ob[0] == 'wall':
+            _, wy, half = ob
+            cy = int(wy / RES)
+            gm[max(0, cy - half):cy + half + 1, :] = 1.0
+        else:
+            wx, wy, half = ob
+            cx, cy = int(wx / RES), int(wy / RES)
+            gm[max(0, cy - half):cy + half + 1, max(0, cx - half):cx + half + 1] = 1.0
     return gm
 
 
@@ -124,28 +150,55 @@ def carrot_base_frame(start, goal, x, y, yaw):
     return gx, gy
 
 
-def _dodge_offset(patch):
-    """Lateral offset [m] to skirt a block ahead in the egocentric patch (0 if clear).
+def _block_edges(patch):
+    """Lateral extent ``(lo, hi)`` [m] of occupied cells in the near-forward corridor.
 
-    Reads the occupied cells in a near-forward corridor (forward < ``_DODGE_FWD``,
-    |lateral| < ``_DODGE_LAT``; patch row -> +x forward, col -> +y left), then steers to
-    the side with clearance, offsetting past the block's near edge by ``_DODGE_MARGIN``
-    (enough for the footprint, not just the robot centre). Returning a *sustained* offset
-    (vs the old transient half-sine bow) is what lets the robot actually clear the block
-    in closed loop instead of tracking the on-line carrot straight into it.
+    Reads cells with forward < ``_DODGE_FWD`` and |lateral| < ``_DODGE_LAT`` (patch
+    row -> +x forward, col -> +y left). Returns ``None`` when the corridor ahead is clear.
     """
     s = COSTMAP_SIZE
     c = (s - 1) / 2.0
     occ = np.argwhere(patch > 0.5)
     if occ.size == 0:
-        return 0.0
+        return None
     fwd = (c - occ[:, 0]) * RES
     lat = (c - occ[:, 1]) * RES
     ahead = (fwd > 0.05) & (fwd < _DODGE_FWD) & (np.abs(lat) < _DODGE_LAT)
     if not ahead.any():
-        return 0.0
+        return None
     blat = lat[ahead]
-    lo, hi = float(blat.min()), float(blat.max())
+    return float(blat.min()), float(blat.max())
+
+
+def _center_blocked(patch):
+    """Report whether an occupied cell sits on the centre-line ahead (|lat| < ``_CENTER_HALF``)."""
+    s = COSTMAP_SIZE
+    c = (s - 1) / 2.0
+    occ = np.argwhere(patch > 0.5)
+    if occ.size == 0:
+        return False
+    fwd = (c - occ[:, 0]) * RES
+    lat = (c - occ[:, 1]) * RES
+    return bool(((fwd > 0.05) & (fwd < _DODGE_FWD) & (np.abs(lat) < _CENTER_HALF)).any())
+
+
+def _dodge_offset(patch):
+    """Lateral offset [m] to skirt a block ahead in the egocentric patch (0 if no dodge).
+
+    Steers to the side with clearance, offsetting past the block's near edge by
+    ``_DODGE_MARGIN`` (enough for the footprint, not just the robot centre). The offset is
+    held while the block is anywhere ahead (not only while it straddles the centre-line),
+    so once the robot has turned away it keeps the offset until the block is *passed* —
+    otherwise the carrot snaps it back into the block's side before it clears (the frontal
+    stall). The one exception is a **corridor**: a free centre-line flanked by walls on
+    *both* sides is left to the carrot to centre through, not dodged.
+    """
+    edges = _block_edges(patch)
+    if edges is None:
+        return 0.0
+    lo, hi = edges
+    if lo < -_CENTER_HALF and hi > _CENTER_HALF and not _center_blocked(patch):
+        return 0.0                     # corridor: free centre between two walls
     if -lo > hi:                       # block mostly on -y -> go +y, clear its hi edge
         return hi + _DODGE_MARGIN
     if hi > -lo:                       # block mostly on +y -> go -y, clear its lo edge
@@ -162,15 +215,20 @@ def expert_target(gx, gy, patch):
     ``_DODGE_LOOKAHEAD`` m ahead offset by ``_dodge_offset`` to the free side, so the
     dodge is realized as *curvature* from yaw 0 (a unicycle can only move laterally by
     turning, and extractCommand reads angular rate from the first segment's yaw change).
-    The small lookahead makes the turn sharp enough to reach the offset before the block,
-    and re-observing each step holds the offset until it is passed. This corrected oracle
-    reaches the goal collision-free in closed loop on every scenario (the shipped 0.20 m
-    transient bow collided; docs/generative_limits.md).
+    The lookahead makes the turn sharp enough to reach the offset before the block, and
+    re-observing each step holds the offset until it is passed; a *symmetric dead-centre*
+    block (frontal) uses a sharper lookahead so the head-on, late-sensed block is descended
+    clear in time. This corrected oracle reaches the goal collision-free in closed loop on
+    every scenario (the shipped 0.20 m transient bow collided; docs/generative_limits.md).
     """
     off = _dodge_offset(patch)
     if off == 0.0:
         return np.array(_expert_trajectory(gx, gy, 0.0, SPEED), dtype=np.float32)
-    return np.array(_expert_trajectory(_DODGE_LOOKAHEAD, off, 0.0, SPEED), dtype=np.float32)
+    look = _DODGE_LOOKAHEAD
+    edges = _block_edges(patch)
+    if edges is not None and _center_blocked(patch) and abs(edges[0] + edges[1]) < _SYMMETRIC_BAND:
+        look = _DODGE_LOOKAHEAD_TIGHT      # dead-centre block: commit harder
+    return np.array(_expert_trajectory(look, off, 0.0, SPEED), dtype=np.float32)
 
 
 def _candidates(model, gx, gy, patch):
@@ -381,9 +439,18 @@ def dagger_train_costmap_transformer(path, iters=8, base_samples=320, epochs=900
     is what makes Mode A *threading* work: it fits the corrected reactive dodge oracle
     (the small CNN-embedding flow model cannot — it plateaus and stays at 1/4), and with
     the windowed footprint gate (``SAFETY_WINDOW`` / the C++ ``safety_check_points``) the
-    DAgger-trained policy reaches the goal **4/4 closed-loop** in the costmap sim, vs the
-    1/4 documented ceiling. Regresses all K query candidates onto the expert (set targets)
-    with cosine LR + grad-clip + best-checkpoint, then exports the 2-input ONNX contract
+    DAgger-trained policy threads obstacles closed-loop in the costmap sim.
+
+    All K candidates regress onto the **single committed sustained dodge** (``expert_target``
+    broadcast over the queries), not a multimodal left/right set. A set with both a +y and a
+    -y escape lets the progress-greedy controller selector flip-flop between them every
+    cycle, cancelling the turn and stalling; a single committed side (held until the block
+    is passed) drives a consistent, decisive dodge. The previously-stalled dead-ahead
+    *frontal* block now threads because (a) the dodge is *sustained* while the block is
+    anywhere ahead (so the carrot cannot snap the robot back into its side) and (b) the sim
+    block matches the benchmark's un-inflated 4-cell geometry; the corridor centres because
+    a free centre-line flanked by two walls is left to the carrot (``_dodge_offset``).
+    Cosine LR + grad-clip + best-checkpoint, then exports the 2-input ONNX contract
     (``context[1,4]`` + ``costmap[1,1,32,32]`` -> ``trajectories[1,K,10,3]``).
     """
     torch.manual_seed(0)

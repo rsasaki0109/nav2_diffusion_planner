@@ -68,21 +68,58 @@ def test_dagger_collects_visited_states():
 
 
 def test_corrected_oracle_reaches_goal_collision_free():
-    """The corrected reactive dodge oracle clears obstacles in closed loop (4/4 of old).
+    """The corrected reactive dodge oracle clears every obstacle scenario in closed loop.
 
-    The shipped oracle collided on every obstacle scenario (a 0.20 m transient bow + an
-    on-line carrot); the corrected one (sustained free-side offset, curvature-based
-    commit) drives expert-only to the goal without collision on the dead-ahead frontal
-    block and the off-centre side block. Guards the data DAgger aggregates
-    (docs/generative_limits.md).
+    The shipped oracle collided / stalled (a 0.20 m transient bow + an on-line carrot, and
+    a dead-ahead block it could not thread); the corrected one threads each scenario
+    expert-only — a *sustained* committed offset to the free side (held until the block is
+    passed, so the carrot cannot snap it back), and a corridor left to the carrot to centre.
+    If the oracle itself cannot thread a scenario, no model trained on it can, so this
+    guards the data DAgger aggregates (docs/generative_limits.md).
     """
     from nav2_diffusion_training.dagger import SCENARIOS, rollout
 
+    for sc in SCENARIOS:
+        reached, collided, _ = rollout(None, sc, collect=False, expert_only=True)
+        assert reached, f'corrected oracle failed to reach goal on {sc[0]}'
+        assert not collided, f'corrected oracle collided on {sc[0]}'
+
+
+def test_dodge_commits_a_side_for_a_block_and_steers_off_a_wall():
+    """``_dodge_offset`` commits to one free side for a block and steers off a near wall.
+
+    A dead-ahead block must be dodged decisively to ONE side (a held offset, so the robot
+    threads it instead of stalling); a wall close on one side must be steered away from
+    (toward the open centre); a clear patch must not be dodged at all
+    (docs/generative_limits.md).
+    """
+    from nav2_diffusion_training.dagger import (
+        build_costmap, crop_patch, _dodge_offset)
+
+    # Dead-ahead centred block 0.5 m ahead -> a non-zero committed offset to one side.
+    block = crop_patch(build_costmap([(3.0, 3.0, 4)]), 2.5, 3.0, 0.0)
+    assert abs(_dodge_offset(block)) > 0.1, 'a frontal block must be dodged'
+
+    # Near the top wall of a corridor -> steer toward -y (away from the wall, to the open
+    # centre).
+    near_wall = crop_patch(build_costmap([('wall', 3.9, 2)]), 1.0, 3.6, 0.0)
+    assert _dodge_offset(near_wall) < 0.0, 'must steer away from a close wall'
+
+    # Clear patch -> no dodge.
+    import numpy as np
+    assert _dodge_offset(np.zeros((32, 32), dtype=np.float32)) == 0.0
+
+
+def test_corridor_scenario_present_for_centring():
+    """The DAgger scenarios include the two-walled corridor the benchmark centres on."""
+    from nav2_diffusion_training.dagger import SCENARIOS, build_costmap
+
     by_name = {sc[0]: sc for sc in SCENARIOS}
-    for name in ('frontal', 'side', 'two'):
-        reached, collided, _ = rollout(None, by_name[name], collect=False, expert_only=True)
-        assert reached, f'corrected oracle failed to reach goal on {name}'
-        assert not collided, f'corrected oracle collided on {name}'
+    assert 'corridor' in by_name, 'corridor centring scenario must be trained on'
+    # Its costmap has both walls occupied (full-width horizontal bands).
+    gm = build_costmap(by_name['corridor'][1])
+    assert gm.sum() > 0
+    assert SCENARIOS[1][0] == 'frontal'  # index contract for test_dagger_collects...
 
 
 def test_dagger_transformer_exports_contract(tmp_path):
