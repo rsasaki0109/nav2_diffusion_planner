@@ -8,22 +8,27 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 
 ### Added
 - **Kinematics-conditioned Mode B planner: one model serves several steering
-  geometries, and a curvature validator disposes of infeasible turns.** The
-  `PathModel` seam's spare second context slot now carries the vehicle **min turn
-  radius R**; `make_costmap_path_kinematics_dataset` shapes each detour so its peak
-  curvature ~ 1/R, so the same model proposes a sharp path for a differential-drive
-  robot (R=0.3) and a gentle one for an Ackermann car (R=1.5) through the same gap.
-  `DiffusionGlobalPlanner` gains a `min_turn_radius` parameter and a curvature check
-  in `isPathValid` (Menger circumradius) that rejects proposals turning tighter than
-  1/R — propose/dispose extended from footprint to vehicle dynamics. Ships as
-  `diffusion_global_costmap_kinematics_v0` (model_zoo) with two benchmark rows
-  (`Diffusion (Mode B, kinematics diff / Ackermann)`) and an
-  `OnnxPathModelTest.CuratedZooKinematicsConditionsOnTurnRadius` gtest. In the real
-  C++ benchmark the diff-drive row threads the off-centre gaps while the Ackermann
-  row reports *no path* there (the curvature validator disposes the too-tight jog) —
-  both thread the straight / gentle courses. `PathContext` gains `context_aux`;
-  `OnnxPathModel` feeds it as the second context input (default 0 = backward
-  compatible).
+  geometries across all eight courses (+ omni), and a curvature validator disposes
+  of infeasible turns.** The `PathModel` seam's spare second context slot carries the
+  vehicle **min turn radius R** (`R=0` = omni-directional);
+  `make_costmap_path_kinematics_dataset` shapes each detour so its peak curvature
+  ~ 1/R across *all* benchmark courses (clear / centred / double-gate straight,
+  off-centre & far gap and side R-shaped, plus an omni-only slalom block), so the same
+  weights propose a sharp path for an omni / differential-drive robot and a gentle one
+  for an Ackermann car through the same gap. `DiffusionGlobalPlanner` gains a
+  `min_turn_radius` parameter and a curvature check in `isPathValid` (Menger
+  circumradius) that rejects proposals turning tighter than 1/R — propose/dispose
+  extended from footprint to vehicle dynamics. Ships as
+  `diffusion_global_costmap_kinematics_v0` (model_zoo, re-trained over all courses)
+  with three benchmark rows (`Diffusion (Mode B, kinematics omni / diff / Ackermann)`)
+  and two gtests (`OnnxPathModelTest.CuratedZooKinematicsConditionsOnTurnRadius`,
+  `…OmniProposesSlalomSCurve`). In the real C++ benchmark, the *same weights* give
+  **omni 8/8** (threads everything incl. slalom, gate off), **diff 8/8** (sharp
+  turning circle clears every lateral maneuver), and **Ackermann 3/8** (only the
+  near-straight clear / centred gap / double gate; the curvature validator correctly
+  rejects narrow gap / off-centre / far / side / slalom — each needs a lateral move
+  past a 1.5 m turning circle). `PathContext` gains `context_aux`; `OnnxPathModel`
+  feeds it as the second context input (default 0 = backward compatible).
 - **New `attnseq` Mode B path family — the first pure-generative planner here to
   thread ALL eight benchmark courses (8/8), including the long-"ceiling" *slalom*
   and *far off-centre gap*.** `CostmapPathAttnSeqPlanner` (cross-attention perception
@@ -41,6 +46,23 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
   `'attnseq'` training kind, and a `CostmapPathAttnSeqPlanner` ONNX-contract test.
 
 ### Changed
+- **Mode A obstacle-threading ceiling diagnosed to two concrete mechanisms — not model
+  capacity (docs/generative_limits.md).** Applying the Mode B attnseq levers
+  (high-capacity costmap-token transformer + DAgger) and a faithful Python closed-loop
+  reproduction isolated the cause of the learned controller's stall: (1) the shipped
+  DAgger oracle (`_expert_trajectory`) itself collides — a 0.20 m transient bow plus an
+  on-line carrot drives pure-pursuit straight into obstacles (expert-only closed-loop
+  1/4), so DAgger aggregates colliding labels; and (2) even a corrected collision-free
+  oracle (4/4 expert-only, executed step-wise) is rejected by the deployed full-horizon
+  footprint gate — `_select` / the real C++ `FootprintCollisionFilter::check` reject a
+  candidate if **any** of its H lookahead points collides, so a tight reactive skirt
+  (safe step-wise, but whose 1 m lookahead clips the block) is gated out every cycle and
+  the controller stops. The transformer fits the corrected labels to loss~0 yet
+  closed-loop stays 1/4: the ceiling is the **safety-gate granularity**, not learning.
+  Cracking it purely generatively would need validating/scoring the executed window
+  (re-checked each replan) rather than hard-rejecting the full horizon — a controller
+  design change with safety trade-offs; the VFH+ hybrid fallback remains the
+  all-scenario guarantee meanwhile. (Diagnosis only; no shipped behavior change.)
 - **Slalom and far off-centre gap were NOT an architecture ceiling — they were two
   data bugs, now fixed (the "ceiling" flips to 8/8).** Three architectures had
   converged to the same training-loss plateau, which read as a model limit; faithfully

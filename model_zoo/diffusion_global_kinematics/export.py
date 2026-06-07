@@ -17,17 +17,20 @@
 Reproduce the curated *kinematics-conditioned* Mode B path model here.
 
 One model serves several steering geometries: the second context input carries the
-vehicle's **min turn radius R**, and the model shapes each maneuver's detour so its
-peak curvature ~ 1/R — a sharp, tight detour for a differential-drive robot (small R,
-can pivot) and a gentle, wide one for an Ackermann car (large R) through the *same*
-gap. The planner's curvature validator (`min_turn_radius` parameter) then *disposes*
-of any proposal that turns tighter than the vehicle can — the propose/dispose split
-extended from footprint to vehicle dynamics.
+vehicle's **min turn radius R** (0.0 = omni-directional), and the model shapes each
+maneuver's detour so its peak curvature ~ 1/R — a sharp, tight detour for an omni / a
+differential-drive robot (small R, can pivot) and a gentle, wide one for an Ackermann
+car (large R) through the *same* gap. The planner's curvature validator (`min_turn_radius`
+parameter) then *disposes* of any proposal that turns tighter than the vehicle can — the
+propose/dispose split extended from footprint to vehicle dynamics.
 
 Architecture is the same no-fan attnseq family as diffusion_global_attnseq; only the
-training data differs (make_costmap_path_kinematics_dataset: R-shaped detours through
-clear / off-centre / far off-centre gap / dead-ahead gap, with deployment-matched
-patches). Slalom / double gate are out of scope for this demonstration model.
+training data differs (make_costmap_path_kinematics_dataset: R-shaped detours across
+*all eight* benchmark courses — clear / centred / double gate (straight, R-invariant),
+off-centre & far off-centre gap and side obstacle (R-shaped), and an omni-only slalom
+block — with deployment-matched patches). The benchmark slalom's +/-2 m crossings in a
+~1.6 m gap need curvature ~1/0.02 m, past any wheeled turning circle, so slalom threads
+for omni (R=0) only and the curvature validator disposes it for diff / Ackermann.
 
 Trains on the GPU when available; always exports on CPU for a portable artifact.
 Deterministic CPU rebuild:
@@ -53,8 +56,8 @@ import torch
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, 'costmap_kinematics.onnx')
 
-NUM_SAMPLES = 400
-EPOCHS = 2500
+NUM_SAMPLES = 500
+EPOCHS = 3500
 LR = 0.004
 DEVICE = 'cuda' if torch.cuda.is_available() else None
 

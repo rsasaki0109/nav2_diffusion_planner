@@ -861,7 +861,7 @@ def make_costmap_path_slalom_dataset(num_samples):
 
 
 def _curvature_bump(d, xw, amp, w):
-    """A Gaussian lateral detour peaking at the wall, width w sets peak curvature ~1/R.
+    """Build a Gaussian lateral detour peaking at the wall; width w sets peak curvature ~1/R.
 
     ``y(x) = amp * exp(-((x-xw)/w)^2)`` peaks ``amp`` at the wall ``xw`` (so it threads a
     thin slot / clears a block there) and is ~0 at start/goal. Its peak |y''| = 2|amp|/w^2,
@@ -876,57 +876,63 @@ def _curvature_bump(d, xw, amp, w):
     return rows
 
 
-def make_costmap_path_kinematics_dataset(num_samples):
-    """
-    Kinematics-conditioned data: condition the proposal on the vehicle min turn radius R.
+_R_OMNI = 0.0       # omni-directional: no minimum turn radius (curvature validator off)
+_R_FLOOR = 0.18     # detour-shaping floor so omni / very-tight R still get a representable bump
 
-    ``context = [goal_distance, R]`` (R = min turn radius; the previously-unused second
-    context slot). A maneuver's lateral detour is shaped so its **peak curvature ~ 1/R**:
-    a small R (a differential-drive robot that can pivot) gets a sharp, tight detour; a
-    large R (an Ackermann / car-like robot) gets a gentle, wide one — through the *same*
-    gap. One model serves multiple steering geometries; the planner's curvature check
-    (``min_turn_radius`` parameter) then *disposes* of any proposal that violates the
-    commanded kinematics (the propose/dispose split, extended to vehicle dynamics).
 
-    Covers *clear* (straight), *off-centre* / *far off-centre gap* and *side obstacle*
-    (R-shaped detours), and *centred gap* (straight through), with deployment-matched
-    patches (``_resampled_aligned_patch``). Slalom / double gate are out of scope for this
-    demonstration model (their fixed S is not a single R-shaped bump).
+def _kinematics_base(num_samples):
+    """R-conditioned non-slalom courses: clear / off-centre & far gap / side / centred / double.
+
+    Each course family is emitted across the full R schedule (including omni R=0.0, shaped
+    with the ``_R_FLOOR`` floor) so the model learns that a *straight* maneuver (clear /
+    centred / double gate) is R-invariant while a *detour* (gap / side) tightens as R
+    shrinks. Companion to the omni-slalom block that :func:`make_costmap_path_kinematics_dataset`
+    concatenates on top.
     """
-    contexts = []
-    patches = []
-    targets = []
-    Rs = [0.3, 0.5, 0.8, 1.1, 1.5]            # min turn radius [m]: diff (tight) .. Ackermann (gentle)
+    contexts, patches, targets = [], [], []
+    Rs = [0.0, 0.3, 0.5, 0.8, 1.1, 1.5]       # 0.0 = omni; 0.3 diff (tight) .. 1.5 Ackermann
     offs = [1.4, 1.6, 1.8, 2.0]               # slot |offset| [m]
     xws = [2.0, 2.2, 2.6, 2.8, 3.0]           # wall aligned x [m] (off-centre 2.0, far 3.0)
-    kinds = ['clear', 'gap', 'gap', 'side', 'centred']
+    schedule = ['clear', 'gap', 'gap', 'side', 'centred', 'double']
     i = 0
     while len(contexts) < num_samples:
         d = 4.0 + 0.4 * ((i * 3) % 2)
         R = Rs[i % len(Rs)]
+        Rw = max(R, _R_FLOOR)                  # shaping radius (omni -> floor)
         off = offs[(i // 2) % len(offs)]
         xw = xws[(i // 3) % len(xws)]
-        kind = kinds[i % len(kinds)]
+        kind = schedule[(i // 6) % len(schedule)]
         for side in (1.0, -1.0):
             if len(contexts) >= num_samples:
                 break
             if kind == 'clear':
-                contexts.append([d, R])
+                # The benchmark *clear* course is an off-axis diagonal (goal distance
+                # ~5.66 m), longer than the wall courses' ~4 m. Train the straight expert
+                # across that wider span so a small-R (diff) proposal does not extrapolate
+                # spurious curvature on the empty map and trip its own curvature gate.
+                dc = 4.0 + 0.45 * ((i + (0 if side > 0 else 1)) % 5)   # 4.0 .. 5.8 m
+                contexts.append([dc, R])
                 patches.append(torch.zeros(1, PATH_COSTMAP_SIZE, PATH_COSTMAP_SIZE))
-                targets.append(_curvature_bump(d, xw, 0.0, 0.0))
+                targets.append(_curvature_bump(dc, xw, 0.0, 0.0))
             elif kind == 'centred':
                 contexts.append([d, R])
                 patches.append(_resampled_aligned_patch([(1.0 + xw, 3.0, 0.5, 2)]))
                 targets.append(_curvature_bump(d, xw, 0.0, 0.0))
+            elif kind == 'double':            # two on-line gates, straight (R-invariant)
+                xa, xb = 1.2, 2.8
+                contexts.append([d, R])
+                patches.append(_resampled_aligned_patch([
+                    (1.0 + xa, 3.0, 0.6, 2), (1.0 + xb, 3.0, 0.6, 2)]))
+                targets.append(_plateau_track(d, [(xa, 0.0), (xb, 0.0)]))
             elif kind == 'gap':
                 slot = side * off
-                w = math.sqrt(2.0 * off * R)
+                w = math.sqrt(2.0 * off * Rw)
                 contexts.append([d, R])
                 patches.append(_resampled_aligned_patch([(1.0 + xw, 3.0 + slot, 0.6, 2)]))
                 targets.append(_curvature_bump(d, xw, slot, w))
             else:  # one-sided block: bow to the free side with curvature ~1/R
                 amp = -side * 1.0           # detour amplitude toward the free side
-                w = math.sqrt(2.0 * abs(amp) * R)
+                w = math.sqrt(2.0 * abs(amp) * Rw)
                 # block on the +/-y side ahead: free for wy on the detour side
                 gap_center = 3.0 + amp * 2.0
                 contexts.append([d, R])
@@ -938,6 +944,35 @@ def make_costmap_path_kinematics_dataset(num_samples):
         torch.stack(patches),
         torch.tensor(targets, dtype=torch.float32),
     )
+
+
+def make_costmap_path_kinematics_dataset(num_samples):
+    """
+    Kinematics-conditioned data across *all* benchmark wall courses, conditioned on R.
+
+    ``context = [goal_distance, R]`` (R = min turn radius; the previously-unused second
+    context slot, ``0.0`` = omni-directional). A maneuver's lateral detour is shaped so its
+    **peak curvature ~ 1/R**: omni / small R (a robot that can pivot) gets a sharp, tight
+    detour; a large R (an Ackermann / car-like robot) a gentle, wide one — through the
+    *same* gap. One model serves every steering geometry; the planner's curvature check
+    (``min_turn_radius`` parameter) then *disposes* of any proposal tighter than the
+    commanded vehicle can drive (the propose/dispose split, extended to vehicle dynamics).
+
+    Covers all eight benchmark courses. The R-conditioned :func:`_kinematics_base` carries
+    *clear* / *centred* / *double gate* (straight, R-invariant) plus *off-centre* / *far
+    off-centre gap* and *side obstacle* (R-shaped detours). On top, an **omni-only slalom**
+    block (the proven :func:`make_costmap_path_slalom_dataset`, whose context already
+    carries R=0.0) teaches the S-weave: the benchmark slalom's +/-2 m crossings inside a
+    ~1.6 m gap demand curvature ~1/0.02 m, far past any wheeled turning circle, so slalom is
+    a feasible maneuver *only* for an omni robot — and the curvature validator correctly
+    disposes the model's slalom proposal for diff / Ackermann. Deployment-matched patches
+    (``_resampled_aligned_patch``) throughout.
+    """
+    n_slalom = num_samples // 5
+    n_base = num_samples - n_slalom
+    base = _kinematics_base(n_base)
+    slalom = make_costmap_path_slalom_dataset(n_slalom)   # context [d, 0.0] == omni
+    return tuple(torch.cat([base[k], slalom[k]], dim=0) for k in range(3))
 
 
 def _path_dataset(dataset, num_samples):

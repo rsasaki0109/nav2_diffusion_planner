@@ -333,18 +333,22 @@ def test_kinematics_dataset_curvature_scales_with_turn_radius():
 
     context = [goal_distance, R]; the off-centre-gap detour width is sqrt(2*off*R), so a
     small R (diff-drive) gives a tighter bump (higher peak |y''|) than a large R
-    (Ackermann) for the same slot. Guards the data the kinematics-conditioned model
-    learns from (docs/generative_limits.md).
+    (Ackermann) for the same slot. R=0.0 marks an omni-directional vehicle (no turn-radius
+    limit) and is the radius the omni-only slalom block carries. Guards the data the
+    kinematics-conditioned model learns from (docs/generative_limits.md).
     """
     import math
     from nav2_diffusion_training.path_planners import (
         PATH_DIM, PATH_H, _curvature_bump, make_costmap_path_kinematics_dataset)
-    ctx, patches, targets = make_costmap_path_kinematics_dataset(20)
+    ctx, patches, targets = make_costmap_path_kinematics_dataset(60)
     assert ctx.shape[1] == 2
     assert patches.shape[1:] == (1, 24, 24)
     assert targets.shape[1:] == (PATH_H, PATH_DIM)
-    # The second context column is the (positive) min turn radius R.
-    assert (ctx[:, 1] > 0).all()
+    # The second context column is the min turn radius R >= 0 (0.0 == omni-directional),
+    # and both omni and wheeled (R>0) vehicles are represented.
+    assert (ctx[:, 1] >= 0).all()
+    assert bool((ctx[:, 1] == 0.0).any())   # omni (incl. the omni-only slalom block)
+    assert bool((ctx[:, 1] > 0).any())      # diff / Ackermann
 
     def peak_abs_yy(rows):
         y = [p[1] for p in rows]

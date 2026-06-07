@@ -399,11 +399,45 @@ TEST(OnnxPathModelTest, CuratedZooKinematicsConditionsOnTurnRadius)
       ctx.context_aux = R;
       const auto cands = model.generate(ctx);
       double lo = 1e9;
-      for (const auto & c : cands) {lo = std::min(lo, maxCurvature(c));}
+      for (const auto & c : cands) {
+        lo = std::min(lo, maxCurvature(c));
+      }
       return lo;
     };
   const double diff = best_curv(0.3);     // differential-drive: can turn sharp
   const double ackermann = best_curv(1.5);  // Ackermann: must be gentle
   // The diff-drive proposal must be meaningfully sharper than the Ackermann one.
   EXPECT_GT(diff, ackermann * 1.2);
+}
+
+// The same kinematics model, fed an omni-directional vehicle (R=0, the default
+// context_aux), must thread the S-shaped slalom — its training carries an omni-only
+// slalom block, since the benchmark slalom's +/-2 m crossings in a ~1.6 m gap need a
+// near-pivot only an omni robot has (the curvature validator disposes it for diff /
+// Ackermann). Guards that the all-course kinematics binary still proposes the S for omni.
+TEST(OnnxPathModelTest, CuratedZooKinematicsOmniProposesSlalomSCurve)
+{
+  const std::string zoo = ONNX_ZOO_COSTMAP_PATH_KINEMATICS_MODEL;
+  if (zoo.empty()) {
+    GTEST_SKIP() << "model_zoo kinematics path model path not provided";
+  }
+  OnnxPathModel model(zoo);
+  auto ctx = slalomContext();
+  ctx.context_aux = 0.0;     // omni: no turn-radius limit
+  const auto cands = model.generate(ctx);
+  ASSERT_FALSE(cands.empty());
+  bool found_s = false;
+  for (const auto & c : cands) {
+    double ymin = 1e9;
+    double ymax = -1e9;
+    for (const auto & p : c.points) {
+      ymin = std::min(ymin, p.y);
+      ymax = std::max(ymax, p.y);
+    }
+    if (ymin < 2.0 && ymax > 4.0) {
+      found_s = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(found_s);
 }

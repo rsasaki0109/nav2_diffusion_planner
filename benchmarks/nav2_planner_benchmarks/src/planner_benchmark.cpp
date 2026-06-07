@@ -190,13 +190,21 @@ int main(int argc, char ** argv)
       {rclcpp::Parameter("model_plugin", std::string("nav2_diffusion_onnx::OnnxPathModel")),
         rclcpp::Parameter("model_path", attnseq_model),
         rclcpp::Parameter("provide_costmap", true)}},
+    {"Diffusion (Mode B, kinematics omni)", "nav2_diffusion_global_planner::DiffusionGlobalPlanner",
+      "kinematics-conditioned (R=0, omni-directional) + curvature validator off (threads "
+      "all 8 courses incl. slalom)",
+      {rclcpp::Parameter("model_plugin", std::string("nav2_diffusion_onnx::OnnxPathModel")),
+        rclcpp::Parameter("model_path", kinematics_model),
+        rclcpp::Parameter("provide_costmap", true),
+        rclcpp::Parameter("min_turn_radius", 0.0)}},
     {"Diffusion (Mode B, kinematics diff)", "nav2_diffusion_global_planner::DiffusionGlobalPlanner",
       "kinematics-conditioned (R=0.3, diff-drive) + curvature validator",
       {rclcpp::Parameter("model_plugin", std::string("nav2_diffusion_onnx::OnnxPathModel")),
         rclcpp::Parameter("model_path", kinematics_model),
         rclcpp::Parameter("provide_costmap", true),
         rclcpp::Parameter("min_turn_radius", 0.3)}},
-    {"Diffusion (Mode B, kinematics Ackermann)", "nav2_diffusion_global_planner::DiffusionGlobalPlanner",
+    {"Diffusion (Mode B, kinematics Ackermann)",
+      "nav2_diffusion_global_planner::DiffusionGlobalPlanner",
       "kinematics-conditioned (R=1.5, Ackermann) + curvature validator disposes infeasible turns",
       {rclcpp::Parameter("model_plugin", std::string("nav2_diffusion_onnx::OnnxPathModel")),
         rclcpp::Parameter("model_path", kinematics_model),
@@ -264,9 +272,9 @@ int main(int argc, char ** argv)
     "(absolute numbers vary with load); compare relative magnitudes and the "
     "path-length / shape columns.\n\n";
   std::cout << "Planners (all `nav2_core::GlobalPlanner` plugins absent from "
-    "upstream Nav2 — eight classical plus nine generative Mode B variants: "
+    "upstream Nav2 — eight classical plus ten generative Mode B variants: "
     "analytic, learned (flow), learned (transformer), learned (recurrent), "
-    "learned (attnseq), two kinematics-conditioned (diff / Ackermann), "
+    "learned (attnseq), three kinematics-conditioned (omni / diff / Ackermann), "
     "learned+classical fallback hybrid, and guided hybrid):\n\n";
   for (const auto & p : planners) {
     std::cout << "- **" << p.label << "** — " << p.family << "\n";
@@ -276,7 +284,7 @@ int main(int argc, char ** argv)
     "The others replan from scratch each call.\n\n";
   std::cout << "> **Diffusion (Mode B)** is the generative planner — a model "
     "*proposes* candidate paths and the deterministic validity layer *disposes* of "
-    "colliding ones, keeping the shortest survivor. Seven variants run here. "
+    "colliding ones, keeping the shortest survivor. Ten variants run here. "
     "**analytic** uses the built-in `FanPathModel` (a symmetric bowed fan, no ONNX); "
     "**learned (flow)** loads the curated costmap-conditioned flow model from "
     "`model_zoo` via `OnnxPathModel` (real ONNX inference); **learned (transformer)** "
@@ -304,14 +312,23 @@ int main(int argc, char ** argv)
     "courses (they were a colliding training expert and a train/inference patch mismatch, "
     "not a model limit) — it **threads all eight courses** as a pure-generative proposer, "
     "the first Mode B model here to clear the slalom and the far off-centre gap without a "
-    "classical fallback (see docs/generative_limits.md). The two **kinematics** variants "
-    "show the seam carries vehicle dynamics too: one model, conditioned on the commanded "
-    "min turn radius R (the second context input), proposes a sharp detour for a "
-    "differential-drive robot (R=0.3) but a gentle one for an Ackermann car (R=1.5), and "
-    "the planner's **curvature validator disposes** any proposal that turns tighter than "
-    "1/R — so the Ackermann row threads the straight / gentle courses but reports *no path* "
-    "on the off-centre gaps (a 2 m lateral jog in ~1 m of travel is past a car's turning "
-    "circle), while the diff-drive row threads them. The **hybrid** "
+    "classical fallback (see docs/generative_limits.md). The three **kinematics** variants "
+    "show the seam carries vehicle dynamics too: *one* model, conditioned on the commanded "
+    "min turn radius R (the second context input, 0 = omni-directional), proposes a sharp "
+    "detour for an omni / differential-drive robot (R=0 / R=0.3) but a gentle one for an "
+    "Ackermann car (R=1.5) through the *same* gap, and the planner's **curvature validator "
+    "disposes** any proposal that turns tighter than 1/R. The **omni** row has the validator "
+    "off (R=0) and threads all eight courses including the S-shaped *slalom* (its +/-2 m "
+    "crossings in a ~1.6 m gap need a near-pivot only an omni robot has); the **diff** row "
+    "(R=0.3, gate 1/R=3.33) also threads all eight -- its sharp turning circle clears every "
+    "lateral maneuver and the coarse 12-pose slalom S stays under its gate; the "
+    "**Ackermann** row (R=1.5, gate 1/R=0.67) threads only the near-straight courses "
+    "(*clear*, *centred gap*, *double gate*) and the curvature validator reports *no path* "
+    "on every course that needs a real lateral move -- *narrow gap* (a ~1.5 aim correction "
+    "into the tight slot), *off-centre* / *far off-centre gap* (a 2 m jog in ~1 m of "
+    "travel), *side obstacle* (a ~2.2 bow), and *slalom* -- all past a 1.5 m turning "
+    "circle. All three are the same weights, differing only in the R input and the "
+    "curvature gate (omni 8/8, diff 8/8, Ackermann 3/8). The **hybrid** "
     "variant "
     "keeps the learned proposal but adds a classical (JPS) fallback: when no "
     "proposal threads the map it hands off to a complete search, so it solves every "

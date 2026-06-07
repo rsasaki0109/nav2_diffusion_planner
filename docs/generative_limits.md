@@ -133,28 +133,38 @@ fit させていた**ことと**train/inference の入力分布ズレ**だった
 入力を用意すれば、純生成提案は本ベンチの全コースを通す。hybrid は引き続き**任意地図の完全性**を担保するが、
 本ベンチのカタログ・コースに関しては純生成だけで足りる。
 
-#### 運動学条件付き(kinematics-conditioned)プランナ：1 モデルで多車種（2026-06）
+#### 運動学条件付き(kinematics-conditioned)プランナ：1 モデルで多車種（全8コース＋omni、2026-06）
 
 seam の**空き context スロット**（`context = [goal_distance, 0]` の 2 つ目）に車両の**最小回転半径 R**
-を入れると、**1 モデルで複数の操舵型**に対応できる。`make_costmap_path_kinematics_dataset` は各回り込みの
-横ずれ幅を `w=√(2·off·R)` にして**ピーク曲率 ~ 1/R** に整形する → 小さい R（差動二輪、その場旋回可）は
-鋭い回り込み、大きい R（Ackermann/車）は緩い回り込みを、**同じ gap**に対して提案する。
+（`R=0` は omni）を入れると、**1 モデルで複数の操舵型**に対応できる。`make_costmap_path_kinematics_dataset`
+は各回り込みの横ずれ幅を `w=√(2·off·R)` にして**ピーク曲率 ~ 1/R** に整形する → omni / 小さい R（差動二輪、
+その場旋回可）は鋭い回り込み、大きい R（Ackermann/車）は緩い回り込みを、**同じ gap**に対して提案する。学習は
+**全8コース**を含む（clear/centred/double-gate は直進・R 不変、off-centre/far gap と side は R 整形、slalom は
+**omni 専用ブロック**）。ベンチ slalom は ±2m の交差を ~1.6m の隙間で抜くため必要曲率 ~1/0.02m と車輪型の旋回円を
+遥かに超える＝omni でしか成立しない。
 
 そして `DiffusionGlobalPlanner` に `min_turn_radius` パラメータと **曲率 validator**（`isPathValid` 内、
 連続 3 点の Menger 外接円半径で曲率を測り 1/R 超を棄却）を追加した。**propose/dispose を footprint から
 車両ダイナミクスへ拡張**したもの: モデルが車種別に提案し、決定論層が運動学的に不可能な経路を捨てる。
 
-実 C++ benchmark（純生成）:
+実 C++ benchmark（純生成、同一重み・R 入力と曲率ゲートのみ差し替え）:
 
-| コース | diff (R=0.3) | Ackermann (R=1.5) |
-|---|:-:|:-:|
-| clear / centred / narrow / double gate | ✅ | ✅ |
-| off-centre gap / far off-centre gap | ✅ | ❌（曲率 validator が棄却） |
+| コース | omni (R=0) | diff (R=0.3) | Ackermann (R=1.5) |
+|---|:-:|:-:|:-:|
+| clear / centred gap / double gate | ✅ | ✅ | ✅ |
+| narrow gap | ✅ | ✅ | ❌ |
+| off-centre / far off-centre gap | ✅ | ✅ | ❌ |
+| side obstacle | ✅ | ✅ | ❌ |
+| slalom | ✅ | ✅ | ❌ |
+| **合計** | **8/8** | **8/8** | **3/8** |
 
-off-centre gap（slot を約 2m 横・前方約 1m で抜く）は Ackermann には**運動学的に不可能**（必要曲率 ~0.7 >
-1/R=0.67）なので validator が正しく no-path にする。出力ピーク曲率は指令 R に**単調**（diff > mid > Ackermann、
-exported ONNX で実測）。出荷: `diffusion_global_costmap_kinematics_v0`。slalom / double gate はこのデモ
-モデルの対象外（それらは attnseq）。gtest `CuratedZooKinematicsConditionsOnTurnRadius` が R 条件付けを保証。
+omni（gate off）は slalom 含む全コース貫通。diff（gate 1/R=3.33）も全コース貫通——鋭い旋回円で横移動を全てこなし、
+ベンチ slalom の粗い 12 点 S も gate を下回る。Ackermann（gate 1/R=0.67）は**ほぼ直進のコースのみ**通り、横移動が要る
+コース——narrow gap（狭スロットへの照準補正 κ~1.5）、off-centre/far gap（前方 ~1m で 2m 横ジョグ）、side（κ~2.2 の回避弓）、
+slalom——を曲率 validator が全て棄却（1.5m の旋回円を超える）。出力ピーク曲率は指令 R に**単調**（exported ONNX で実測）。
+出荷: `diffusion_global_costmap_kinematics_v0`（全8コース＋omni に再学習）。gtest `CuratedZooKinematicsConditionsOnTurnRadius`
+（R 条件付け）と `CuratedZooKinematicsOmniProposesSlalomSCurve`（omni の S 提案）が保証。曲率ゲート無しで全8コースを 1 モデル
+で通すのは [[attnseq-8of8-slalom-solved]] の attnseq。
 
 ### Mode A: 障害物スレッディング（回り込み通過）
 
@@ -164,6 +174,16 @@ learned Mode A は open では goal 到達するが、`controller_benchmark` の
 - **context 感度**: モデルは context（goal_x/y, max_angular など）の値に敏感で、benchmark のパラメータを学習分布に合わせる必要があった（lookahead/限界の調整で改善するが脆い）。
 
 単発の Mode B gap は footprint-aware 損失で貫通できたが、それは**1 回の前進横断で済む単発計画**だから。閉ループで誤差が累積する obstacle-threading（再観測のたびに分布外へ）はより強い天井で、同じ手は効かない。安全層（kinematic + footprint）が**衝突は常に防ぐ**点は意図どおり。
+
+#### 天井の精密診断：原因は「モデル容量」ではなく「教師」と「安全ゲートの粒度」（2026-06）
+
+Mode B の attnseq で効いた手（高容量 + token attention + DAgger）を Mode A に当てて切り分けた結果、天井の正体は**2 つの具体的・再現可能なメカニズム**であり、いずれも**学習モデルの容量・模倣精度ではない**ことが判明した（`dagger.py` の numpy 閉ループシムで再現、実 C++ controller の検証ロジックと一致）。
+
+1. **DAgger の oracle 自身が衝突している**。現行の手書き expert（`_expert_trajectory`）は回避バウが**ピーク 0.20m・各リプランでリセット**、かつ carrot が常に直線参照上にあるため、閉ループでは pure-pursuit が直線追従を支配して**障害物に直進衝突**する（expert 単独の閉ループ＝**1/4**、open のみ到達。side/two はブロック手前で衝突）。DAgger は訪問状態で oracle にラベルを問うので、**衝突する教師を集約**してしまう。これは [[attnseq-8of8-slalom-solved]] で見つけた「教師が壁を擦る」と同型。修正 oracle（自由側へずらした carrot へ pure-pursuit、曲率ベースで回頭・オフセットを持続）に差し替えると **expert 単独で 4/4 到達・無衝突**になる。
+
+2. **だが修正 oracle でも gated 閉ループは 1/4 のまま**。高容量 transformer（costmap token への cross-attention）が修正 oracle を **loss~0 で完全 fit** しても閉ループ成功は変わらない。原因は**デプロイの安全ゲートの粒度**: `_select`／実 C++ `FootprintCollisionFilter::check` は候補軌道の **H ステップ全点**を footprint チェックし、**1 点でも衝突すれば hard reject** する。ところがタイトな skirt 回避は、**ステップ実行では安全に脇を抜ける**（robot は y≈2.85 を通過、ブロックは y≥3.0）のに、**1m 先までの lookahead 弧の先端がブロックに被る**ため毎ステップ「安全候補なし」と判定され停止する。つまり「再観測のたびに分布外へ」だけでなく、**全ホライズン hard-reject の安全検証がタイトな反応的回避と非両立**——これが「障害物が patch に入った瞬間に安全停止」の機構的な正体である。
+
+**含意**: obstacle-threading を**純生成**で通すには、データ・モデルを増やすより、**安全ゲート/選択を「実際に実行する近傍ウィンドウ」基準に変える**（毎サイクル costmap を再評価する前提で、全ホライズンの hard-reject ではなく実行区間の検証＋コスト重み選択にする）必要がある——これは controller 設計の変更で、安全側のトレードオフを伴うため別途設計判断が要る。`safety/kinematic` が**衝突を常に防ぐ**現設計は保ったまま、**ハイブリッド（VFH+ fallback）が全シナリオ到達**を保証する点は変わらない（[[kinematics-conditioned-planner]] の propose/dispose と対称）。
 
 **ただしハイブリッドで解決済み（✅）**: `DiffusionController` の `fallback_controller_plugin`（既存）に classical の reactive controller（VFH+ 等）を設定すると、安全候補が無いとき停止する代わりに委譲する。`controller_comparison.md` の **Diffusion (Mode A, hybrid)** 行は **全シナリオで goal 到達**（open は learned、障害物は VFH+ fallback が回避。corridor 行は VFH+ と完全一致 = fallback 稼働の証拠）。Mode B planner の hybrid と完全に対称。
 
