@@ -7,6 +7,23 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 ## [Unreleased]
 
 ### Added
+- **Kinematics-conditioned Mode B planner: one model serves several steering
+  geometries, and a curvature validator disposes of infeasible turns.** The
+  `PathModel` seam's spare second context slot now carries the vehicle **min turn
+  radius R**; `make_costmap_path_kinematics_dataset` shapes each detour so its peak
+  curvature ~ 1/R, so the same model proposes a sharp path for a differential-drive
+  robot (R=0.3) and a gentle one for an Ackermann car (R=1.5) through the same gap.
+  `DiffusionGlobalPlanner` gains a `min_turn_radius` parameter and a curvature check
+  in `isPathValid` (Menger circumradius) that rejects proposals turning tighter than
+  1/R — propose/dispose extended from footprint to vehicle dynamics. Ships as
+  `diffusion_global_costmap_kinematics_v0` (model_zoo) with two benchmark rows
+  (`Diffusion (Mode B, kinematics diff / Ackermann)`) and an
+  `OnnxPathModelTest.CuratedZooKinematicsConditionsOnTurnRadius` gtest. In the real
+  C++ benchmark the diff-drive row threads the off-centre gaps while the Ackermann
+  row reports *no path* there (the curvature validator disposes the too-tight jog) —
+  both thread the straight / gentle courses. `PathContext` gains `context_aux`;
+  `OnnxPathModel` feeds it as the second context input (default 0 = backward
+  compatible).
 - **New `attnseq` Mode B path family — the first pure-generative planner here to
   thread ALL eight benchmark courses (8/8), including the long-"ceiling" *slalom*
   and *far off-centre gap*.** `CostmapPathAttnSeqPlanner` (cross-attention perception

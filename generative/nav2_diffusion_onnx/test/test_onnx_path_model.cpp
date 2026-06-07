@@ -44,6 +44,10 @@
 #ifndef ONNX_ZOO_COSTMAP_PATH_ATTNSEQ_MODEL
 #define ONNX_ZOO_COSTMAP_PATH_ATTNSEQ_MODEL ""
 #endif
+// The kinematics-conditioned Mode B sibling (context = [goal distance, min turn radius]).
+#ifndef ONNX_ZOO_COSTMAP_PATH_KINEMATICS_MODEL
+#define ONNX_ZOO_COSTMAP_PATH_KINEMATICS_MODEL ""
+#endif
 
 using nav2_diffusion_onnx::OnnxPathModel;
 
@@ -353,4 +357,53 @@ TEST(OnnxPathModelTest, CuratedZooAttnseqProposesSlalomSCurve)
     }
   }
   EXPECT_TRUE(found_s);
+}
+
+namespace
+{
+// Max discrete curvature along a candidate (Menger circumradius of consecutive points).
+double maxCurvature(const nav2_diffusion_core::PathCandidate & c)
+{
+  double kmax = 0.0;
+  for (std::size_t i = 1; i + 1 < c.points.size(); ++i) {
+    const auto & p0 = c.points[i - 1];
+    const auto & p1 = c.points[i];
+    const auto & p2 = c.points[i + 1];
+    const double ax = p1.x - p0.x, ay = p1.y - p0.y;
+    const double bx = p2.x - p1.x, by = p2.y - p1.y;
+    const double la = std::hypot(ax, ay), lb = std::hypot(bx, by);
+    const double lc = std::hypot(p2.x - p0.x, p2.y - p0.y);
+    if (la < 1e-6 || lb < 1e-6 || lc < 1e-6) {continue;}
+    kmax = std::max(kmax, 2.0 * std::abs(ax * by - ay * bx) / (la * lb * lc));
+  }
+  return kmax;
+}
+}  // namespace
+
+// The kinematics-conditioned Mode B sibling (diffusion_global_costmap_kinematics_v0):
+// the SAME model, fed a smaller min turn radius R in the second context slot, proposes a
+// SHARPER detour through the same off-centre gap. Guards that the shipped binary still
+// conditions its output curvature on the commanded R (diff-drive sharper than Ackermann).
+TEST(OnnxPathModelTest, CuratedZooKinematicsConditionsOnTurnRadius)
+{
+  const std::string zoo = ONNX_ZOO_COSTMAP_PATH_KINEMATICS_MODEL;
+  if (zoo.empty()) {
+    GTEST_SKIP() << "model_zoo kinematics path model path not provided";
+  }
+  OnnxPathModel model(zoo);
+  EXPECT_EQ(model.name(), "onnx_path");
+
+  // Same off-centre gap; only the commanded min turn radius R differs.
+  auto best_curv = [&](double R) {
+      auto ctx = gapContext(+1.0);
+      ctx.context_aux = R;
+      const auto cands = model.generate(ctx);
+      double lo = 1e9;
+      for (const auto & c : cands) {lo = std::min(lo, maxCurvature(c));}
+      return lo;
+    };
+  const double diff = best_curv(0.3);     // differential-drive: can turn sharp
+  const double ackermann = best_curv(1.5);  // Ackermann: must be gentle
+  // The diff-drive proposal must be meaningfully sharper than the Ackermann one.
+  EXPECT_GT(diff, ackermann * 1.2);
 }

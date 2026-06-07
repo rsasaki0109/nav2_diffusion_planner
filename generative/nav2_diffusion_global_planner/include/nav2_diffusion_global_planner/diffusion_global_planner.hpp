@@ -121,6 +121,7 @@ protected:
   std::string hybrid_mode_{"fallback"};   // "fallback" or "guided"
   double guidance_strength_{0.5};          // cost discount near proposals [0, 1)
   double guidance_radius_{0.3};            // corridor half-width around proposals [m]
+  double min_turn_radius_{0.0};            // vehicle min turn radius R [m]; 0 = no kinematic limit
 
   std::unique_ptr<pluginlib::ClassLoader<nav2_diffusion_core::PathModel>> model_loader_;
   std::shared_ptr<nav2_diffusion_core::PathModel> model_;

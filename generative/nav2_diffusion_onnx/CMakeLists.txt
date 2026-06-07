@@ -146,7 +146,8 @@ if(BUILD_TESTING)
             ONNX_ZOO_COSTMAP_PATH_MODEL="${_zoo}/diffusion_global/costmap_flow.onnx"
             ONNX_ZOO_COSTMAP_PATH_TRANSFORMER_MODEL="${_zoo}/diffusion_global_transformer/costmap_transformer.onnx"
             ONNX_ZOO_COSTMAP_PATH_RECURRENT_MODEL="${_zoo}/diffusion_global_recurrent/costmap_recurrent.onnx"
-            ONNX_ZOO_COSTMAP_PATH_ATTNSEQ_MODEL="${_zoo}/diffusion_global_attnseq/costmap_attnseq.onnx")
+            ONNX_ZOO_COSTMAP_PATH_ATTNSEQ_MODEL="${_zoo}/diffusion_global_attnseq/costmap_attnseq.onnx"
+            ONNX_ZOO_COSTMAP_PATH_KINEMATICS_MODEL="${_zoo}/diffusion_global_kinematics/costmap_kinematics.onnx")
 endif()
 
 ament_package()

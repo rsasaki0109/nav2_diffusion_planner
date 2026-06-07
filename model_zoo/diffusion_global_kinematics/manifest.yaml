@@ -1,0 +1,91 @@
+# Manifest for the curated *kinematics-conditioned* generative Mode B path planner.
+# Schema mirrors nav2_diffusion_models/manifests/example_diffusion_local.yaml
+# (docs/architecture.md section 5.4). Reproduce the artifact with export.py.
+
+model_name: diffusion_global_costmap_kinematics_v0
+model_family: attnseq              # same no-fan cross-attn autoregressive net; kinematics-conditioned data
+
+# Conditioning the model consumes (Mode B PathModel ONNX contract).
+input_modalities:
+  - local_costmap                  # goal-aligned 24x24 patch, normalized [0,1]
+  - local_goal                     # [goal distance, min turn radius R]
+
+output_type: path_candidates       # K start->goal global path proposals
+frame_convention: map              # candidates rotated back into the map frame by the C++ backend
+horizon: n/a                       # global path, not a timed trajectory
+robot_kinematics: conditioned      # the SAME model serves several steering geometries via R
+
+io_contract:
+  inputs:
+    context: [1, 2]                # [goal_distance, min_turn_radius_R]
+    costmap: [1, 1, 24, 24]
+  output:
+    paths: [1, 5, 12, 2]
+  patch_window:
+    forward_m: 6.0
+    half_width_m: 3.0
+
+runtime: onnx
+precision: fp32
+
+architecture:
+  type: attnseq_autoregressive
+  note: >
+    Same network as diffusion_global_costmap_attnseq_v0 (cross-attention perception
+    tokenizer + per-step cross-attention GRU decoder + K learned seeds, no lateral fan).
+    The novelty is the conditioning: the previously-unused second context slot carries
+    the vehicle min turn radius R, so one model produces R-appropriate paths.
+
+training_data:
+  datasets:
+    - name: synthetic_kinematics_conditioned
+      source: sim                  # procedural: clear + off-centre/far gap + centred gap + side, R-shaped detours
+      fraction: 1.0
+  robot_types:
+    - differential_drive           # small R (tight detours)
+    - ackermann                    # large R (gentle detours)
+    - generic
+  notes: >
+    Fully synthetic (make_costmap_path_kinematics_dataset). Each maneuver's lateral
+    detour is a Gaussian whose width w=sqrt(2*off*R) sets peak curvature ~ 1/R, with R
+    sampled over 0.3..1.5 m. Deployment-matched patches (_resampled_aligned_patch). NO
+    real-robot or rosbag data. Slalom / double gate are out of scope for this model.
+
+# Behavioural check, not the full Nav2 benchmark suite (research placeholder).
+benchmark_results:
+  passed: true
+  suite: footprint+curvature-validated planner_benchmark, pure generative (no fallback)
+  conditions_on_min_turn_radius: true   # same gap, smaller R -> sharper path (monotonic peak curvature)
+  curvature_validator_disposes_infeasible: true  # Ackermann (R=1.5) -> no path on the off-centre gaps
+  note: >
+    On the off-centre gap, feeding R=0.3 (diff-drive) yields a sharp detour the planner
+    accepts; feeding R=1.5 (Ackermann) yields a path whose curvature exceeds 1/R, which
+    the planner's curvature validator disposes (no path) — kinematically correct, a 2 m
+    lateral jog in ~1 m of travel is past a car's turning circle. Both thread the
+    straight / gentle courses (clear, centred, narrow, double gate). The peak output
+    curvature is monotonic in the commanded R (diff > mid > Ackermann). See
+    docs/generative_limits.md.
+  collision_count: 0
+
+limitations:
+  - "Synthetic training data only — NOT validated on any real robot or rosbag."
+  - "Demonstration model: covers clear / off-centre / far / centred gap and is conditioned on R; slalom / double gate are out of scope (use diffusion_global_costmap_attnseq_v0 for those)."
+  - "R demonstrated over 0.3..1.5 m; the curvature validator is the authority on feasibility, not the model."
+  - "Research / demonstration model. Do not deploy on hardware; the validity layer is the authority."
+
+license:
+  model: Apache-2.0
+  data: Apache-2.0
+  code: Apache-2.0
+
+checksum:
+  algorithm: sha256
+  value: "061e74f4f905225875715b806fa41585d14489e26315bcdf5474eefede0dc62c"
+  artifact: costmap_kinematics.onnx
+
+reproduce:
+  command: "PYTHONPATH=../../generative/nav2_diffusion_training python3 export.py  # GPU if available; CUDA_VISIBLE_DEVICES= forces CPU"
+  toolchain: "torch 2.10.0+cu128, onnx 1.21.0; trained on CUDA, exported on CPU"
+  hyperparameters: "attnseq (dim 64 / 8 heads), dataset 'kinematics', 400 samples, 2500 epochs, lr 0.004 cosine, grad-clip 1.0, best-checkpoint"
+  seed: 0
+  note: "GPU training is not bit-exact run-to-run; the committed artifact conditions on R and is disposed by the curvature validator on the off-centre gaps for Ackermann (verified). A re-export reproduces the R-conditioning trend."

@@ -133,6 +133,29 @@ fit させていた**ことと**train/inference の入力分布ズレ**だった
 入力を用意すれば、純生成提案は本ベンチの全コースを通す。hybrid は引き続き**任意地図の完全性**を担保するが、
 本ベンチのカタログ・コースに関しては純生成だけで足りる。
 
+#### 運動学条件付き(kinematics-conditioned)プランナ：1 モデルで多車種（2026-06）
+
+seam の**空き context スロット**（`context = [goal_distance, 0]` の 2 つ目）に車両の**最小回転半径 R**
+を入れると、**1 モデルで複数の操舵型**に対応できる。`make_costmap_path_kinematics_dataset` は各回り込みの
+横ずれ幅を `w=√(2·off·R)` にして**ピーク曲率 ~ 1/R** に整形する → 小さい R（差動二輪、その場旋回可）は
+鋭い回り込み、大きい R（Ackermann/車）は緩い回り込みを、**同じ gap**に対して提案する。
+
+そして `DiffusionGlobalPlanner` に `min_turn_radius` パラメータと **曲率 validator**（`isPathValid` 内、
+連続 3 点の Menger 外接円半径で曲率を測り 1/R 超を棄却）を追加した。**propose/dispose を footprint から
+車両ダイナミクスへ拡張**したもの: モデルが車種別に提案し、決定論層が運動学的に不可能な経路を捨てる。
+
+実 C++ benchmark（純生成）:
+
+| コース | diff (R=0.3) | Ackermann (R=1.5) |
+|---|:-:|:-:|
+| clear / centred / narrow / double gate | ✅ | ✅ |
+| off-centre gap / far off-centre gap | ✅ | ❌（曲率 validator が棄却） |
+
+off-centre gap（slot を約 2m 横・前方約 1m で抜く）は Ackermann には**運動学的に不可能**（必要曲率 ~0.7 >
+1/R=0.67）なので validator が正しく no-path にする。出力ピーク曲率は指令 R に**単調**（diff > mid > Ackermann、
+exported ONNX で実測）。出荷: `diffusion_global_costmap_kinematics_v0`。slalom / double gate はこのデモ
+モデルの対象外（それらは attnseq）。gtest `CuratedZooKinematicsConditionsOnTurnRadius` が R 条件付けを保証。
+
 ### Mode A: 障害物スレッディング（回り込み通過）
 
 learned Mode A は open では goal 到達するが、`controller_benchmark` の *frontal / side / corridor* では障害物が egocentric patch に入った時点で **drift → 安全候補なし → 安全停止**（障害物の手前、衝突なし）。これは:

@@ -327,6 +327,35 @@ def test_double_gate_dataset_is_straight_through_two_gates():
     assert mid[:, mid.shape[1] // 2].sum().item() == 0
 
 
+def test_kinematics_dataset_curvature_scales_with_turn_radius():
+    """
+    The kinematics dataset conditions on R: a smaller R yields a sharper detour expert.
+
+    context = [goal_distance, R]; the off-centre-gap detour width is sqrt(2*off*R), so a
+    small R (diff-drive) gives a tighter bump (higher peak |y''|) than a large R
+    (Ackermann) for the same slot. Guards the data the kinematics-conditioned model
+    learns from (docs/generative_limits.md).
+    """
+    import math
+    from nav2_diffusion_training.path_planners import (
+        PATH_DIM, PATH_H, _curvature_bump, make_costmap_path_kinematics_dataset)
+    ctx, patches, targets = make_costmap_path_kinematics_dataset(20)
+    assert ctx.shape[1] == 2
+    assert patches.shape[1:] == (1, 24, 24)
+    assert targets.shape[1:] == (PATH_H, PATH_DIM)
+    # The second context column is the (positive) min turn radius R.
+    assert (ctx[:, 1] > 0).all()
+
+    def peak_abs_yy(rows):
+        y = [p[1] for p in rows]
+        return max(abs(y[h + 1] - 2 * y[h] + y[h - 1]) for h in range(1, len(y) - 1))
+
+    # Same slot/wall, smaller R -> sharper bump (larger peak |y''|).
+    sharp = _curvature_bump(4.0, 2.0, 2.0, math.sqrt(2 * 2.0 * 0.3))   # R=0.3
+    gentle = _curvature_bump(4.0, 2.0, 2.0, math.sqrt(2 * 2.0 * 1.5))  # R=1.5
+    assert peak_abs_yy(sharp) > peak_abs_yy(gentle)
+
+
 def test_footprint_penalty_prefers_routing_through_the_slot():
     """
     The footprint-clearance term penalizes a wall-crossing path over a slot one.

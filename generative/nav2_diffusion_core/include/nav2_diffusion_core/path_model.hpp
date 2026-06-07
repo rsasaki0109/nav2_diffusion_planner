@@ -37,6 +37,12 @@ struct PathContext
   int num_candidates{1};  ///< number of candidate paths to propose
   int num_points{20};    ///< waypoints per candidate (including endpoints)
 
+  /// Auxiliary scalar conditioning fed to the model as the second context input
+  /// (the first is the goal distance). 0 = unused (the default for models trained
+  /// with a zero there). Kinematics-conditioned models read it as the vehicle's
+  /// **min turn radius R**, so one model can serve several steering geometries.
+  double context_aux{0.0};
+
   /// Optional global costmap for costmap-conditioned models, row-major
   /// size_x * size_y, normalized to [0, 1] (1 = lethal). Analytic models ignore
   /// it; the planner does the authoritative collision check itself regardless.

@@ -69,6 +69,8 @@ void DiffusionGlobalPlanner::configure(
     node, name_ + ".guidance_strength", rclcpp::ParameterValue(0.5));
   declare_parameter_if_not_declared(
     node, name_ + ".guidance_radius", rclcpp::ParameterValue(0.3));
+  declare_parameter_if_not_declared(
+    node, name_ + ".min_turn_radius", rclcpp::ParameterValue(0.0));
 
   node->get_parameter(name_ + ".num_candidates", num_candidates_);
   node->get_parameter(name_ + ".num_points", num_points_);
@@ -82,6 +84,7 @@ void DiffusionGlobalPlanner::configure(
   node->get_parameter(name_ + ".hybrid_mode", hybrid_mode_);
   node->get_parameter(name_ + ".guidance_strength", guidance_strength_);
   node->get_parameter(name_ + ".guidance_radius", guidance_radius_);
+  node->get_parameter(name_ + ".min_turn_radius", min_turn_radius_);
 
   if (model_plugin_.empty()) {
     model_ = std::make_shared<nav2_diffusion_core::FanPathModel>(max_bow_fraction_);
@@ -202,6 +205,30 @@ bool DiffusionGlobalPlanner::isPathValid(const nav2_diffusion_core::PathCandidat
       }
     }
   }
+  // Kinematic feasibility: when a min turn radius R is set, dispose of any proposal
+  // whose discrete curvature exceeds 1/R anywhere (the path turns tighter than the
+  // vehicle can). Curvature at an interior vertex via the Menger circumradius of the
+  // three consecutive points: kappa = 2*|cross(ab, bc)| / (|ab| |bc| |ac|).
+  if (min_turn_radius_ > 0.0 && path.points.size() >= 3) {
+    const double kappa_max = 1.0 / min_turn_radius_;
+    for (std::size_t i = 1; i + 1 < path.points.size(); ++i) {
+      const auto & p0 = path.points[i - 1];
+      const auto & p1 = path.points[i];
+      const auto & p2 = path.points[i + 1];
+      const double ax = p1.x - p0.x, ay = p1.y - p0.y;
+      const double bx = p2.x - p1.x, by = p2.y - p1.y;
+      const double la = std::hypot(ax, ay);
+      const double lb = std::hypot(bx, by);
+      const double lc = std::hypot(p2.x - p0.x, p2.y - p0.y);
+      if (la < 1e-6 || lb < 1e-6 || lc < 1e-6) {
+        continue;
+      }
+      const double kappa = 2.0 * std::abs(ax * by - ay * bx) / (la * lb * lc);
+      if (kappa > kappa_max) {
+        return false;
+      }
+    }
+  }
   return true;
 }
 
@@ -234,6 +261,9 @@ nav_msgs::msg::Path DiffusionGlobalPlanner::createPlan(
   ctx.goal_y = goal.pose.position.y;
   ctx.num_candidates = num_candidates_;
   ctx.num_points = num_points_;
+  // Kinematics-conditioned models read the commanded min turn radius R from the
+  // second context slot; plain models were trained with a zero there and ignore it.
+  ctx.context_aux = min_turn_radius_;
   // Hand the (normalized) global costmap to costmap-conditioned models; analytic
   // models ignore it. The deterministic validity layer below remains the
   // authority on collisions regardless.

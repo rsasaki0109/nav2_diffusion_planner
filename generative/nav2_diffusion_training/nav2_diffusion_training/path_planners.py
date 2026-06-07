@@ -860,14 +860,96 @@ def make_costmap_path_slalom_dataset(num_samples):
     )
 
 
+def _curvature_bump(d, xw, amp, w):
+    """A Gaussian lateral detour peaking at the wall, width w sets peak curvature ~1/R.
+
+    ``y(x) = amp * exp(-((x-xw)/w)^2)`` peaks ``amp`` at the wall ``xw`` (so it threads a
+    thin slot / clears a block there) and is ~0 at start/goal. Its peak |y''| = 2|amp|/w^2,
+    so choosing ``w = sqrt(2|amp| R)`` makes the maximum path curvature ~ ``1/R`` — the
+    knob a kinematics-conditioned model learns from the commanded min turn radius R.
+    """
+    rows = []
+    for h in range(PATH_H):
+        x = (h / (PATH_H - 1)) * d
+        y = amp * math.exp(-((x - xw) / w) ** 2) if w > 0.0 else 0.0
+        rows.append([x, y])
+    return rows
+
+
+def make_costmap_path_kinematics_dataset(num_samples):
+    """
+    Kinematics-conditioned data: condition the proposal on the vehicle min turn radius R.
+
+    ``context = [goal_distance, R]`` (R = min turn radius; the previously-unused second
+    context slot). A maneuver's lateral detour is shaped so its **peak curvature ~ 1/R**:
+    a small R (a differential-drive robot that can pivot) gets a sharp, tight detour; a
+    large R (an Ackermann / car-like robot) gets a gentle, wide one — through the *same*
+    gap. One model serves multiple steering geometries; the planner's curvature check
+    (``min_turn_radius`` parameter) then *disposes* of any proposal that violates the
+    commanded kinematics (the propose/dispose split, extended to vehicle dynamics).
+
+    Covers *clear* (straight), *off-centre* / *far off-centre gap* and *side obstacle*
+    (R-shaped detours), and *centred gap* (straight through), with deployment-matched
+    patches (``_resampled_aligned_patch``). Slalom / double gate are out of scope for this
+    demonstration model (their fixed S is not a single R-shaped bump).
+    """
+    contexts = []
+    patches = []
+    targets = []
+    Rs = [0.3, 0.5, 0.8, 1.1, 1.5]            # min turn radius [m]: diff (tight) .. Ackermann (gentle)
+    offs = [1.4, 1.6, 1.8, 2.0]               # slot |offset| [m]
+    xws = [2.0, 2.2, 2.6, 2.8, 3.0]           # wall aligned x [m] (off-centre 2.0, far 3.0)
+    kinds = ['clear', 'gap', 'gap', 'side', 'centred']
+    i = 0
+    while len(contexts) < num_samples:
+        d = 4.0 + 0.4 * ((i * 3) % 2)
+        R = Rs[i % len(Rs)]
+        off = offs[(i // 2) % len(offs)]
+        xw = xws[(i // 3) % len(xws)]
+        kind = kinds[i % len(kinds)]
+        for side in (1.0, -1.0):
+            if len(contexts) >= num_samples:
+                break
+            if kind == 'clear':
+                contexts.append([d, R])
+                patches.append(torch.zeros(1, PATH_COSTMAP_SIZE, PATH_COSTMAP_SIZE))
+                targets.append(_curvature_bump(d, xw, 0.0, 0.0))
+            elif kind == 'centred':
+                contexts.append([d, R])
+                patches.append(_resampled_aligned_patch([(1.0 + xw, 3.0, 0.5, 2)]))
+                targets.append(_curvature_bump(d, xw, 0.0, 0.0))
+            elif kind == 'gap':
+                slot = side * off
+                w = math.sqrt(2.0 * off * R)
+                contexts.append([d, R])
+                patches.append(_resampled_aligned_patch([(1.0 + xw, 3.0 + slot, 0.6, 2)]))
+                targets.append(_curvature_bump(d, xw, slot, w))
+            else:  # one-sided block: bow to the free side with curvature ~1/R
+                amp = -side * 1.0           # detour amplitude toward the free side
+                w = math.sqrt(2.0 * abs(amp) * R)
+                # block on the +/-y side ahead: free for wy on the detour side
+                gap_center = 3.0 + amp * 2.0
+                contexts.append([d, R])
+                patches.append(_resampled_aligned_patch([(1.0 + xw, gap_center, 1.4, 4)]))
+                targets.append(_curvature_bump(d, xw, amp, w))
+        i += 1
+    return (
+        torch.tensor(contexts, dtype=torch.float32),
+        torch.stack(patches),
+        torch.tensor(targets, dtype=torch.float32),
+    )
+
+
 def _path_dataset(dataset, num_samples):
-    """Select/combine: 'side', 'gap', 'centred', 'slalom', 'both', or 'all'."""
+    """Select/combine: 'side', 'gap', 'centred', 'slalom', 'kinematics', 'both', or 'all'."""
     if dataset == 'side':
         return make_costmap_path_dataset(num_samples)
     if dataset == 'gap':
         return make_costmap_path_gap_dataset(num_samples)
     if dataset == 'centred':
         return make_costmap_path_centred_gap_dataset(num_samples)
+    if dataset == 'kinematics':
+        return make_costmap_path_kinematics_dataset(num_samples)
     if dataset == 'slalom':
         return make_costmap_path_slalom_dataset(num_samples)
     if dataset == 'all':

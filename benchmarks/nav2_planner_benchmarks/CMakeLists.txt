@@ -61,6 +61,11 @@ install(
   RENAME diffusion_global_costmap_attnseq.onnx
 )
 install(
+  FILES ${CMAKE_CURRENT_SOURCE_DIR}/../../model_zoo/diffusion_global_kinematics/costmap_kinematics.onnx
+  DESTINATION share/${PROJECT_NAME}/models
+  RENAME diffusion_global_costmap_kinematics.onnx
+)
+install(
   FILES ${CMAKE_CURRENT_SOURCE_DIR}/../../model_zoo/diffusion_local/costmap_flow.onnx
   DESTINATION share/${PROJECT_NAME}/models
   RENAME diffusion_local_costmap_flow.onnx

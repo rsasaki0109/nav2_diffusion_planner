@@ -118,7 +118,10 @@ std::vector<nav2_diffusion_core::PathCandidate> OnnxPathModel::generate(
   const double cos_b = std::cos(bearing);
   const double sin_b = std::sin(bearing);
 
-  std::array<float, 2> input_values = {static_cast<float>(dist), 0.0f};
+  // context = [goal distance, auxiliary]. The aux slot is 0 for the plain models and
+  // the commanded min turn radius R for kinematics-conditioned ones (PathContext::context_aux).
+  std::array<float, 2> input_values = {
+    static_cast<float>(dist), static_cast<float>(context.context_aux)};
   const std::array<int64_t, 2> input_shape = {1, 2};
   const Ort::MemoryInfo memory =
     Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
