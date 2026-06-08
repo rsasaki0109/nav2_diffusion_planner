@@ -33,8 +33,14 @@ add_executable(controller_benchmark src/controller_benchmark.cpp)
 target_compile_features(controller_benchmark PUBLIC cxx_std_17)
 ament_target_dependencies(controller_benchmark ${dependencies})
 
+# Trace exporter for the Nav2PlannerBattle web game (tools/nav2_planner_battle):
+# runs the real planner/controller plugins and dumps per-step JSON traces.
+add_executable(battle_trace src/battle_trace.cpp)
+target_compile_features(battle_trace PUBLIC cxx_std_17)
+ament_target_dependencies(battle_trace ${dependencies})
+
 install(
-  TARGETS planner_benchmark controller_benchmark
+  TARGETS planner_benchmark controller_benchmark battle_trace
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 

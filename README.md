@@ -154,6 +154,12 @@ closed-loop *numbers* require a real ROS host (the dev sandbox blocks inter-proc
 DDS), so none are fabricated here — see [docs/simulation.md](docs/simulation.md)
 section 10.5.
 
+## Planner Battle (browser game) ⚔️
+
+<p align="center"><img src="tools/nav2_planner_battle/docs/battle_frontal.png" width="640" alt="Nav2 Planner Battle — Mode A race on the frontal block"></p>
+
+<p align="center"><em>A self-contained browser game that replays the repo's <strong>real</strong> planners and controllers head-to-head — no scripted winners. <strong>Mode A · Race</strong>: the local controllers race a unicycle through a shared arena (watch the <strong>threading</strong> model thread the dead-ahead block while the plain learned/transformer/recurrent models stall). <strong>Mode B · Duel</strong>: the global planners draw their <code>createPlan</code> paths simultaneously, shortest valid path wins. Just open <a href="tools/nav2_planner_battle/index.html">tools/nav2_planner_battle/index.html</a> — traces come from <code>ros2 run nav2_planner_benchmarks battle_trace</code>, mirroring the benchmarks exactly. See <a href="tools/nav2_planner_battle/README.md">tools/nav2_planner_battle</a>.</em></p>
+
 ## Documentation map
 
 | Document | Contents |
