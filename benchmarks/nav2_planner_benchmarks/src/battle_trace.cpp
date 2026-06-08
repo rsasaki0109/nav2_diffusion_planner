@@ -271,6 +271,8 @@ struct ModeAScenario
   std::string name, description;
   double sx, sy, gx, gy;
   std::vector<Rect> obstacles;
+  bool centering{false};
+  double centerline{3.0};
 };
 
 struct ModeBScenario
@@ -355,12 +357,13 @@ int main(int argc, char ** argv)
     {"side", "Off-centre block overlapping the straight path", 1.0, 3.0, 5.0, 3.0,
       {blockRect(3.0, 3.3, 6)}},
     {"corridor", "Two walls (y=2.1, y=3.9); off-centre start near the top wall",
-      1.0, 3.6, 5.0, 3.0, {hwallRect(2.1, 0.5, 5.5, 2), hwallRect(3.9, 0.5, 5.5, 2)}},
+      1.0, 3.6, 5.0, 3.0, {hwallRect(2.1, 0.5, 5.5, 2), hwallRect(3.9, 0.5, 5.5, 2)},
+      true, 3.0},
   };
   for (const auto & maze : microMouseLayouts()) {
     aScenarios.push_back(
       {maze.name, maze.description, maze.start_x, maze.start_y, maze.goal_x, maze.goal_y,
-        mazeDisplayRects(maze.name)});
+        mazeDisplayRects(maze.name), false, 3.0});
   }
 
   const std::vector<Entry> planners = {
@@ -455,7 +458,13 @@ int main(int argc, char ** argv)
       std::cout << "{\"x\":" << r.x << ",\"y\":" << r.y << ",\"w\":" << r.w << ",\"h\":" << r.h
                 << "}" << (oi + 1 < sc.obstacles.size() ? "," : "");
     }
-    std::cout << "],\"fighters\":[\n";
+    std::cout << "],\"metrics\":{";
+    if (sc.centering) {
+      std::cout << "\"centering\":true,\"centerline\":" << sc.centerline;
+    } else {
+      std::cout << "\"centering\":false";
+    }
+    std::cout << "},\"fighters\":[\n";
 
     for (std::size_t ci = 0; ci < controllers.size(); ++ci) {
       const auto & ce = controllers[ci];
@@ -473,6 +482,10 @@ int main(int argc, char ** argv)
       std::vector<std::array<double, 3>> trace;
       double path_len = 0.0;
       double min_clear = std::numeric_limits<double>::max();
+      double sum_dw = 0.0;
+      double sum_off = 0.0;
+      double prev_w = 0.0;
+      int steps = 0;
       try {
         controller = cloader.createSharedInstance(ce.class_name);
         controller->configure(node, name, tf, costmap_ros);
@@ -522,6 +535,11 @@ int main(int argc, char ** argv)
           const double w = cmd.twist.angular.z;
           last_twist = cmd.twist;
           min_clear = std::min(min_clear, nearestObstacle(costmap, x, y, 1.0));
+          if (sc.centering) {
+            sum_off += std::abs(y - sc.centerline);
+          }
+          sum_dw += std::abs(w - prev_w);
+          prev_w = w;
           const double nx = x + v * std::cos(yaw) * kDt;
           const double ny = y + v * std::sin(yaw) * kDt;
           path_len += std::hypot(nx - x, ny - y);
@@ -529,6 +547,7 @@ int main(int argc, char ** argv)
           y = ny;
           yaw += w * kDt;
           trace.push_back({x, y, yaw});
+          ++steps;
 
           unsigned int mx = 0, my = 0;
           if (!costmap->worldToMap(x, y, mx, my) ||
@@ -549,6 +568,9 @@ int main(int argc, char ** argv)
         outcome = "error";
       }
 
+      const double mean_dw = steps > 0 ? sum_dw / steps : 0.0;
+      const double mean_center = (sc.centering && steps > 0) ? sum_off / steps : -1.0;
+
       std::cout << "{\"label\":"; j.str(ce.label);
       std::cout << ",\"family\":"; j.str(ce.family);
       std::cout << ",\"outcome\":"; j.str(outcome);
@@ -556,6 +578,10 @@ int main(int argc, char ** argv)
       std::cout << ",\"length\":" << path_len;
       std::cout << ",\"clearance\":"
                 << (min_clear == std::numeric_limits<double>::max() ? 0.0 : min_clear);
+      std::cout << ",\"mean_dw\":" << mean_dw;
+      if (mean_center >= 0.0) {
+        std::cout << ",\"centering\":" << mean_center;
+      }
       std::cout << ",\"path\":[";
       for (std::size_t k = 0; k < trace.size(); ++k) {
         std::cout << "[" << trace[k][0] << "," << trace[k][1] << "," << trace[k][2] << "]"

@@ -244,14 +244,61 @@ function pathLenTo(path, idx){
 
 function frameIdxA(f){ return Math.min(t, f.path.length-1); }
 
+function scenarioMetrics(){
+  const sc = curScenario();
+  return sc.metrics || {centering:false};
+}
+
+function liveSteering(path, idx){
+  if(idx < 1) return 0;
+  let sum = 0;
+  for(let k = 1; k <= idx; k++){
+    let d = path[k][2] - path[k-1][2];
+    while(d > Math.PI) d -= 2*Math.PI;
+    while(d < -Math.PI) d += 2*Math.PI;
+    sum += Math.abs(d);
+  }
+  return sum / idx;
+}
+
+function liveCentering(path, idx, centerline){
+  if(centerline == null) return null;
+  let sum = 0;
+  for(let k = 0; k <= idx; k++) sum += Math.abs(path[k][1] - centerline);
+  return sum / (idx + 1);
+}
+
+function distToRect(x, y, r){
+  const cx = Math.max(r.x, Math.min(x, r.x + r.w));
+  const cy = Math.max(r.y, Math.min(y, r.y + r.h));
+  if(x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) return 0;
+  return Math.hypot(x - cx, y - cy);
+}
+
+function liveClearance(path, idx, obstacles){
+  let min = 1e9;
+  for(let k = 0; k <= idx; k++){
+    const p = path[k];
+    for(const r of (obstacles || [])){
+      min = Math.min(min, distToRect(p[0], p[1], r));
+    }
+  }
+  return min >= 1e8 ? null : min;
+}
+
 function liveMetricsA(f){
   const idx = frameIdxA(f);
   const g = curScenario().goal;
   const p = f.path[idx];
+  const met = scenarioMetrics();
+  const clr = liveClearance(f.path, idx, curScenario().obstacles);
   return {
     steps: idx,
     length: pathLenTo(f.path, idx),
     dist: Math.hypot(g[0]-p[0], g[1]-p[1]),
+    clearance: clr,
+    mean_dw: liveSteering(f.path, idx),
+    centering: met.centering ? liveCentering(f.path, idx, met.centerline) : null,
     done: idx >= f.path.length-1,
   };
 }
@@ -264,6 +311,8 @@ function liveMetricsB(f){
     length: pathLenTo(f.path, upto-1),
     total: f.length,
     time_ms: f.time_ms,
+    poses: upto,
+    total_poses: f.poses || f.path.length,
     progress: frac,
     done: frac >= 1,
   };
@@ -272,11 +321,12 @@ function liveMetricsB(f){
 function drawHud(){
   if(isChamp()) return;
   const rows = (mode==='modeA' ? rankA() : rankB()).slice(0, 5);
-  const lineH = 15;
-  const panelH = 24 + rows.length * lineH;
-  const px = 10, py = H - panelH - 10, pw = 228;
+  const met = scenarioMetrics();
+  const lineH = mode==='modeA' ? 28 : 18;
+  const panelH = 26 + rows.length * lineH;
+  const px = 10, py = H - panelH - 10, pw = 360;
   ctx.save();
-  ctx.fillStyle = 'rgba(14,20,42,0.9)';
+  ctx.fillStyle = 'rgba(14,20,42,0.92)';
   ctx.strokeStyle = '#3a4a7a';
   ctx.lineWidth = 1;
   ctx.beginPath();
@@ -287,24 +337,41 @@ function drawHud(){
   ctx.fillStyle = '#8b97c4';
   ctx.textAlign = 'left';
   const title = mode==='modeA' ? 'LIVE · race' : 'LIVE · duel';
-  ctx.fillText(`${title}  ·  frame ${t}/${maxFrames()}`, px+10, py+16);
+  const hdr = mode==='modeA'
+    ? `${title} · frame ${t}/${maxFrames()} · controller_comparison.md`
+    : `${title} · frame ${t}/${maxFrames()} · planner_comparison.md`;
+  ctx.fillText(hdr, px+10, py+16);
+  ctx.font = '9px system-ui';
+  ctx.fillStyle = '#6a7599';
+  if(mode==='modeA'){
+    ctx.fillText('clr=min obstacle dist · |Δw|=steering smoothness' +
+      (met.centering ? ' · ctr=corridor centering' : ''), px+10, py+28);
+  } else {
+    ctx.fillText('len=path length · ms=median planning time · pt=poses drawn', px+10, py+28);
+  }
   ctx.font = '10px system-ui';
   rows.forEach((r,k)=>{
-    const y = py + 30 + k*lineH;
+    const y = py + 38 + k*lineH;
     ctx.fillStyle = colorFor(r.i);
     circle(px+14, y-3, 4);
     ctx.fillStyle = '#e8ecff';
     if(mode==='modeA'){
       const m = liveMetricsA(r.f);
       const tag = m.done ? r.f.outcome : '…';
-      ctx.fillText(
-        `${r.f.label}: ${m.steps} st · ${m.length.toFixed(1)} m · ${m.dist.toFixed(2)} m → [${tag}]`,
-        px+24, y);
+      const clr = m.clearance != null ? m.clearance.toFixed(2) : '—';
+      const dw = m.mean_dw.toFixed(3);
+      let line1 = `${r.f.label}: ${m.steps} st · ${m.length.toFixed(1)} m · clr ${clr} · |Δw| ${dw}`;
+      if(m.centering != null) line1 += ` · ctr ${m.centering.toFixed(2)}`;
+      ctx.fillText(line1, px+24, y);
+      ctx.fillStyle = '#8b97c4';
+      ctx.fillText(`dist ${m.dist.toFixed(2)} m → [${tag}]`, px+24, y+12);
     } else {
       const m = liveMetricsB(r.f);
       if(m){
         const len = m.done ? m.total.toFixed(2) : m.length.toFixed(2);
-        ctx.fillText(`${r.f.label}: ${len} m · ${m.time_ms.toFixed(1)} ms`, px+24, y);
+        ctx.fillText(
+          `${r.f.label}: ${len} m · ${m.time_ms.toFixed(1)} ms · ${m.poses}/${m.total_poses} pt`,
+          px+24, y);
       } else {
         ctx.fillStyle = '#8b97c4';
         ctx.fillText(`${r.f.label}: no path`, px+24, y);
@@ -506,26 +573,39 @@ function buildBoard(){
   if(mode==='modeA'){
     const rows = rankA();
     const live = t > 0 && t < maxFrames();
+    const met = scenarioMetrics();
     let h='<tr><th>#</th><th>Controller</th><th>Result</th><th class="r">Steps</th>'
-      +'<th class="r">Len</th><th class="r">Dist</th><th class="r">Clear</th></tr>';
+      +'<th class="r">Len</th><th class="r">Clr</th><th class="r">|Δw|</th>';
+    if(met.centering) h += '<th class="r">Ctr</th>';
+    h += '</tr>';
     rows.forEach((r,k)=>{
       const m = liveMetricsA(r.f);
       const win = k===0 && (m.done ? r.f.outcome==='reached' : false);
       const res = m.done ? badge(r.f.outcome) : '<span class="badge b-live">live</span>';
+      const clr = m.done && r.f.clearance != null ? r.f.clearance.toFixed(2)
+        : (m.clearance != null ? m.clearance.toFixed(2) : '—');
+      const dw = m.done && r.f.mean_dw != null ? r.f.mean_dw.toFixed(3) : m.mean_dw.toFixed(3);
       h+=`<tr class="${win?'row-win':''}"><td>${win?'<span class="crown">👑</span>':k+1}</td>`+
         `<td><span class="dot" style="color:${colorFor(r.i)}"></span>${r.f.label}</td>`+
         `<td>${res}</td><td class="r">${m.steps}</td>`+
-        `<td class="r">${m.length.toFixed(2)}</td><td class="r">${m.dist.toFixed(2)}</td>`+
-        `<td class="r">${m.done?r.f.clearance.toFixed(2):'—'}</td></tr>`;
+        `<td class="r">${m.length.toFixed(2)}</td>`+
+        `<td class="r">${clr}</td><td class="r">${dw}</td>`;
+      if(met.centering){
+        const ctr = m.done && r.f.centering != null ? r.f.centering.toFixed(2)
+          : (m.centering != null ? m.centering.toFixed(2) : '—');
+        h += `<td class="r">${ctr}</td>`;
+      }
+      h += '</tr>';
     });
     tb.innerHTML=h;
     el('hudHint').textContent = live
-      ? 'Live columns update each frame (steps · path length · distance to goal).'
+      ? 'Live HUD + table mirror docs/controller_comparison.md (clearance · steering · corridor centering).'
       : 'Matches docs/controller_comparison.md — play to watch live metrics.';
   } else {
     const rows = rankB();
     const live = t > 0 && t < maxFrames();
-    let h='<tr><th>#</th><th>Planner</th><th>Path</th><th class="r">Length</th><th class="r">ms</th></tr>';
+    let h='<tr><th>#</th><th>Planner</th><th>Path</th><th class="r">Length</th>'
+      +'<th class="r">ms</th><th class="r">Poses</th></tr>';
     rows.forEach((r,k)=>{
       const m = liveMetricsB(r.f);
       const win = k===0 && r.f.success && (!live || (m && m.done));
@@ -534,11 +614,12 @@ function buildBoard(){
         `<td><span class="dot" style="color:${colorFor(r.i)}"></span>${r.f.label}</td>`+
         `<td><span class="badge ${r.f.success?'b-ok':'b-fail'}">${r.f.success?(live&&!m?.done?'drawing':'path'):'no path'}</span></td>`+
         `<td class="r">${len!=null?len.toFixed(2):'—'}</td>`+
-        `<td class="r">${r.f.success?r.f.time_ms.toFixed(2):'—'}</td></tr>`;
+        `<td class="r">${r.f.success?r.f.time_ms.toFixed(2):'—'}</td>`+
+        `<td class="r">${m?`${m.poses}/${m.total_poses}`:'—'}</td></tr>`;
     });
     tb.innerHTML=h;
     el('hudHint').textContent = live
-      ? 'Path length grows as each planner\'s route is drawn; ms is median planning time.'
+      ? 'Live HUD + table mirror docs/planner_comparison.md (path length · planning ms · poses).'
       : 'Matches docs/planner_comparison.md — play to watch paths draw in.';
   }
 }

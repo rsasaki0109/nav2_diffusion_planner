@@ -87,6 +87,12 @@ def _check_mode(golden_scenarios, fresh_scenarios, mode_key):
                 if abs(g.get('steps', 0) - f.get('steps', 0)) > 3:
                     errors.append('{} steps {} vs {}'.format(
                         prefix, g.get('steps'), f.get('steps')))
+                if 'mean_dw' in g and not _close(g.get('mean_dw'), f.get('mean_dw'), rel=0.05, abs_tol=0.02):
+                    errors.append('{} mean_dw {} vs {}'.format(
+                        prefix, g.get('mean_dw'), f.get('mean_dw')))
+                if 'centering' in g and not _close(g.get('centering'), f.get('centering'), rel=0.05, abs_tol=0.03):
+                    errors.append('{} centering {} vs {}'.format(
+                        prefix, g.get('centering'), f.get('centering')))
             else:
                 if g.get('success') != f.get('success'):
                     errors.append('{} success {} -> {}'.format(
