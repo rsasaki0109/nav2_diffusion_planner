@@ -2,11 +2,12 @@
 
 > The first learned **Mode A** (local controller) model in this repo to **thread obstacles
 > purely generatively** (no classical fallback) in the real C++ `controller_benchmark` — it
-> clears the *side obstacle* **and the *corridor*** (where it centres better than the
-> classical VFH+/ND baselines). It is the costmap-token transformer **DAgger-trained on a
-> corrected reactive dodge oracle**, run with the controller's **windowed footprint gate**
-> (`safety_check_points`). Manifest: [manifest.yaml](manifest.yaml). Reproduce:
-> [export.py](export.py).
+> clears **all three** obstacle courses: the dead-ahead *frontal* block, the *side obstacle*,
+> **and the *corridor*** (where it centres better than the classical VFH+/ND baselines). It is
+> the costmap-token transformer **DAgger-trained on a corrected reactive dodge oracle**, run
+> with the controller's **windowed footprint gate** (`safety_check_points`) and a **widened
+> egocentric field of view** (`costmap_patch_resolution=0.08`). Manifest:
+> [manifest.yaml](manifest.yaml). Reproduce: [export.py](export.py).
 
 ## Summary
 
@@ -37,35 +38,42 @@ capacity**:
    committed side (not a left+right set) is what threads: a set with both escapes lets the
    controller's progress-greedy selector flip-flop between them every cycle, cancelling the
    turn. The corrected oracle threads all six sim scenarios expert-only.
+4. **A wider field of view cracks the dead-ahead block.** The 32-cell patch at the native
+   0.05 m costmap resolution sees only ±0.775 m ahead, so a head-on *frontal* block is sensed
+   ~0.8 m out and forces a violent late dodge the small model underfits and the progress-greedy
+   selector defeats. Decoupling the patch *stride* from the costmap resolution
+   (`costmap_patch_resolution=0.08`, matching `PATCH_RES` in training) widens the same 32-cell
+   patch to ±1.24 m, so the block is seen ~1.6× earlier and the committed dodge is gentle
+   enough to fit and survive selection.
 
-With these, the DAgger-trained **transformer** reaches the goal **4/6 closed-loop** in the
+With these, the DAgger-trained **transformer** reaches the goal **5/6 closed-loop** in the
 costmap sim (the small CNN-embedding flow model cannot fit the sharp dodge — it stays at
-1/4; capacity matters).
+1/4; capacity matters). The lone sim miss is a tight two-block slalom not in the benchmark.
 
-**Result (real C++ `controller_benchmark`, `safety_check_points=3`, no fallback):**
+**Result (real C++ `controller_benchmark`, `safety_check_points=3`,
+`costmap_patch_resolution=0.08`, no fallback):**
 
 | scenario | learned / transformer / recurrent | **threading** |
 |---|:-:|:-:|
 | open | reached | reached |
-| **side obstacle** | timeout (~1.0 m) | **reached (4.25 m traverse)** |
-| **corridor** (off-centre start) | timeout | **reached (mean \|y-centre\| 0.24 m < VFH+ 0.28 / ND 0.31)** |
-| frontal obstacle (dead-ahead) | timeout (~1.0 m, 0.75 m) | timeout (1.66 m, **0.21 m** clearance) |
+| **frontal obstacle** (dead-ahead) | timeout (~1.0 m, 0.75 m) | **reached (4.24 m, 0.48 m clearance)** |
+| **side obstacle** | timeout (~1.0 m) | **reached (4.05 m traverse)** |
+| **corridor** (off-centre start) | timeout | **reached (mean \|y-centre\| 0.20 m < VFH+ 0.28 / ND 0.31)** |
 
-It is the **first learned Mode A model here to thread obstacles generatively** — the side
-obstacle and the corridor, which it even **centres better than the classical baselines**.
-On the dead-ahead *frontal* block it drives markedly further and closer but does not
-complete (see scope below).
+It is the **first learned Mode A model here to thread obstacles generatively** — all three
+obstacle courses including the dead-ahead *frontal* block (the prior holdout), and it even
+**centres better than the classical baselines** in the corridor.
 
 ## Honest scope — what it does NOT do
 
-- **Not a full solve.** Threads the *side obstacle* and the *corridor* generatively, but the
-  dead-ahead *frontal* block still times out. The reactive oracle threads it *expert-only*,
-  so the gap is real but specific: the controller's deterministic progress-greedy selector
-  defeats the symmetric left/right dodge, and the small model underfits the hardest head-on,
-  late-sensed commit (the block is seen only ~0.8 m ahead in the 32-cell patch). The
-  **hybrid (VFH+ fallback)** remains the all-scenario guarantee.
-- **Requires** the windowed footprint gate (`safety_check_points>0`). Under the default
-  full-horizon gate it is hard-rejected like the other learned models.
+- **Threads the benchmark courses, not arbitrary scenes.** All three benchmark obstacle
+  courses (frontal, side, corridor) are threaded generatively, but the model is trained on a
+  narrow synthetic distribution; a tight two-block slalom (sim-only) is still a closed-loop
+  miss, and on novel scenes the **hybrid (VFH+ fallback)** remains the completeness guarantee.
+- **Requires** the windowed footprint gate (`safety_check_points>0`) AND the matching widened
+  patch resolution (`costmap_patch_resolution=0.08`). Under the default full-horizon gate it
+  is hard-rejected like the other learned models; at the native 0.05 m patch it stalls on the
+  frontal block (the field of view is too narrow to commit a gentle dodge in time).
 - **Synthetic data only.** Never validated on a real robot or rosbag.
 - **Research / demonstration model.** Do not deploy on hardware; the safety layer is the authority.
 
@@ -74,7 +82,8 @@ complete (see scope below).
 - **Command:** `PYTHONPATH=../../generative/nav2_diffusion_training python3 export.py`
 - **Seed:** 0 · **Toolchain:** torch 2.10.0+cu128, onnx 1.21.0; trained on CUDA, exported on CPU.
 - **Hyperparameters:** `CostmapTransformerPlanner`; DAgger iters 8, base 320, epochs 900,
-  lr 0.003 cosine, grad-clip 1.0, best-checkpoint; `SAFETY_WINDOW` 3.
+  lr 0.003 cosine, grad-clip 1.0, best-checkpoint; `SAFETY_WINDOW` 3, `PATCH_RES` 0.08 m
+  (the controller must run with the matching `costmap_patch_resolution=0.08`).
 - DAgger + GPU training is not bit-exact run-to-run; the checksum is fixed in the manifest
   and a re-export reproduces the threading behaviour.
 

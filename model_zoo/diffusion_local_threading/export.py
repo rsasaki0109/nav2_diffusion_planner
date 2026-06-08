@@ -30,10 +30,16 @@ Why it works where the earlier Mode A models stalled (docs/generative_limits.md)
   2. the deployed full-horizon footprint gate hard-rejects a tight reactive skirt whose
      1 m lookahead clips the block though step-wise execution skirts it safely — so the
      controller validates only the leading `safety_check_points` (receding-horizon:
-     it replans every cycle against the live costmap and executes just the first segment).
-With both, the DAgger-trained transformer reaches the goal **4/4 closed-loop** in the
-costmap sim (`dagger.eval_closed_loop`), vs the 1/4 documented ceiling. The small
-CNN-embedding flow model cannot fit the sharp dodge and stays at 1/4 — capacity matters.
+     it replans every cycle against the live costmap and executes just the first segment);
+     and
+  3. the 32-cell patch at the native 0.05 m resolution sees only ~0.8 m ahead, so a
+     dead-ahead frontal block forces a violent late dodge the small model underfits;
+     widening the patch *stride* (`PATCH_RES`=0.08 in dagger / the controller's
+     `costmap_patch_resolution=0.08`) spans +-1.24 m, sensing it ~1.6x earlier.
+With these, the DAgger-trained transformer reaches the goal **5/6 closed-loop** in the
+costmap sim (`dagger.eval_closed_loop`), vs the 1/4 documented ceiling, and threads all
+three obstacle courses (frontal, side, corridor) in the real C++ controller_benchmark. The
+small CNN-embedding flow model cannot fit the sharp dodge and stays at 1/4 — capacity matters.
 
 Trains on the GPU when available; always exports on CPU for a portable artifact:
 

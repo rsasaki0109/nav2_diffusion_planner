@@ -238,6 +238,12 @@ int main(int argc, char ** argv)
       {rclcpp::Parameter("model_plugin", std::string("nav2_diffusion_onnx::OnnxTrajectoryModel")),
         rclcpp::Parameter("model_path", threading_model),
         rclcpp::Parameter("costmap_patch_size", 32),
+        // Coarser egocentric-patch stride than the 0.05 m costmap: the same 32-cell patch
+        // now spans +-1.24 m instead of +-0.775 m, so the dead-ahead frontal block is
+        // sensed ~1.6x earlier and the model commits a gentle dodge in time (it is what
+        // lets the threading model also thread the *frontal* block; must match the
+        // training-time PATCH_RES in nav2_diffusion_training.dagger).
+        rclcpp::Parameter("costmap_patch_resolution", 0.08),
         rclcpp::Parameter("lookahead_distance", 1.0),
         rclcpp::Parameter("max_linear_speed", 1.5),
         // Windowed footprint gate (receding-horizon): validate only the leading points
@@ -311,17 +317,20 @@ int main(int argc, char ** argv)
     "see docs/generative_limits.md) and run with the **windowed footprint gate** "
     "(`safety_check_points=3`: validate only the leading points the robot executes before "
     "re-planning, so a tight reactive skirt is not hard-rejected for clipping the block "
-    "with its far lookahead). It **reaches the goal on the *side obstacle*** (a full "
-    "4.25 m traverse where the other learned models stall at ~1.0 m) **and threads the "
-    "*corridor*** (off-centre start, two walls) — where it even **centres better than the "
-    "classical baselines** (mean |y-centre| 0.24 m vs VFH+ 0.28 / ND 0.31). It still "
-    "times out on the dead-ahead *frontal* block (1.66 m / 0.21 m clearance vs ~1.0 m / "
-    "0.75 m for the other learned models): the corrected reactive oracle threads it "
-    "expert-only, but the deterministic progress-greedy selector defeats the symmetric "
-    "left/right dodge and the small model underfits the hardest head-on, late-sensed "
-    "commit (the obstacle is seen only ~0.8 m ahead in the 32-cell patch). (In the DAgger "
-    "costmap sim the fixes lift closed-loop threading from 1/4 to 4/6; the residual gap to "
-    "this real benchmark is the dead-ahead block.) "
+    "with its far lookahead) and a **widened field of view** (`costmap_patch_resolution=0.08`: "
+    "a coarser egocentric-patch stride than the 0.05 m costmap, so the same 32-cell patch "
+    "spans +-1.24 m instead of +-0.775 m and a block is sensed ~1.6x earlier). It **reaches "
+    "the goal on every obstacle scenario** where the other learned models stall at ~1.0 m: "
+    "the *side obstacle* (4.05 m traverse), the *corridor* (off-centre start, two walls) — "
+    "where it even **centres better than the classical baselines** (mean |y-centre| 0.20 m "
+    "vs VFH+ 0.28 / ND 0.31) — and now the hardest **dead-ahead *frontal* block** (4.24 m, "
+    "0.48 m clearance), which the earlier resolution missed: a head-on symmetric block sensed "
+    "only ~0.8 m ahead forced a violent late dodge the small model underfit and the "
+    "progress-greedy selector defeated, but seen ~1.6x earlier the committed dodge is gentle "
+    "enough to fit and survive selection. It is the first learned Mode A controller here to "
+    "thread **all three** obstacle courses purely generatively (no fallback). (In the DAgger "
+    "costmap sim the fixes lift closed-loop threading from 1/4 to 5/6; the residual miss is "
+    "a tight two-block slalom not in this benchmark.) "
     "**Diffusion (Mode A, "
     "hybrid)** adds a classical "
     "`fallback_controller_plugin` (here VFH+): when no learned candidate is safe it "

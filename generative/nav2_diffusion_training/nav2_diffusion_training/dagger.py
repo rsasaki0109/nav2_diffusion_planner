@@ -41,8 +41,17 @@ import numpy as np
 import onnx
 import torch
 
-RES = 0.05                  # costmap resolution [m]
+RES = 0.05                  # costmap resolution [m] (the underlying grid)
 GRID = 120                  # 6 x 6 m sim
+# Egocentric-patch *stride* [m], decoupled from the grid resolution. The patch is always
+# COSTMAP_SIZE (32) cells, so a coarser stride widens the field of view: at the native
+# 0.05 m the 32-cell patch sees only +-0.775 m ahead, so a dead-ahead block is sensed just
+# ~0.8 m out and the model must commit a violent late dodge it underfits (the frontal
+# holdout). At 0.08 m the same 32 cells span +-1.24 m, so the block is seen ~1.6x earlier
+# and the dodge can be gentle enough for the small model to fit and the progress-greedy
+# selector to keep. The C++ crop already takes this stride as ``patch_resolution``; the
+# controller must pass the matching ``costmap_patch_resolution`` to stay in distribution.
+PATCH_RES = 0.08
 SPEED = 0.3                 # nominal linear speed [m/s]
 DT = 0.1                    # rollout step [s]
 LOOKAHEAD = 1.0             # carrot distance [m] (matches the trained context)
@@ -122,8 +131,8 @@ def crop_patch(gm, x, y, yaw):
     s = COSTMAP_SIZE
     c = (s - 1) / 2.0
     cos_y, sin_y = math.cos(yaw), math.sin(yaw)
-    forward = (c - np.arange(s))[:, None] * RES         # [s, 1] -> +x
-    left = (c - np.arange(s))[None, :] * RES            # [1, s] -> +y
+    forward = (c - np.arange(s))[:, None] * PATCH_RES   # [s, 1] -> +x (patch stride)
+    left = (c - np.arange(s))[None, :] * PATCH_RES      # [1, s] -> +y (patch stride)
     wx = x + forward * cos_y - left * sin_y             # [s, s]
     wy = y + forward * sin_y + left * cos_y
     mx = (wx / RES).astype(int)
@@ -161,8 +170,8 @@ def _block_edges(patch):
     occ = np.argwhere(patch > 0.5)
     if occ.size == 0:
         return None
-    fwd = (c - occ[:, 0]) * RES
-    lat = (c - occ[:, 1]) * RES
+    fwd = (c - occ[:, 0]) * PATCH_RES
+    lat = (c - occ[:, 1]) * PATCH_RES
     ahead = (fwd > 0.05) & (fwd < _DODGE_FWD) & (np.abs(lat) < _DODGE_LAT)
     if not ahead.any():
         return None
@@ -177,8 +186,8 @@ def _center_blocked(patch):
     occ = np.argwhere(patch > 0.5)
     if occ.size == 0:
         return False
-    fwd = (c - occ[:, 0]) * RES
-    lat = (c - occ[:, 1]) * RES
+    fwd = (c - occ[:, 0]) * PATCH_RES
+    lat = (c - occ[:, 1]) * PATCH_RES
     return bool(((fwd > 0.05) & (fwd < _DODGE_FWD) & (np.abs(lat) < _CENTER_HALF)).any())
 
 

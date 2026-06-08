@@ -85,6 +85,12 @@ void DiffusionController::configure(
     node, plugin_name_ + ".model_path", rclcpp::ParameterValue(std::string("")));
   declare_parameter_if_not_declared(
     node, plugin_name_ + ".costmap_patch_size", rclcpp::ParameterValue(0));
+  // Egocentric-patch stride [m], decoupled from the costmap resolution. 0.0 (default)
+  // uses the costmap's native resolution; a coarser value widens the field of view at
+  // the same patch_size (the model sees obstacles earlier). Must match the value the
+  // model was trained with (PATCH_RES in nav2_diffusion_training.dagger).
+  declare_parameter_if_not_declared(
+    node, plugin_name_ + ".costmap_patch_resolution", rclcpp::ParameterValue(0.0));
   declare_parameter_if_not_declared(
     node, plugin_name_ + ".safety_check_points", rclcpp::ParameterValue(0));
 
@@ -105,6 +111,7 @@ void DiffusionController::configure(
   node->get_parameter(plugin_name_ + ".model_plugin", model_plugin_);
   node->get_parameter(plugin_name_ + ".model_path", model_path_);
   node->get_parameter(plugin_name_ + ".costmap_patch_size", costmap_patch_size_);
+  node->get_parameter(plugin_name_ + ".costmap_patch_resolution", costmap_patch_resolution_);
   node->get_parameter(plugin_name_ + ".safety_check_points", safety_check_points_);
   num_candidates_ = std::max(1, num_candidates_);
   safety_check_points_ = std::max(0, safety_check_points_);
@@ -389,9 +396,11 @@ geometry_msgs::msg::TwistStamped DiffusionController::computeVelocityCommands(
     auto * costmap = costmap_ros_->getCostmap();
     std::lock_guard<nav2_costmap_2d::Costmap2D::mutex_t> lock(*(costmap->getMutex()));
     context.costmap_size = costmap_patch_size_;
+    const double patch_resolution = costmap_patch_resolution_ > 0.0 ?
+      costmap_patch_resolution_ : costmap->getResolution();
     context.costmap = cropEgocentricPatch(
       *costmap, pose.pose.position.x, pose.pose.position.y, yaw,
-      costmap_patch_size_, costmap->getResolution());
+      costmap_patch_size_, patch_resolution);
   }
 
   const std::vector<nav2_diffusion_core::Trajectory> candidates = model_->generate(context);

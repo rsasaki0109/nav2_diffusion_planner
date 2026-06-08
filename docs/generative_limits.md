@@ -13,7 +13,7 @@
 | Mode A: **open での閉ループ goal 到達** | ✅ できる（pure-pursuit 弧 expert で carrot 追従） | v0.6.0 出荷 |
 | Mode B: **off-centre gap の方向検出（スロットを狙う）** | ⚠️ flow/recurrent（CNN）は不可 → ✅ **transformer（attention）は raw 提案でスロット方向を向く** | 下記「追記」参照（A/B + C++ 方向テスト） |
 | Mode B: **off-centre gap を実際に通る（footprint 検証 benchmark）** | ✅ **transformer + footprint-aware 損失で純生成貫通**（flow・recurrent は不可）。当初は off-centre 特化で直進の隙間を取りこぼすトレードオフがあったが、**容量増（dim64/h8/l3）+ centred tri-mix で解消**＝off-centre と dead-ahead（centred/narrow/double）を同時に通す／ far off-centre と slalom は残る bound | 下記「天井突破」「多コース評価 / 容量増で解消」参照（実 C++ benchmark で検証） |
-| Mode A: **障害物のスレッディング（回り込み通過）** | △ 学習単体で *side obstacle* と *corridor* を純生成で貫通（DAgger+窓化ゲート）、*frontal*（dead-ahead）のみ未達 → ✅ **ハイブリッドで全解決** | 下記参照 |
+| Mode A: **障害物のスレッディング（回り込み通過）** | ✅ 学習単体で *frontal*（dead-ahead）・*side obstacle*・*corridor* の全障害物コースを純生成で貫通（DAgger + 窓化ゲート + FOV 拡大）。任意地図はハイブリッドが完全性保証 | 下記参照 |
 
 要点: **side-selection と open goal 到達は小型モデルでも実機構で動く**。**off-centre gap（壁のスロット貫通）は、当初は天井だったが、token attention で aim できる transformer に footprint-aware 損失を足すと pure-generative で貫通できるようになった**（後述、実 C++ benchmark で検証）。さらに **「天井」とされた *slalom*（S 字二段壁）と *far off-centre gap* は、実はアーキの限界ではなく 2 つのデータバグ（壁を擦る教師＋train/inference の patch 不一致）だった** — collision-clean な台形教師と deployment 一致の patch で直すと、no-fan の **attnseq ファミリが本ベンチ全 8 コースを純生成で貫通（8/8）**する（後述、実 C++ benchmark で検証、`diffusion_global_costmap_attnseq_v0` 出荷）。残る本質的天井は **Mode A の obstacle-threading（閉ループ分布シフト）**で、ここは **classical search / reactive 法が本来勝つ領域**。そして **ハイブリッド**（generative 提案 + classical fallback）は**任意地図での完全性保証**を与える（本ベンチのカタログ・コースは純生成で足りるが、out-of-distribution な地図は hybrid が担保）。
 
@@ -185,7 +185,7 @@ Mode B の attnseq で効いた手（高容量 + token attention + DAgger）を 
 
 **含意**: obstacle-threading を**純生成**で通すには、データ・モデルを増やすより、**安全ゲート/選択を「実際に実行する近傍ウィンドウ」基準に変える**（毎サイクル costmap を再評価する前提で、全ホライズンの hard-reject ではなく実行区間の検証にする）必要がある。
 
-#### 修正を実装して大きく突破（side obstacle + corridor を純生成で貫通、2026-06）
+#### 修正を実装して天井を貫通（frontal + side + corridor を純生成で貫通、2026-06）
 
 上の機構を実際に直した:
 
@@ -194,12 +194,13 @@ Mode B の attnseq で効いた手（高容量 + token attention + DAgger）を 
 - **単一コミット ＞ multimodal**: K 候補を**単一の committed dodge**（左右両方の set ではなく）に回帰させるのが効く。左右両 escape を持たせると、進捗貪欲な選択器（実 C++ `scoreTrajectory`）が毎サイクル左右を取り違えて旋回が相殺し停止する。
 - **高容量モデル**: `dagger_train_costmap_transformer` が costmap-token transformer を DAgger 学習（小容量 flow は鋭い dodge を fit できず 1/4 のまま＝容量が効く）。
 - **誤診の訂正**: ベンチの costmap には inflation layer が無く（`plugins: {}`）、`markBlock` の生 lethal がそのまま幾何。以前の「inflation で太い」は誤りで、sim の frontal ブロックも実機と同じ half=4 に合わせた。
+- **視野（FOV）の拡大で frontal を貫通**: 32 セル patch を native 0.05m 解像度で切ると視野は ±0.775m しかなく、dead-ahead の frontal ブロックは ~0.8m 手前でしか検出できないため、小型モデルが fit しきれず進捗貪欲な選択器も潰す**急な遅延 dodge** を強いられていた。patch の**ストライドを costmap 解像度から分離**（`DiffusionController` の `costmap_patch_resolution=0.08`、学習側 `PATCH_RES=0.08` と一致。既定 0.0＝native で後方互換）すると、同じ 32 セルが ±1.24m を張り、ブロックを **~1.6 倍早く検出**できる。早く見えれば committed dodge は緩やかで済み、小型モデルでも fit でき選択器も生き残る。これが frontal の最後の鍵だった。
 
 結果:
-- **DAgger 閉ループ sim**: **1/4 → 4/6**（open/side/side2/corridor 到達。frontal と two が未達）。
-- **実 C++ `controller_benchmark`（`safety_check_points=3`, fallback 無し）**: `diffusion_local_costmap_threading_v0` が **side obstacle（4.25m 完走）と corridor を純生成で貫通**——**本リポジトリで学習 Mode A が初めて障害物を生成的に通過**。しかも corridor では **中央維持が古典 baseline より良い**（mean |y-centre| 0.24m < VFH+ 0.28 / ND 0.31）。dead-ahead 中央の **frontal** だけ未完（1.66m / clearance 0.21m）。
+- **DAgger 閉ループ sim**: **1/4 → 5/6**（open/frontal/side/side2/corridor 到達。残る未達は本ベンチに無い tight な two ブロック slalom のみ）。
+- **実 C++ `controller_benchmark`（`safety_check_points=3`, `costmap_patch_resolution=0.08`, fallback 無し）**: `diffusion_local_costmap_threading_v0` が **frontal（dead-ahead、4.24m / clearance 0.48m）・side obstacle（4.05m 完走）・corridor の全 3 障害物コースを純生成で貫通**——**本リポジトリで学習 Mode A が初めて全障害物を生成的に通過**。しかも corridor では **中央維持が古典 baseline より良い**（mean |y-centre| 0.20m < VFH+ 0.28 / ND 0.31）。
 
-**正直な現状**: 「閉ループ分布シフト＋安全ゲート粒度」という天井は機構的に同定し、**side obstacle と corridor を純生成で突破**した（実 C++ ベンチで検証、corridor は古典より良いセンタリング）。残るは **frontal（dead-ahead 対称ブロック）のみ**——修正 oracle は expert 単独で貫通するので、ギャップは(1) 進捗貪欲な選択器が対称 dodge を潰す、(2) 32 セル patch では ~0.8m 手前でしか検出できない最難の head-on コミットを小型モデルが fit しきれない、の 2 点に絞られた。`safety/kinematic` が**衝突を常に防ぐ**現設計の下、**ハイブリッド（VFH+ fallback）が全シナリオ到達**を保証する点は変わらない（[[kinematics-conditioned-planner]] の propose/dispose と対称、[[mode-a-threading-ceiling-diagnosed]]）。
+**正直な現状**: 「閉ループ分布シフト＋安全ゲート粒度＋視野の狭さ」という天井を機構的に同定し、**frontal・side・corridor の全障害物コースを純生成で突破**した（実 C++ ベンチで検証、corridor は古典より良いセンタリング）。最後まで残っていた **frontal（dead-ahead 対称ブロック）** は、検出を ~1.6 倍早める FOV 拡大で緩やかな committed dodge が可能になり貫通した。学習が押し上げられる範囲は本ベンチの全カタログ・コースに達したが、合成分布外の任意地図では `safety/kinematic` が**衝突を常に防ぐ**前提のもと **ハイブリッド（VFH+ fallback）が完全性を保証**する点は変わらない（[[kinematics-conditioned-planner]] の propose/dispose と対称、[[mode-a-threading-ceiling-diagnosed]]）。
 
 **ただしハイブリッドで解決済み（✅）**: `DiffusionController` の `fallback_controller_plugin`（既存）に classical の reactive controller（VFH+ 等）を設定すると、安全候補が無いとき停止する代わりに委譲する。`controller_comparison.md` の **Diffusion (Mode A, hybrid)** 行は **全シナリオで goal 到達**（open は learned、障害物は VFH+ fallback が回避。corridor 行は VFH+ と完全一致 = fallback 稼働の証拠）。Mode B planner の hybrid と完全に対称。
 
@@ -221,4 +222,4 @@ Mode B の attnseq で効いた手（高容量 + token attention + DAgger）を 
 
 ## 結論
 
-小型・合成学習モデルでも **side-selection と open goal 到達は実機構で動く**（v0.6.0 出荷）。さらに **off-centre gap（壁のスロット貫通）は、token attention で aim できる transformer に footprint-aware（validator-aware）損失を足すと pure-generative で貫通できる**ことを実 C++ benchmark で示した（flow / recurrent は不可）。そして **「天井」とされた *slalom* と *far off-centre gap* は、3 アーキが同じ loss プラトーに収束したことから当初アーキ限界と誤診したが、実は 2 つのデータバグ（壁を擦る台形未満の教師＋train/inference の patch サンプリング不一致）だった** — collision-clean な台形教師と deployment 一致の patch で直すと、no-fan の **attnseq ファミリが本ベンチ全 8 コースを純生成で貫通（8/8）**する（実 C++ benchmark で検証）。これは「提案ステージの限界は**表現・ロス・そしてデータ分布の整合**の問題で、必ずしも本質的天井ではない」ことの最も強い実証である。残る学習単体の天井は **Mode A の obstacle-threading（閉ループ分布シフト）**で、classical が勝つ領域。そして **ハイブリッド**は**任意地図での完全性を保証**する: Mode B planner は `fallback_planner_plugin`（learned 提案 → classical search）、Mode A controller は `fallback_controller_plugin`（learned → classical reactive）で、いずれも**全シナリオを解く**。境界を正直に測り、学習で押し上げられる所は押し上げ、残りは classical と組んで完全性を取る——これが「generative propose / classical dispose」設計の価値であり、両者を同一リポジトリ・同一土俵に載せている理由である。
+小型・合成学習モデルでも **side-selection と open goal 到達は実機構で動く**（v0.6.0 出荷）。さらに **off-centre gap（壁のスロット貫通）は、token attention で aim できる transformer に footprint-aware（validator-aware）損失を足すと pure-generative で貫通できる**ことを実 C++ benchmark で示した（flow / recurrent は不可）。そして **「天井」とされた *slalom* と *far off-centre gap* は、3 アーキが同じ loss プラトーに収束したことから当初アーキ限界と誤診したが、実は 2 つのデータバグ（壁を擦る台形未満の教師＋train/inference の patch サンプリング不一致）だった** — collision-clean な台形教師と deployment 一致の patch で直すと、no-fan の **attnseq ファミリが本ベンチ全 8 コースを純生成で貫通（8/8）**する（実 C++ benchmark で検証）。これは「提案ステージの限界は**表現・ロス・そしてデータ分布の整合**の問題で、必ずしも本質的天井ではない」ことの最も強い実証である。**Mode A の obstacle-threading（閉ループ分布シフト）**も同様で、長らく天井とされたが、**窓化ゲート＋持続コミット oracle＋視野（FOV）拡大**で本ベンチの *frontal・side・corridor* 全障害物コースを学習単体・純生成で貫通した（DAgger sim 1/4→5/6、実 C++ benchmark で検証）。残るのは本ベンチに無い tight な slalom など合成分布外のケースで、そこは **ハイブリッド**が**任意地図での完全性を保証**する: Mode B planner は `fallback_planner_plugin`（learned 提案 → classical search）、Mode A controller は `fallback_controller_plugin`（learned → classical reactive）で、いずれも**全シナリオを解く**。境界を正直に測り、学習で押し上げられる所は押し上げ、残りは classical と組んで完全性を取る——これが「generative propose / classical dispose」設計の価値であり、両者を同一リポジトリ・同一土俵に載せている理由である。

@@ -127,6 +127,10 @@ protected:
   double score_progress_weight_{1.0};
   double score_smoothness_weight_{0.1};
   int costmap_patch_size_{0};  // egocentric costmap patch side [cells]; 0 = off
+  // Egocentric-patch stride [m]; 0.0 = use the costmap's native resolution. A coarser
+  // stride widens the field of view at the same patch_size so the model sees obstacles
+  // earlier; must match the training-time PATCH_RES (nav2_diffusion_training.dagger).
+  double costmap_patch_resolution_{0.0};
   // Footprint-collision validation window: number of leading trajectory points to
   // footprint-check (0 = the full horizon). The controller replans every cycle against
   // the live costmap and only the first segment is executed, so checking just the

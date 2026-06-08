@@ -7,31 +7,35 @@ before 1.0.0 (see [docs/roadmap.md](docs/roadmap.md)).
 ## [Unreleased]
 
 ### Added
-- **Mode A obstacle-threading: first learned controller here to thread obstacles
-  purely generatively (no fallback) — the documented closed-loop ceiling, largely
-  cracked (side obstacle + corridor; only the dead-ahead frontal block remains).** Fixes,
-  following the diagnosis below: (1) `DiffusionController` gains a `safety_check_points`
-  parameter — a **windowed footprint gate** that validates only the leading N points the
-  robot executes before re-planning (receding-horizon; default 0 = the previous
-  full-horizon hard reject, so existing behavior is unchanged), letting a tight reactive
-  skirt survive instead of being rejected for clipping the block with its far lookahead;
-  and (2) `nav2_diffusion_training/dagger.py` replaces the colliding DAgger oracle with a
-  corrected reactive dodge — a **sustained committed offset** to the free side, *held until
+- **Mode A obstacle-threading: first learned controller here to thread ALL obstacle
+  courses purely generatively (no fallback) — the documented closed-loop ceiling, cracked
+  (frontal + side + corridor).** Fixes, following the diagnosis below: (1) `DiffusionController`
+  gains a `safety_check_points` parameter — a **windowed footprint gate** that validates only
+  the leading N points the robot executes before re-planning (receding-horizon; default 0 =
+  the previous full-horizon hard reject, so existing behavior is unchanged), letting a tight
+  reactive skirt survive instead of being rejected for clipping the block with its far
+  lookahead; (2) `nav2_diffusion_training/dagger.py` replaces the colliding DAgger oracle with
+  a corrected reactive dodge — a **sustained committed offset** to the free side, *held until
   the block is passed* (so the carrot cannot snap the robot back into its side), leaving a
   two-walled corridor's free centre-line to the carrot to centre through; adds a `corridor`
   training scenario; and trains via `dagger_train_costmap_transformer` (the high-capacity
   costmap-token transformer regressed onto the **single committed dodge**, not a left+right
-  set — a multimodal set lets the progress-greedy selector flip-flop and cancel the turn).
-  Ships as `diffusion_local_costmap_threading_v0` (model_zoo) + a `Diffusion (Mode A,
-  threading)` controller_benchmark row (`safety_check_points=3`) + dagger gtests (corrected
-  oracle threads every scenario; transformer trainer exports the contract). **DAgger
-  closed-loop sim: 1/4 → 4/6.** **Real C++ `controller_benchmark`: reaches the goal on the
-  *side obstacle*** (full 4.25 m traverse where learned/transformer/recurrent stall at
-  ~1.0 m) **and threads the *corridor*** — where it even **centres better than the classical
-  baselines** (mean |y-centre| 0.24 m vs VFH+ 0.28 / ND 0.31). Only the dead-ahead *frontal*
-  block still times out (1.66 m / 0.21 m): the corrected oracle threads it expert-only, but
-  the progress-greedy selector defeats the symmetric dodge and the small model underfits the
-  hardest head-on, late-sensed commit. The hybrid (VFH+) remains the all-scenario guarantee.
+  set — a multimodal set lets the progress-greedy selector flip-flop and cancel the turn); and
+  (3) `DiffusionController` gains a `costmap_patch_resolution` parameter — a **widened
+  egocentric field of view** that decouples the patch *stride* from the costmap resolution
+  (default 0.0 = native), so the same 32-cell patch spans ±1.24 m instead of ±0.775 m and a
+  dead-ahead block is sensed ~1.6× earlier (mirrored by `PATCH_RES` in dagger). Ships as
+  `diffusion_local_costmap_threading_v0` (model_zoo) + a `Diffusion (Mode A, threading)`
+  controller_benchmark row (`safety_check_points=3`, `costmap_patch_resolution=0.08`) + dagger
+  gtests (corrected oracle threads every scenario; transformer trainer exports the contract).
+  **DAgger closed-loop sim: 1/4 → 5/6.** **Real C++ `controller_benchmark` (no fallback):
+  reaches the goal on the *frontal* dead-ahead block** (4.24 m, 0.48 m clearance — the prior
+  holdout) **the *side obstacle*** (4.05 m traverse where learned/transformer/recurrent stall
+  at ~1.0 m) **and the *corridor*** — where it even **centres better than the classical
+  baselines** (mean |y-centre| 0.20 m vs VFH+ 0.28 / ND 0.31). The frontal block fell to the
+  widened field of view: sensed ~1.6× earlier the committed dodge is gentle enough to fit and
+  survive the progress-greedy selector. On novel scenes the hybrid (VFH+) remains the
+  completeness guarantee.
 - **Kinematics-conditioned Mode B planner: one model serves several steering
   geometries across all eight courses (+ omni), and a curvature validator disposes
   of infeasible turns.** The `PathModel` seam's spare second context slot carries the
