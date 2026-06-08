@@ -22,7 +22,7 @@
   <img src="docs/battle_duel.gif" width="310" alt="Mode B planner duel on slalom">
 </p>
 
-<p align="center"><em><strong>Mode A · Race</strong> — controllers run closed-loop (micro-mouse mazes included). <strong>Mode B · Duel</strong> — global planners draw paths; shortest wins. <strong>Championship</strong> — strength ranking across every scenario. Live HUD shows steps, path length &amp; planning ms.</em></p>
+<p align="center"><em>GIFs above are <strong>real Gazebo Sim</strong> course worlds (TB3 + overhead camera) — regenerate with <a href="tools/gazebo_gif_demo.py">tools/gazebo_gif_demo.py</a>. <strong>Mode A · Race</strong> / <strong>Mode B · Duel</strong> replays in the browser still come from <code>battle_trace</code>. Live HUD shows steps, path length &amp; planning ms.</em></p>
 
 ---
 
@@ -34,7 +34,7 @@
 | **🧭 Duel** | RRT*, JPS, Lazy Theta*, Diffusion, … — `createPlan` paths drawn together | [slalom](https://rsasaki0109.github.io/Nav2PlannerBattle/?m=B&s=6) · [micro-mouse hard](https://rsasaki0109.github.io/Nav2PlannerBattle/?m=B&s=9) |
 | **🏆 Championship** | Aggregate points across all scenarios | [Race](https://rsasaki0109.github.io/Nav2PlannerBattle/?m=C) · [Duel](https://rsasaki0109.github.io/Nav2PlannerBattle/?m=C&sub=B) |
 
-No scripted winners — every fighter is the **actual** `nav2_core` plugin replayed from traces. Regenerate with `ros2 run nav2_planner_benchmarks battle_trace`; GIFs with [`tools/battle_gif_demo.py`](tools/battle_gif_demo.py). Details: [`tools/nav2_planner_battle`](tools/nav2_planner_battle).
+No scripted winners — every fighter is the **actual** `nav2_core` plugin replayed from traces. Regenerate traces with `ros2 run nav2_planner_benchmarks battle_trace`; README GIFs with [`tools/gazebo_gif_demo.py`](tools/gazebo_gif_demo.py) (Gazebo Sim). Details: [`tools/nav2_planner_battle`](tools/nav2_planner_battle).
 
 ---
 
@@ -172,7 +172,7 @@ This is the **Nav2 GlobalPlanner (Mode B)**, symmetric to the local controller (
   <img src="docs/sim_courses.gif" width="360" alt="nav2_diffusion_sim obstacle courses including micro-mouse mazes">
 </p>
 
-<p align="center"><em>The obstacle courses shipped in <a href="nav2_diffusion_sim">nav2_diffusion_sim</a>, mirroring the off-line <code>planner_benchmark</code> scenarios. Each course is generated from a <strong>single spec</strong> into three consistent artifacts — a gz-sim world, a matching occupancy map, and the mission goals — so the world, map, and goals cannot drift. The figure shows the generated course layouts with a valid start→goal route (grid A\* on the course occupancy grid). Reproduce with <a href="tools/gazebo_courses_demo.py">tools/gazebo_courses_demo.py</a>.</em></p>
+<p align="center"><em>The obstacle courses shipped in <a href="nav2_diffusion_sim">nav2_diffusion_sim</a>, recorded in <strong>Gazebo Sim</strong> (TB3 waffle on the generated gz-sim worlds). Each course is built from a <strong>single spec</strong> into world + map + goals. The GIF animates a footprint-valid A\* route through each maze. Reproduce with <a href="tools/gazebo_gif_demo.py">tools/gazebo_gif_demo.py</a>.</em></p>
 
 Drive a course closed-loop on a real ROS host with
 `ros2 launch nav2_diffusion_sim tb3_gazebo_course.launch.py course:=micro_mouse_easy` (or

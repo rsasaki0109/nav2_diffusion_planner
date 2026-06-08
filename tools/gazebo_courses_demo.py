@@ -14,21 +14,17 @@
 # limitations under the License.
 
 """
-Render the closed-loop Gazebo obstacle courses as an animated GIF.
+Render the closed-loop Gazebo obstacle courses as an animated GIF (matplotlib).
 
-This visualizes the *generated course assets* in ``nav2_diffusion_sim`` (the same
-wall geometry that produces the gz-sim world + occupancy map + goals from one
-spec). For each course it computes a valid start->goal route with grid A* on the
-course occupancy grid (inflated by the TB3 footprint) and animates a robot
-traversing it. It is an honest depiction of the *courses*, not a closed-loop
-Gazebo run: the deterministic A* route stands in for the navigation stack, and
-real closed-loop numbers still require a real ROS host (see docs/simulation.md
-section 10.5).
+**Prefer** ``tools/gazebo_gif_demo.py`` for README assets — it records the same
+courses in real Gazebo Sim (TB3 + overhead camera). This script is a fast
+offline fallback: grid A* on the occupancy map with matplotlib patches (no
+simulator).
 
 Usage::
 
     PYTHONPATH=generative/nav2_diffusion_sim python3 tools/gazebo_courses_demo.py
-    # writes docs/sim_courses.gif
+    # writes docs/sim_courses.gif (matplotlib; use gazebo_gif_demo.py for real sim)
 """
 
 import heapq
