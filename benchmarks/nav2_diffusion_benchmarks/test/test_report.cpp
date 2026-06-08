@@ -1,4 +1,4 @@
-// Copyright 2026 nav2_experimental_planner contributors
+// Copyright 2026 Nav2PlannerBattle contributors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.

@@ -1,6 +1,6 @@
 # nav2_diffusion_sim
 
-Closed-loop Gazebo **course assets** for `nav2_experimental_planner` (see
+Closed-loop Gazebo **course assets** for `Nav2PlannerBattle` (see
 [../docs/simulation.md](../docs/simulation.md)).
 
 Each obstacle course is defined **once** as a spec in
