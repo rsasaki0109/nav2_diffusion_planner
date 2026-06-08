@@ -1,0 +1,175 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Enabled: false
+      Name: Grid
+      Reference Frame: <Fixed Frame>
+      Value: true
+    - Alpha: 0.92
+      Class: rviz_default_plugins/Map
+      Enabled: true
+      Name: Costmap
+      Topic:
+        Value: /battle/costmap
+      Value: true
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 63; 185; 80
+      Enabled: true
+      Head Diameter: 0.15
+      Head Length: 0.12
+      Length: 0.28
+      Line Style: Billboards
+      Line Width: 0.06
+      Name: Path0
+      Pose Style: Arrows
+      Shaft Diameter: 0.05
+      Shaft Length: 0.14
+      Topic:
+        Value: /battle/path_0
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 47; 129; 247
+      Enabled: true
+      Head Diameter: 0.15
+      Head Length: 0.12
+      Length: 0.28
+      Line Style: Billboards
+      Line Width: 0.06
+      Name: Path1
+      Pose Style: Arrows
+      Shaft Diameter: 0.05
+      Shaft Length: 0.14
+      Topic:
+        Value: /battle/path_1
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 255; 211; 77
+      Enabled: true
+      Head Diameter: 0.15
+      Head Length: 0.12
+      Length: 0.28
+      Line Style: Billboards
+      Line Width: 0.06
+      Name: Path2
+      Pose Style: Arrows
+      Shaft Diameter: 0.05
+      Shaft Length: 0.14
+      Topic:
+        Value: /battle/path_2
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 192; 132; 252
+      Enabled: true
+      Head Diameter: 0.15
+      Head Length: 0.12
+      Length: 0.28
+      Line Style: Billboards
+      Line Width: 0.06
+      Name: Path3
+      Pose Style: Arrows
+      Shaft Diameter: 0.05
+      Shaft Length: 0.14
+      Topic:
+        Value: /battle/path_3
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 90; 209; 255
+      Enabled: true
+      Head Diameter: 0.15
+      Head Length: 0.12
+      Length: 0.28
+      Line Style: Billboards
+      Line Width: 0.06
+      Name: Path4
+      Pose Style: Arrows
+      Shaft Diameter: 0.05
+      Shaft Length: 0.14
+      Topic:
+        Value: /battle/path_4
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 255; 93; 108
+      Enabled: true
+      Head Diameter: 0.15
+      Head Length: 0.12
+      Length: 0.28
+      Line Style: Billboards
+      Line Width: 0.06
+      Name: Path5
+      Pose Style: Arrows
+      Shaft Diameter: 0.05
+      Shaft Length: 0.14
+      Topic:
+        Value: /battle/path_5
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 155; 225; 93
+      Enabled: true
+      Head Diameter: 0.15
+      Head Length: 0.12
+      Length: 0.28
+      Line Style: Billboards
+      Line Width: 0.06
+      Name: Path6
+      Pose Style: Arrows
+      Shaft Diameter: 0.05
+      Shaft Length: 0.14
+      Topic:
+        Value: /battle/path_6
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 122; 162; 255
+      Enabled: true
+      Head Diameter: 0.15
+      Head Length: 0.12
+      Length: 0.28
+      Line Style: Billboards
+      Line Width: 0.06
+      Name: Path7
+      Pose Style: Arrows
+      Shaft Diameter: 0.05
+      Shaft Length: 0.14
+      Topic:
+        Value: /battle/path_7
+    - Class: rviz_default_plugins/Marker
+      Enabled: false
+      Name: Markers
+      Topic:
+        Value: /battle/markers
+    - Class: rviz_default_plugins/TF
+      Enabled: false
+      Name: TF
+  Global Options:
+    Background Color: 21; 21; 31
+    Fixed Frame: map
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/TopDownOrtho
+      Name: Current View
+      Scale: 22
+      X: 3
+      Y: 3
+      Target Frame: map
+      Value: TopDownOrtho (rviz_default_plugins)
+Window Geometry:
+  Height: 720
+  Width: 1100

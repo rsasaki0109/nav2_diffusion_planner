@@ -1,0 +1,42 @@
+{
+  "configById": {
+    "3D!battle": {
+      "cameraState": {
+        "distance": 9,
+        "perspective": false,
+        "phi": 45,
+        "thetaOffset": 90,
+        "targetOffset": [3, 3, 0],
+        "fovy": 45,
+        "near": 0.5,
+        "far": 5000
+      },
+      "followMode": "follow-none",
+      "scene": {
+        "backgroundColor": "#15151f",
+        "meshUpAxis": "z_up",
+        "transforms": { "visible": false }
+      },
+      "transforms": {},
+      "topics": {
+        "/battle/costmap": { "visible": true, "colorMode": "costmap" },
+        "/battle/path_0": { "visible": true, "color": "#3fb950" },
+        "/battle/path_1": { "visible": true, "color": "#2f81f7" },
+        "/battle/path_2": { "visible": true, "color": "#ffd34d" },
+        "/battle/path_3": { "visible": true, "color": "#c084fc" },
+        "/battle/path_4": { "visible": true, "color": "#5ad1ff" },
+        "/battle/path_5": { "visible": true, "color": "#ff5d6c" },
+        "/battle/path_6": { "visible": true, "color": "#9be15d" },
+        "/battle/path_7": { "visible": true, "color": "#7aa2ff" },
+        "/battle/markers": { "visible": true },
+        "/goal_pose": { "visible": true }
+      },
+      "layers": {},
+      "publish": { "type": "point", "poseTopic": "/goal_pose" }
+    }
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "playbackConfig": { "speed": 1 },
+  "layout": "3D!battle"
+}
