@@ -47,7 +47,7 @@ from nav2_diffusion_sim import gen_courses  # noqa: E402
 
 RES = 0.05
 ROBOT_RADIUS = 0.22  # TB3 waffle footprint radius (approx)
-ORDER = ['centred', 'gap', 'slalom']
+ORDER = ['centred', 'gap', 'slalom', 'micro_mouse_easy', 'micro_mouse_hard']
 
 
 def _occupancy(name):

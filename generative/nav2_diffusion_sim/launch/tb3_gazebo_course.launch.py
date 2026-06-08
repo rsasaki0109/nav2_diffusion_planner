@@ -13,7 +13,8 @@
 # limitations under the License.
 
 r"""
-Closed-loop Gazebo benchmark on an obstacle course (centred / gap / slalom).
+Closed-loop Gazebo benchmark on an obstacle course (centred / gap / slalom /
+micro_mouse_easy / micro_mouse_hard).
 
 Loads the course's generated gz-sim world and matching occupancy map (built from
 one spec by nav2_diffusion_sim.gen_courses, so world+map+goals stay consistent),
@@ -111,7 +112,7 @@ def generate_launch_description():
     declare_args = [
         DeclareLaunchArgument(
             'course', default_value='gap',
-            description='Obstacle course: centred / gap / slalom'),
+            description='Obstacle course: centred / gap / slalom / micro_mouse_easy / micro_mouse_hard'),
         DeclareLaunchArgument(
             'results_file', default_value='/tmp/course_result.md'),
     ]

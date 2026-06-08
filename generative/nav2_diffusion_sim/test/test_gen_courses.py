@@ -53,8 +53,8 @@ def test_start_and_goals_are_clear():
 
 
 def test_obstacle_courses_block_the_straight_line():
-    # gap / slalom must force a detour; centred (gap on the line) must not.
-    for name in ('gap', 'slalom'):
+    # gap / slalom / micro-mouse mazes must force a detour; centred must not.
+    for name in ('gap', 'slalom', 'micro_mouse_easy', 'micro_mouse_hard'):
         spec = gen.COURSE_SPECS[name]
         st, g = spec['start'], spec['goals'][0]
         assert _straight_blocked(name, (st[0], st[1]), (g[1], g[2])), \

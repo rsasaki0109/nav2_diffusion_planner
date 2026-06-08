@@ -31,20 +31,66 @@ blocks inter-process DDS — see docs/simulation.md section 10.5); the geometry 
 artifact well-formedness are unit-tested here.
 
 The courses mirror the off-line ``planner_benchmark`` obstacle scenarios
-(centred gap / off-centre gap / slalom) so the closed-loop stack can be measured
-on the same shapes the proposal-stage benchmark uses.
+(centred gap / off-centre gap / slalom) and the browser-battle **micro-mouse**
+mazes (easy / hard — same wall layout as
+``nav2_planner_benchmarks/micro_mouse_maze.hpp``) so the closed-loop stack can be
+measured on the same shapes the proposal-stage benchmark and Planner Battle use.
 """
 
+import math
 import os
 
 # A wall is an axis-aligned box: (center_x, center_y, size_x, size_y) in metres.
 # Height is fixed; z is derived so the box rests on the ground plane.
 WALL_HEIGHT = 0.5
 WALL_MARGIN = 0.15  # perimeter offset inside the map extent
+MAZE_WALL_TH = 0.15  # matches micro_mouse_maze.hpp kMicroMouseHalfCells @ 0.05 m res
+
+
+def _h_wall(coord, a0, a1, th=MAZE_WALL_TH):
+    """Horizontal maze segment → axis-aligned box (matches battle_trace walls)."""
+    return ((a0 + a1) / 2.0, coord, a1 - a0, th)
+
+
+def _v_wall(coord, a0, a1, th=MAZE_WALL_TH):
+    """Vertical maze segment → axis-aligned box."""
+    return (coord, (a0 + a1) / 2.0, th, a1 - a0)
+
+
+def _yaw_toward(sx, sy, gx, gy):
+    return math.atan2(gy - sy, gx - sx)
+
+
+# Interior walls only — perimeter is added by ``perimeter_walls`` (same as battle 6×6).
+_MICRO_MOUSE_EASY_WALLS = [
+    _h_wall(1.5, 0.0, 1.5), _h_wall(3.0, 1.5, 4.5), _h_wall(6.0, 0.0, 6.0),
+    _v_wall(1.5, 3.0, 4.5), _v_wall(3.0, 0.0, 3.0), _v_wall(3.0, 4.5, 6.0),
+    _v_wall(4.5, 1.5, 4.5), _v_wall(6.0, 0.0, 6.0),
+]
+
+_MICRO_MOUSE_HARD_WALLS = [
+    _h_wall(0.75, 1.5, 3.0), _h_wall(0.75, 4.5, 5.25),
+    _h_wall(1.5, 1.5, 2.25), _h_wall(1.5, 5.25, 6.0),
+    _h_wall(2.25, 0.75, 1.5), _h_wall(2.25, 4.5, 5.25),
+    _h_wall(3.0, 1.5, 2.25), _h_wall(3.0, 3.0, 5.25),
+    _h_wall(3.75, 3.0, 3.75), _h_wall(3.75, 4.5, 5.25),
+    _h_wall(4.5, 1.5, 4.5), _h_wall(4.5, 5.25, 6.0),
+    _h_wall(5.25, 0.75, 1.5), _h_wall(5.25, 4.5, 5.25),
+    _h_wall(6.0, 0.0, 6.0),
+    _v_wall(0.75, 0.0, 5.25), _v_wall(1.5, 0.75, 1.5), _v_wall(1.5, 3.0, 4.5),
+    _v_wall(2.25, 1.5, 3.75), _v_wall(2.25, 4.5, 6.0),
+    _v_wall(3.0, 0.75, 2.25), _v_wall(3.0, 3.0, 3.75), _v_wall(3.0, 5.25, 6.0),
+    _v_wall(3.75, 0.0, 3.0), _v_wall(3.75, 4.5, 5.25),
+    _v_wall(4.5, 0.75, 2.25), _v_wall(4.5, 3.75, 4.5),
+    _v_wall(5.25, 2.25, 3.0), _v_wall(5.25, 4.5, 5.25),
+    _v_wall(6.0, 0.0, 6.0),
+]
 
 # Each course: map extent (xmin, xmax, ymin, ymax), start (x, y, yaw), goals
 # (label, x, y, yaw, timeout), and interior wall boxes. A perimeter is added
-# automatically so AMCL has features and the robot stays bounded.
+# automatically so AMCL has features and the robot stays bounded — except for
+# micro-mouse mazes, which match the open-arena battle layout (boundary segments
+# are already in ``walls``).
 COURSE_SPECS = {
     'centred': {
         'description': 'Wall with a gap on the straight line (dead ahead).',
@@ -82,6 +128,27 @@ COURSE_SPECS = {
             (1.0, 2.75, 0.2, 1.5),    # y[2.0,3.5]
         ],
     },
+    'micro_mouse_easy': {
+        'description': (
+            'Micro-mouse easy: 4×4 grid (1.5 m cells), SW start, centre goal — '
+            'matches Planner Battle micro mouse easy / battle_trace.'),
+        'extent': (0.0, 6.0, 0.0, 6.0),
+        'start': (0.75, 0.75, _yaw_toward(0.75, 0.75, 2.25, 2.25)),
+        'goals': [('centre', 2.25, 2.25, 0.0, 240.0)],
+        'walls': _MICRO_MOUSE_EASY_WALLS,
+        'perimeter': False,
+    },
+    'micro_mouse_hard': {
+        'description': (
+            'Micro-mouse hard: 8×8 grid (0.75 m cells), SW start, centre goal — '
+            'matches Planner Battle micro mouse hard / battle_trace.'),
+        'extent': (0.0, 6.0, 0.0, 6.0),
+        # Battle trace uses (0.5, 0.5) for a point robot; nudge inward for TB3 footprint.
+        'start': (0.425, 0.425, _yaw_toward(0.425, 0.425, 3.375, 3.375)),
+        'goals': [('centre', 3.375, 3.375, 0.0, 360.0)],
+        'walls': _MICRO_MOUSE_HARD_WALLS,
+        'perimeter': False,
+    },
 }
 
 
@@ -100,9 +167,12 @@ def perimeter_walls(extent, thickness=0.1):
 
 
 def all_walls(name):
-    """Return interior + perimeter wall boxes for a course."""
+    """Return interior + (optional) perimeter wall boxes for a course."""
     spec = COURSE_SPECS[name]
-    return list(spec['walls']) + perimeter_walls(spec['extent'])
+    walls = list(spec['walls'])
+    if spec.get('perimeter', True):
+        walls += perimeter_walls(spec['extent'])
+    return walls
 
 
 def point_in_any_wall(name, x, y, margin=0.0):

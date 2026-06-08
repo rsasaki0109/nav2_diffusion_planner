@@ -169,13 +169,14 @@ This is the **Nav2 GlobalPlanner (Mode B)**, symmetric to the local controller (
 ## Closed-loop Gazebo courses (Mode A + B)
 
 <p align="center">
-  <img src="docs/sim_courses.gif" width="360" alt="The nav2_diffusion_sim obstacle courses (centred gap / off-centre gap / slalom): a robot routes start→goal through each">
+  <img src="docs/sim_courses.gif" width="360" alt="nav2_diffusion_sim obstacle courses including micro-mouse mazes">
 </p>
 
 <p align="center"><em>The obstacle courses shipped in <a href="nav2_diffusion_sim">nav2_diffusion_sim</a>, mirroring the off-line <code>planner_benchmark</code> scenarios. Each course is generated from a <strong>single spec</strong> into three consistent artifacts — a gz-sim world, a matching occupancy map, and the mission goals — so the world, map, and goals cannot drift. The figure shows the generated course layouts with a valid start→goal route (grid A\* on the course occupancy grid). Reproduce with <a href="tools/gazebo_courses_demo.py">tools/gazebo_courses_demo.py</a>.</em></p>
 
 Drive a course closed-loop on a real ROS host with
-`ros2 launch nav2_diffusion_sim tb3_gazebo_course.launch.py course:=gap` — it loads
+`ros2 launch nav2_diffusion_sim tb3_gazebo_course.launch.py course:=micro_mouse_easy` (or
+`gap` / `slalom` / `micro_mouse_hard`) — it loads
 the world + map, spawns TB3 at the start, brings up Nav2 with the
 `DiffusionController`, runs the mission, and writes a Markdown leaderboard. The
 course **assets and geometry are generated and unit-tested in-tree**; the

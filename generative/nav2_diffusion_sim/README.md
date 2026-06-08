@@ -16,21 +16,26 @@ cannot drift apart:
   the global costmap see the same walls as the simulator);
 - the mission goals (`"label|x|y|yaw|timeout"`) consumed by `sim_mission.py`.
 
-The courses mirror the off-line `planner_benchmark` obstacle scenarios so the
-**full closed-loop stack** (global planner + controller + costmap) can be
-measured on the same shapes the proposal-stage benchmark uses:
+The courses mirror the off-line `planner_benchmark` obstacle scenarios and the
+Planner Battle **micro-mouse** mazes so the **full closed-loop stack** (global
+planner + controller + costmap) can be measured on the same shapes the
+proposal-stage benchmark and browser game use. Micro-mouse courses omit the
+automatic perimeter box (the battle layout is open; boundary segments are already
+in the wall list):
 
 | Course | Shape | Straight line |
 |---|---|---|
 | `centred` | gap on the line (dead ahead) | clear (trivial by design) |
 | `gap` | gap ~2 m off the line | blocked → detour |
 | `slalom` | two staggered gaps (low then high) | blocked → S-detour |
+| `micro_mouse_easy` | 4×4 micro-mouse maze (Planner Battle easy) | blocked → maze route |
+| `micro_mouse_hard` | 8×8 micro-mouse maze (Planner Battle hard) | blocked → maze route |
 
 ## Run (real ROS host)
 
 ```bash
-ros2 launch nav2_diffusion_sim tb3_gazebo_course.launch.py course:=gap \
-    results_file:=/tmp/course_gap_result.md
+ros2 launch nav2_diffusion_sim tb3_gazebo_course.launch.py course:=micro_mouse_easy \
+    results_file:=/tmp/course_micro_mouse_easy_result.md
 ```
 
 This loads the course world + map, spawns TB3 at the course start, brings up Nav2
