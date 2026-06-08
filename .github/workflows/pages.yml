@@ -1,0 +1,44 @@
+# Deploy Nav2 Planner Battle to GitHub Pages (static browser game).
+# One-time repo setup: Settings → Pages → Build and deployment → Source: GitHub Actions.
+# Live URL: https://rsasaki0109.github.io/Nav2PlannerBattle/
+
+name: Deploy Planner Battle (Pages)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/nav2_planner_battle/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload battle site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: tools/nav2_planner_battle
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

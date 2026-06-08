@@ -79,11 +79,16 @@
         <span class="seg">
           <button id="mA" class="on">🏁 Mode A · Race</button>
           <button id="mB">🧭 Mode B · Duel</button>
+          <button id="mC">🏆 Championship</button>
+        </span>
+        <span class="seg" id="champSeg" style="display:none">
+          <button id="cA" class="on">🏁 Race</button>
+          <button id="cB">🧭 Duel</button>
         </span>
         <select id="scenario"></select>
         <button class="btn primary" id="play">▶ Play</button>
         <button class="btn" id="restart">⟲ Restart</button>
-        <label style="color:var(--muted)">speed
+        <label id="speedLbl" style="color:var(--muted)">speed
           <input type="range" id="speed" min="0.25" max="3" step="0.25" value="1">
         </label>
       </div>
@@ -114,20 +119,47 @@ let arena = DATA.arena, scale = (W - 2*PAD) / arena.w;
 const wx = x => PAD + x*scale;
 const wy = y => H - PAD - y*scale;           // flip: world y up
 
-let mode = 'modeA', scIdx = 0, playing = false, t = 0, raf = null;
+let mode = 'modeA', champSub = 'modeA', scIdx = 0, playing = false, t = 0, raf = null;
 let speed = 1;
 
 const el = id => document.getElementById(id);
+function isChamp(){ return mode==='championship'; }
+function champDesc(){
+  const base = 'Points per scenario: 1st=3, 2nd=2, 3rd=1';
+  if(champSub==='modeA'){
+    return 'Mode A championship — aggregate race strength across every scenario '
+      + '(including micro-mouse easy & hard). ' + base + '; +1 bonus for reaching the goal.';
+  }
+  return 'Mode B championship — aggregate planner strength across every duel scenario '
+    + '(8 gap courses + micro-mouse easy & hard). ' + base + '; +1 bonus for a valid path.';
+}
+function setChampSub(sub){
+  champSub = sub;
+  el('cA').classList.toggle('on', sub==='modeA');
+  el('cB').classList.toggle('on', sub==='modeB');
+  el('boardTitle').textContent = sub==='modeA'
+    ? 'Strength ranking (Mode A · race)' : 'Strength ranking (Mode B · duel)';
+  reset();
+}
 function setMode(m){
   mode = m;
   el('mA').classList.toggle('on', m==='modeA');
   el('mB').classList.toggle('on', m==='modeB');
-  el('modeTag').textContent = m==='modeA' ? 'Mode A' : 'Mode B';
-  el('boardTitle').textContent = m==='modeA' ? 'Leaderboard (race)' : 'Scoreboard (duel)';
+  el('mC').classList.toggle('on', m==='championship');
+  el('modeTag').textContent = m==='modeA' ? 'Mode A' : m==='modeB' ? 'Mode B' : 'Championship';
+  el('boardTitle').textContent = m==='modeA' ? 'Leaderboard (race)' :
+    m==='modeB' ? 'Scoreboard (duel)' :
+    (champSub==='modeA' ? 'Strength ranking (Mode A · race)' : 'Strength ranking (Mode B · duel)');
+  el('champSeg').style.display = isChamp() ? '' : 'none';
+  el('scenario').style.display = isChamp() ? 'none' : '';
+  el('play').style.display = isChamp() ? 'none' : '';
+  el('restart').style.display = isChamp() ? 'none' : '';
+  el('speedLbl').style.display = isChamp() ? 'none' : '';
   scIdx = 0; fillScenarios(); reset();
 }
 function fillScenarios(){
   const sel = el('scenario'); sel.innerHTML='';
+  if(isChamp()) return;
   DATA[mode].scenarios.forEach((s,i)=>{
     const o=document.createElement('option'); o.value=i; o.textContent=s.name; sel.appendChild(o);
   });
@@ -137,6 +169,7 @@ function curScenario(){ return DATA[mode].scenarios[scIdx]; }
 function fighters(){ return curScenario().fighters; }
 
 function maxFrames(){
+  if(isChamp()) return 1;
   if(mode==='modeA') return Math.max(...fighters().map(f=>f.path.length));
   return 90; // duel: ~1.5s draw at 60fps
 }
@@ -144,7 +177,11 @@ function maxFrames(){
 function reset(){
   t = 0; playing = false; el('play').textContent='▶ Play';
   cancelAnimationFrame(raf);
-  el('desc').textContent = curScenario().description;
+  if(isChamp()){
+    el('desc').textContent = champDesc();
+  } else {
+    el('desc').textContent = curScenario().description;
+  }
   draw(); buildBoard();
 }
 
@@ -157,8 +194,21 @@ function drawArena(){
     ctx.beginPath(); ctx.moveTo(wx(i),wy(0)); ctx.lineTo(wx(i),wy(arena.h)); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(wx(0),wy(i)); ctx.lineTo(wx(arena.w),wy(i)); ctx.stroke();
   }
-  // obstacles
+  // micro-mouse cell grid (easy 4×4 @ 1.5 m, hard 8×8 @ 0.75 m)
   const s = curScenario();
+  const mazeName=(s.name||'').toLowerCase();
+  let mazeCells=null;
+  if(mazeName.includes('micro mouse easy')) mazeCells={n:4, step:1.5};
+  else if(mazeName.includes('micro mouse')) mazeCells={n:8, step:0.75};
+  if(mazeCells){
+    ctx.strokeStyle='#1e2d5a'; ctx.lineWidth=1;
+    for(let i=0;i<=mazeCells.n;i++){
+      const c=i*mazeCells.step;
+      ctx.beginPath(); ctx.moveTo(wx(c),wy(0)); ctx.lineTo(wx(c),wy(arena.h)); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(wx(0),wy(c)); ctx.lineTo(wx(arena.w),wy(c)); ctx.stroke();
+    }
+  }
+  // obstacles
   ctx.fillStyle='#33406f'; ctx.strokeStyle='#5566a8'; ctx.lineWidth=1.5;
   (s.obstacles||[]).forEach(r=>{
     const x=wx(r.x), y=wy(r.y+r.h), w=r.w*scale, h=r.h*scale;
@@ -223,7 +273,34 @@ function drawModeB(){
   });
 }
 
-function draw(){ mode==='modeA' ? drawModeA() : drawModeB(); }
+function drawChampionship(){
+  ctx.clearRect(0,0,W,H);
+  const sub = champSub;
+  const nSc = DATA[sub].scenarios.length;
+  const kind = sub==='modeA' ? 'controllers (race)' : 'planners (duel)';
+  ctx.fillStyle='#8b97c4'; ctx.font='13px system-ui'; ctx.textAlign='center';
+  ctx.fillText(`🏆 Championship — ${kind}`, W/2, 32);
+  ctx.font='12px system-ui';
+  ctx.fillText(`${nSc} scenarios · toggle Race / Duel above`, W/2, 52);
+  ctx.fillText('Micro-mouse easy & hard included — pick a mode to watch one scenario live.', W/2, 70);
+  const stats = championshipStats(sub);
+  const top = stats.slice(0, sub==='modeA' ? 7 : 8);
+  const metric = sub==='modeA' ? 'reached' : 'solved';
+  ctx.textAlign='left';
+  top.forEach((r,i)=>{
+    const y=96+i*26;
+    ctx.fillStyle=colorFor(r.i);
+    circle(36,y,5);
+    ctx.fillStyle='#e8ecff';
+    ctx.fillText(r.f.label, 50, y+4);
+    ctx.fillStyle='#8b97c4';
+    ctx.fillText(`${r.pts} pts · ${r.wins} wins · ${r[metric]}/${nSc} ${metric}`, 50, y+17);
+  });
+}
+function draw(){
+  if(isChamp()) drawChampionship();
+  else mode==='modeA' ? drawModeA() : drawModeB();
+}
 
 // ---- leaderboard / scoreboard ----
 function progressA(f, frame){
@@ -250,8 +327,76 @@ function badge(o){
   const cls = o==='reached'?'b-reached':o==='timeout'?'b-timeout':'b-collision';
   return `<span class="badge ${cls}">${o}</span>`;
 }
+function rankScenarioA(sc){
+  return sc.fighters.map((f,i)=>({f,i})).sort((a,b)=>{
+    const ar=a.f.outcome==='reached', br=b.f.outcome==='reached';
+    if(ar&&br) return a.f.steps-b.f.steps;
+    if(ar!==br) return ar?-1:1;
+    const g=sc.goal, pa=a.f.path[a.f.path.length-1], pb=b.f.path[b.f.path.length-1];
+    const da=Math.hypot(g[0]-pa[0],g[1]-pa[1]), db=Math.hypot(g[0]-pb[0],g[1]-pb[1]);
+    return da-db;
+  });
+}
+function championshipStats(subMode){
+  const scenarios = DATA[subMode].scenarios;
+  const n = scenarios[0].fighters.length;
+  const pts = Array(n).fill(0), wins = Array(n).fill(0);
+  const reached = Array(n).fill(0), solved = Array(n).fill(0);
+  scenarios.forEach(sc=>{
+    const ranked = subMode==='modeA' ? rankScenarioA(sc) : rankScenarioB(sc);
+    ranked.forEach((r,k)=>{
+      if(subMode==='modeA' && r.f.outcome==='reached'){
+        reached[r.i]++;
+        if(k<3) pts[r.i] += 3-k;
+        pts[r.i] += 1;
+      }
+      if(subMode==='modeB' && r.f.success){
+        solved[r.i]++;
+        if(k<3) pts[r.i] += 3-k;
+        pts[r.i] += 1;
+      }
+      const won = subMode==='modeA' ? r.f.outcome==='reached' : r.f.success;
+      if(k===0 && won) wins[r.i]++;
+    });
+  });
+  return scenarios[0].fighters.map((f,i)=>({f,i,pts:pts[i],wins:wins[i],reached:reached[i],solved:solved[i]}))
+    .sort((a,b)=>b.pts-a.pts || b.wins-a.wins || a.f.label.localeCompare(b.f.label));
+}
+function rankScenarioB(sc){
+  return sc.fighters.map((f,i)=>({f,i})).sort((a,b)=>{
+    if(a.f.success!==b.f.success) return a.f.success?-1:1;
+    return a.f.length-b.f.length;
+  });
+}
 function buildBoard(){
   const tb = el('board');
+  if(isChamp()){
+    const sub = champSub;
+    const rows = championshipStats(sub);
+    const nSc = DATA[sub].scenarios.length;
+    if(sub==='modeA'){
+      let h='<tr><th>#</th><th>Controller</th><th class="r">Pts</th><th class="r">Wins</th><th class="r">Reached</th></tr>';
+      rows.forEach((r,k)=>{
+        const win = k===0;
+        h+=`<tr class="${win?'row-win':''}"><td>${win?'<span class="crown">👑</span>':k+1}</td>`+
+          `<td><span class="dot" style="color:${colorFor(r.i)}"></span>${r.f.label}</td>`+
+          `<td class="r">${r.pts}</td><td class="r">${r.wins}</td>`+
+          `<td class="r">${r.reached}/${nSc}</td></tr>`;
+      });
+      tb.innerHTML=h;
+    } else {
+      let h='<tr><th>#</th><th>Planner</th><th class="r">Pts</th><th class="r">Wins</th><th class="r">Paths</th></tr>';
+      rows.forEach((r,k)=>{
+        const win = k===0;
+        h+=`<tr class="${win?'row-win':''}"><td>${win?'<span class="crown">👑</span>':k+1}</td>`+
+          `<td><span class="dot" style="color:${colorFor(r.i)}"></span>${r.f.label}</td>`+
+          `<td class="r">${r.pts}</td><td class="r">${r.wins}</td>`+
+          `<td class="r">${r.solved}/${nSc}</td></tr>`;
+      });
+      tb.innerHTML=h;
+    }
+    return;
+  }
   if(mode==='modeA'){
     const rows = rankA();
     let h='<tr><th>#</th><th>Controller</th><th>Result</th><th class="r">Steps</th><th class="r">Clear</th></tr>';
@@ -300,21 +445,45 @@ function play(){
 
 el('mA').onclick=()=>setMode('modeA');
 el('mB').onclick=()=>setMode('modeB');
+el('mC').onclick=()=>setMode('championship');
+el('cA').onclick=()=>setChampSub('modeA');
+el('cB').onclick=()=>setChampSub('modeB');
 el('scenario').onchange=e=>{ scIdx=+e.target.value; reset(); };
 el('play').onclick=play;
 el('restart').onclick=reset;
 el('speed').oninput=e=>{ speed=+e.target.value; };
 
-// Optional deep link: ?m=A|B & s=<scenarioIndex> & t=<frame> (t freezes a frame, e.g. for sharing)
+// Optional deep link: ?m=A|B|C & sub=A|B (championship) & s=<scenarioIndex> & t=<frame>
 (function(){
   const q = new URLSearchParams(location.search);
-  if(q.get('m')) mode = q.get('m').toUpperCase()==='B' ? 'modeB' : 'modeA';
+  if(q.get('m')){
+    const m=q.get('m').toUpperCase();
+    mode = m==='B' ? 'modeB' : m==='C' ? 'championship' : 'modeA';
+  }
+  if(q.get('sub')){
+    const s=q.get('sub').toUpperCase();
+    champSub = s==='B' ? 'modeB' : 'modeA';
+  }
   el('mA').classList.toggle('on', mode==='modeA');
   el('mB').classList.toggle('on', mode==='modeB');
-  el('modeTag').textContent = mode==='modeA' ? 'Mode A' : 'Mode B';
-  el('boardTitle').textContent = mode==='modeA' ? 'Leaderboard (race)' : 'Scoreboard (duel)';
+  el('mC').classList.toggle('on', mode==='championship');
+  el('cA').classList.toggle('on', champSub==='modeA');
+  el('cB').classList.toggle('on', champSub==='modeB');
+  el('modeTag').textContent = mode==='modeA' ? 'Mode A' : mode==='modeB' ? 'Mode B' : 'Championship';
+  el('boardTitle').textContent = mode==='modeA' ? 'Leaderboard (race)' :
+    mode==='modeB' ? 'Scoreboard (duel)' :
+    (champSub==='modeA' ? 'Strength ranking (Mode A · race)' : 'Strength ranking (Mode B · duel)');
+  el('champSeg').style.display = mode==='championship' ? '' : 'none';
+  el('scenario').style.display = mode==='championship' ? 'none' : '';
+  el('play').style.display = mode==='championship' ? 'none' : '';
+  el('restart').style.display = mode==='championship' ? 'none' : '';
+  el('speedLbl').style.display = mode==='championship' ? 'none' : '';
   fillScenarios();
-  if(q.get('s')!==null){ scIdx = Math.max(0, Math.min(DATA[mode].scenarios.length-1, +q.get('s'))); el('scenario').value=scIdx; }
+  const dataMode = mode==='championship' ? champSub : mode;
+  if(q.get('s')!==null){
+    scIdx = Math.max(0, Math.min(DATA[dataMode].scenarios.length-1, +q.get('s')));
+    if(mode!=='championship') el('scenario').value=scIdx;
+  }
   reset();
   if(q.get('t')!==null){ t = Math.max(0, Math.min(maxFrames(), +q.get('t'))); draw(); buildBoard(); }
 })();

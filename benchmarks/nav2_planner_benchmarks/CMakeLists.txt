@@ -7,6 +7,8 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 
+include_directories(include)
+
 set(dependencies
   ament_index_cpp
   rclcpp
@@ -43,6 +45,8 @@ install(
   TARGETS planner_benchmark controller_benchmark battle_trace
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
+
+install(DIRECTORY include/ DESTINATION include)
 
 # The curated learned models (model_zoo) are installed so the benchmarks can load
 # them at runtime: Mode B (planner_benchmark / OnnxPathModel) and Mode A

@@ -41,9 +41,13 @@
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "tf2_ros/buffer.h"
+#include "nav2_planner_benchmarks/micro_mouse_maze.hpp"
 
 namespace
 {
+using nav2_planner_benchmarks::isMicroMouseScenario;
+using nav2_planner_benchmarks::markMicroMouseScenario;
+using nav2_planner_benchmarks::microMouseLayouts;
 
 struct PlannerEntry
 {
@@ -256,6 +260,10 @@ int main(int argc, char ** argv)
       1.0, 3.0, 5.0, 3.0,
       {{{3.0, 1.4, 1.4, 4}}}},
   };
+  for (const auto & maze : microMouseLayouts()) {
+    scenarios.push_back(
+      {maze.name, maze.description, maze.start_x, maze.start_y, maze.goal_x, maze.goal_y, {}});
+  }
 
   pluginlib::ClassLoader<nav2_core::GlobalPlanner> loader(
     "nav2_core", "nav2_core::GlobalPlanner");
@@ -377,8 +385,12 @@ int main(int argc, char ** argv)
 
       // Build the scenario costmap.
       clearCostmap(costmap);
-      for (const auto & w : sc.walls) {
-        markWall(costmap, w[0], w[1], w[2], static_cast<int>(w[3]));
+      if (isMicroMouseScenario(sc.name)) {
+        markMicroMouseScenario(costmap, sc.name);
+      } else {
+        for (const auto & w : sc.walls) {
+          markWall(costmap, w[0], w[1], w[2], static_cast<int>(w[3]));
+        }
       }
 
       bool ok = true;

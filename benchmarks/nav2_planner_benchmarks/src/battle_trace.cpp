@@ -49,9 +49,14 @@
 #include "tf2/LinearMath/Quaternion.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include "tf2_ros/buffer.h"
+#include "nav2_planner_benchmarks/micro_mouse_maze.hpp"
 
 namespace
 {
+using nav2_planner_benchmarks::isMicroMouseScenario;
+using nav2_planner_benchmarks::markMicroMouseScenario;
+using nav2_planner_benchmarks::microMouseLayouts;
+using nav2_planner_benchmarks::microMouseObstacleRects;
 
 constexpr double kRes = 0.05;        // costmap resolution [m]
 constexpr double kArena = 6.0;       // 6 x 6 m
@@ -138,6 +143,15 @@ Rect hwallRect(double wy, double x0, double x1, int half_cells)
 {
   const double th = (2 * half_cells + 1) * kRes;
   return Rect{x0, wy - th / 2.0, x1 - x0, th};
+}
+
+std::vector<Rect> mazeDisplayRects(const std::string & scenario_name)
+{
+  std::vector<Rect> out;
+  for (const auto & r : microMouseObstacleRects(scenario_name)) {
+    out.push_back(Rect{r.x, r.y, r.w, r.h});
+  }
+  return out;
 }
 
 std::vector<Rect> wallRects(double wx, double gap_center, double gap_half, int half_cells)
@@ -334,7 +348,7 @@ int main(int argc, char ** argv)
             "fallback_controller_plugin", std::string("nav2_vfh_controller::VFHController"))})},
   };
 
-  const std::vector<ModeAScenario> aScenarios = {
+  std::vector<ModeAScenario> aScenarios = {
     {"open", "No obstacles", 1.0, 3.0, 5.0, 3.0, {}},
     {"frontal", "Lethal block dead ahead, sides open", 1.0, 3.0, 5.0, 3.0,
       {blockRect(3.0, 3.0, 4)}},
@@ -343,6 +357,11 @@ int main(int argc, char ** argv)
     {"corridor", "Two walls (y=2.1, y=3.9); off-centre start near the top wall",
       1.0, 3.6, 5.0, 3.0, {hwallRect(2.1, 0.5, 5.5, 2), hwallRect(3.9, 0.5, 5.5, 2)}},
   };
+  for (const auto & maze : microMouseLayouts()) {
+    aScenarios.push_back(
+      {maze.name, maze.description, maze.start_x, maze.start_y, maze.goal_x, maze.goal_y,
+        mazeDisplayRects(maze.name)});
+  }
 
   const std::vector<Entry> planners = {
     {"RRT*", "nav2_rrt_planner::RRTStarPlanner", "sampling (optimal)", {}},
@@ -369,7 +388,7 @@ int main(int argc, char ** argv)
           std::string("nav2_jps_planner::JPSPlanner"))})},
   };
 
-  const std::vector<ModeBScenario> bScenarios = {
+  std::vector<ModeBScenario> bScenarios = {
     {"clear", "Empty map, off-axis goal", 1.0, 1.0, 5.0, 5.0, {}},
     {"centred gap", "Wall with a gap dead ahead", 1.0, 3.0, 5.0, 3.0, {{{3.0, 3.0, 0.5, 2}}}},
     {"narrow gap", "Tight gap centred on the line", 1.0, 3.0, 5.0, 3.0, {{{3.0, 3.0, 0.3, 2}}}},
@@ -384,6 +403,10 @@ int main(int argc, char ** argv)
     {"side obstacle", "One-sided block across the line", 1.0, 3.0, 5.0, 3.0,
       {{{3.0, 1.4, 1.4, 4}}}},
   };
+  for (const auto & maze : microMouseLayouts()) {
+    bScenarios.push_back(
+      {maze.name, maze.description, maze.start_x, maze.start_y, maze.goal_x, maze.goal_y, {}});
+  }
 
   pluginlib::ClassLoader<nav2_core::Controller> cloader(
     "nav2_core", "nav2_core::Controller");
@@ -448,6 +471,8 @@ int main(int argc, char ** argv)
         } else if (sc.name == "corridor") {
           markHWall(costmap, 2.1, 0.5, 5.5, 2);
           markHWall(costmap, 3.9, 0.5, 5.5, 2);
+        } else if (isMicroMouseScenario(sc.name)) {
+          markMicroMouseScenario(costmap, sc.name);
         }
         controller->setPlan(straightPlan(sc.sx, sc.sy, sc.gx, sc.gy));
 
@@ -536,11 +561,19 @@ int main(int argc, char ** argv)
     std::cout << ",\"start\":[" << sc.sx << "," << sc.sy << "],\"goal\":[" << sc.gx << ","
               << sc.gy << "],\"obstacles\":[";
     bool first_rect = true;
-    for (const auto & w : sc.walls) {
-      for (const auto & r : wallRects(w[0], w[1], w[2], static_cast<int>(w[3]))) {
+    if (isMicroMouseScenario(sc.name)) {
+      for (const auto & r : microMouseObstacleRects(sc.name)) {
         std::cout << (first_rect ? "" : ",") << "{\"x\":" << r.x << ",\"y\":" << r.y
                   << ",\"w\":" << r.w << ",\"h\":" << r.h << "}";
         first_rect = false;
+      }
+    } else {
+      for (const auto & w : sc.walls) {
+        for (const auto & r : wallRects(w[0], w[1], w[2], static_cast<int>(w[3]))) {
+          std::cout << (first_rect ? "" : ",") << "{\"x\":" << r.x << ",\"y\":" << r.y
+                    << ",\"w\":" << r.w << ",\"h\":" << r.h << "}";
+          first_rect = false;
+        }
       }
     }
     std::cout << "],\"fighters\":[\n";
@@ -567,8 +600,12 @@ int main(int argc, char ** argv)
         planner->configure(node, name, tf, costmap_ros);
         planner->activate();
         clearCostmap(costmap);
-        for (const auto & w : sc.walls) {
-          markWall(costmap, w[0], w[1], w[2], static_cast<int>(w[3]));
+        if (isMicroMouseScenario(sc.name)) {
+          markMicroMouseScenario(costmap, sc.name);
+        } else {
+          for (const auto & w : sc.walls) {
+            markWall(costmap, w[0], w[1], w[2], static_cast<int>(w[3]));
+          }
         }
         for (int r = 0; r < kRuns; ++r) {
           const auto t0 = std::chrono::steady_clock::now();

@@ -44,9 +44,13 @@
 #include "tf2/LinearMath/Quaternion.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include "tf2_ros/buffer.h"
+#include "nav2_planner_benchmarks/micro_mouse_maze.hpp"
 
 namespace
 {
+using nav2_planner_benchmarks::isMicroMouseScenario;
+using nav2_planner_benchmarks::markMicroMouseScenario;
+using nav2_planner_benchmarks::microMouseLayouts;
 
 struct ControllerEntry
 {
@@ -276,6 +280,11 @@ int main(int argc, char ** argv)
       "Walls at y=2.1 and y=3.9; robot starts at y=3.6, near the top wall",
       1.0, 3.6, 0.0, 5.0, 3.0, true, 3.0},
   };
+  for (const auto & maze : microMouseLayouts()) {
+    scenarios.push_back(
+      {maze.name, maze.description, maze.start_x, maze.start_y, 0.0, maze.goal_x, maze.goal_y,
+        false, 0.0});
+  }
 
   pluginlib::ClassLoader<nav2_core::Controller> loader("nav2_core", "nav2_core::Controller");
 
@@ -397,6 +406,8 @@ int main(int argc, char ** argv)
       } else if (sc.centering) {
         markHWall(costmap, 2.1, 0.5, 5.5, 2);
         markHWall(costmap, 3.9, 0.5, 5.5, 2);
+      } else if (isMicroMouseScenario(sc.name)) {
+        markMicroMouseScenario(costmap, sc.name);
       }
       controller->setPlan(straightPlan(sc.sx, sc.sy, sc.gx, sc.gy));
 

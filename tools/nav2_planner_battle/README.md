@@ -21,16 +21,30 @@ Two modes:
 
 ## Play
 
-Just open `index.html` in a browser (no server needed — the data is loaded from
-`battle_data.js`):
+**Online (GitHub Pages):** [https://rsasaki0109.github.io/Nav2PlannerBattle/](https://rsasaki0109.github.io/Nav2PlannerBattle/)
+
+Or open `index.html` locally (no server needed — the data is loaded from `battle_data.js`):
 
 ```bash
 xdg-open tools/nav2_planner_battle/index.html      # Linux
 ```
 
+> **Pages setup (maintainers):** enable **Settings → Pages → Build and deployment →
+> Source: GitHub Actions**. Pushes to `main` that touch `tools/nav2_planner_battle/`
+> run [`.github/workflows/pages.yml`](../../.github/workflows/pages.yml) automatically.
+
 Controls: pick a **scenario**, **▶ Play**, scrub **speed**, **⟲ Restart**, and toggle
-**Mode A / Mode B**. Deep links freeze a frame for sharing, e.g.
-`index.html?m=A&s=1&t=120` (Mode A, scenario 1, frame 120).
+**Mode A / Mode B / Championship**. Two **micro mouse** mazes: **easy** (4×4, 1.5 m cells,
+exploration run) and **hard** (8×8, 0.75 m cells, contest speed run) — SW start → centre
+goal, inspired by All Japan MicroMouse.
+**Championship** aggregates strength points across all scenarios — toggle **Race** (Mode A
+controllers) or **Duel** (Mode B planners). Scoring: 1st=3, 2nd=2, 3rd=1 per scenario plus
+a success bonus (+1 for goal reached / valid path).
+Deep links freeze a frame for sharing, e.g.
+[frontal block](https://rsasaki0109.github.io/Nav2PlannerBattle/?m=A&s=1&t=120),
+[micro mouse easy](https://rsasaki0109.github.io/Nav2PlannerBattle/?m=A&s=4),
+[Championship · Race](https://rsasaki0109.github.io/Nav2PlannerBattle/?m=C),
+[Championship · Duel](https://rsasaki0109.github.io/Nav2PlannerBattle/?m=C&sub=B).
 
 ## Regenerate the data
 

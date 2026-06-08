@@ -15,7 +15,9 @@
 
 > Learned models propose. Classical safety disposes. Nav2 executes.
 
-> 🎮 **Watch them fight:** the real plugins race and duel in the browser — [Nav2 Planner Battle](tools/nav2_planner_battle) (details in the Planner Battle section below).
+> 🎮 **Watch them fight:** the real plugins race and duel in the browser —
+> [**Play online**](https://rsasaki0109.github.io/Nav2PlannerBattle/) ·
+> [source](tools/nav2_planner_battle) (details in the Planner Battle section below).
 
 `Nav2PlannerBattle` is not a project that replaces Nav2. It is an OSS foundation that makes the most of Nav2's existing architecture (Behavior Tree / Lifecycle Node / Planner & Controller plugins / Costmap / Collision Monitor) and, on top of it, **safely connects generative navigation models** from the Diffusion / Flow Matching / Consistency / Transformer / World-Model families.
 
@@ -160,7 +162,7 @@ section 10.5.
 
 <p align="center"><img src="tools/nav2_planner_battle/docs/battle_frontal.png" width="640" alt="Nav2 Planner Battle — Mode A race on the frontal block"></p>
 
-<p align="center"><em>A self-contained browser game that replays the repo's <strong>real</strong> planners and controllers head-to-head — no scripted winners. <strong>Mode A · Race</strong>: the local controllers race a unicycle through a shared arena (watch the <strong>threading</strong> model thread the dead-ahead block while the plain learned/transformer/recurrent models stall). <strong>Mode B · Duel</strong>: the global planners draw their <code>createPlan</code> paths simultaneously, shortest valid path wins. Just open <a href="tools/nav2_planner_battle/index.html">tools/nav2_planner_battle/index.html</a> — traces come from <code>ros2 run nav2_planner_benchmarks battle_trace</code>, mirroring the benchmarks exactly. See <a href="tools/nav2_planner_battle/README.md">tools/nav2_planner_battle</a>.</em></p>
+<p align="center"><em>A self-contained browser game that replays the repo's <strong>real</strong> planners and controllers head-to-head — no scripted winners. <strong>Mode A · Race</strong>: the local controllers race a unicycle through a shared arena (watch the <strong>threading</strong> model thread the dead-ahead block while the plain learned/transformer/recurrent models stall). <strong>Mode B · Duel</strong>: the global planners draw their <code>createPlan</code> paths simultaneously, shortest valid path wins. <strong><a href="https://rsasaki0109.github.io/Nav2PlannerBattle/">Play online</a></strong> or open <a href="tools/nav2_planner_battle/index.html">tools/nav2_planner_battle/index.html</a> locally — traces come from <code>ros2 run nav2_planner_benchmarks battle_trace</code>, mirroring the benchmarks exactly. Includes <strong>micro-mouse easy/hard</strong> mazes and a <strong>Championship</strong> strength ranking. See <a href="tools/nav2_planner_battle/README.md">tools/nav2_planner_battle</a>.</em></p>
 
 ## Documentation map
 
