@@ -35,7 +35,7 @@
 | **🧭 Duel** | Global planners draw paths (RRT*, JPS, Diffusion, omni/diff/Ackermann, …) | [slalom](https://rsasaki0109.github.io/Nav2PlannerBattle/?m=B&s=6) · [kinematics gap](https://rsasaki0109.github.io/Nav2PlannerBattle/?m=B&s=3) · [hard maze](https://rsasaki0109.github.io/Nav2PlannerBattle/?m=B&s=9) |
 | **🏆 Championship** | Points across all scenarios | [Race](https://rsasaki0109.github.io/Nav2PlannerBattle/?m=C) · [Duel](https://rsasaki0109.github.io/Nav2PlannerBattle/?m=C&sub=B) |
 
-Real `nav2_core` plugins — no scripted winners. Traces: `ros2 run nav2_planner_benchmarks battle_trace` · GIFs: [`tools/record_battle_gif.py`](tools/record_battle_gif.py)
+Real `nav2_core` plugins — no scripted winners. Traces: `ros2 run nav2_planner_benchmarks battle_trace` · GIFs: [`tools/record_battle_gif.py`](tools/record_battle_gif.py) · **your ONNX:** [`docs/custom_model_battle.md`](docs/custom_model_battle.md)
 
 ---
 
@@ -95,8 +95,9 @@ Mode B global planner: [nav2_diffusion_global_planner](generative/nav2_diffusion
 | Benchmarks | [docs/benchmarking.md](docs/benchmarking.md) |
 | Model zoo | [docs/model_zoo.md](docs/model_zoo.md) |
 | Visualization | [docs/visualization.md](docs/visualization.md) |
-| Roadmap | [docs/roadmap.md](docs/roadmap.md) · [CHANGELOG.md](CHANGELOG.md) |
+| Roadmap | [docs/roadmap.md](docs/roadmap.md) · [plan.md](plan.md) · [CHANGELOG.md](CHANGELOG.md) |
 | Pick a planner | [docs/choosing_a_planner.md](docs/choosing_a_planner.md) |
+| Battle your model | [docs/custom_model_battle.md](docs/custom_model_battle.md) |
 
 ---
 

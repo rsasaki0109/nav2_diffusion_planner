@@ -70,6 +70,19 @@ same real behaviour, only as JSON instead of Markdown. The Markdown reports rema
 canonical comparison ([docs/controller_comparison.md](../../docs/controller_comparison.md),
 [docs/planner_comparison.md](../../docs/planner_comparison.md)).
 
+### Battle your ONNX model
+
+Run your trained artifact through the same harness and merge it into the browser roster:
+
+```bash
+tools/battle_custom_model.sh --mode A --label my-flow --onnx /path/to/local.onnx
+# or Mode B:
+tools/battle_custom_model.sh --mode B --label my-planner --onnx /path/to/global.onnx
+```
+
+Full contracts, manual merge, and CI notes:
+[docs/custom_model_battle.md](../../docs/custom_model_battle.md).
+
 Refresh the README battle GIFs (real browser UI — **all fighters move**) with:
 
 ```bash

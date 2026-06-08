@@ -23,9 +23,11 @@
 // reports the same real behaviour, only as machine-readable JSON instead of
 // Markdown. Reproduce with:
 //   ros2 run nav2_planner_benchmarks battle_trace > tools/nav2_planner_battle/battle_data.json
+// Custom ONNX fighters: docs/custom_model_battle.md
 
 #include <algorithm>
 #include <cctype>
+#include <cstdlib>
 #include <chrono>
 #include <cmath>
 #include <iostream>
@@ -70,6 +72,105 @@ struct Entry
   std::string family;
   std::vector<rclcpp::Parameter> params;
 };
+
+struct CustomEntry
+{
+  std::string label;
+  std::string onnx_path;
+  std::string family;
+  double min_turn_radius = -1.0;
+  bool is_planner = false;
+};
+
+enum class ExportMode {Both, AOnly, BOnly};
+
+struct BattleCli
+{
+  std::vector<CustomEntry> custom;
+  bool custom_only = false;
+  ExportMode export_mode = ExportMode::Both;
+};
+
+bool isAbsPath(const std::string & path)
+{
+  return !path.empty() && (path[0] == '/' || (path.size() > 1 && path[1] == ':'));
+}
+
+void printBattleHelp()
+{
+  std::cerr <<
+    "battle_trace — export Planner Battle JSON from real Nav2 plugins.\n"
+    "\n"
+    "Optional flags (stripped before rclcpp init):\n"
+    "  --custom-controller LABEL ONNX [FAMILY]\n"
+    "      Append a Mode A DiffusionController using ONNX at ONNX (absolute or share/models/ name).\n"
+    "  --custom-planner LABEL ONNX [MIN_TURN_RADIUS]\n"
+    "      Append a Mode B DiffusionGlobalPlanner using ONNX (default R=0 omni if omitted).\n"
+    "  --custom-only          Run only --custom-* entries (skip the default roster).\n"
+    "  --mode A|B|both        Limit export to one battle mode (default: both).\n"
+    "  -h, --help             Show this help.\n"
+    "\n"
+    "Examples:\n"
+    "  ros2 run nav2_planner_benchmarks battle_trace > battle_data.json\n"
+    "  ros2 run nav2_planner_benchmarks battle_trace \\\n"
+    "    --mode A --custom-only --custom-controller my-flow /tmp/local.onnx > custom.json\n";
+}
+
+BattleCli parseBattleCli(int & argc, char ** argv)
+{
+  BattleCli cli;
+  std::vector<char *> kept;
+  kept.push_back(argv[0]);
+  for (int i = 1; i < argc; ++i) {
+    const std::string arg = argv[i];
+    if (arg == "--help" || arg == "-h") {
+      printBattleHelp();
+      std::exit(0);
+    } else if (arg == "--custom-only") {
+      cli.custom_only = true;
+    } else if (arg == "--mode" && i + 1 < argc) {
+      const std::string mode = argv[++i];
+      if (mode == "A" || mode == "a") {
+        cli.export_mode = ExportMode::AOnly;
+      } else if (mode == "B" || mode == "b") {
+        cli.export_mode = ExportMode::BOnly;
+      } else if (mode == "both") {
+        cli.export_mode = ExportMode::Both;
+      } else {
+        std::cerr << "battle_trace: unknown --mode " << mode << " (use A, B, or both)\n";
+        std::exit(2);
+      }
+    } else if (arg == "--custom-controller" && i + 2 < argc) {
+      CustomEntry e;
+      e.label = argv[++i];
+      e.onnx_path = argv[++i];
+      e.is_planner = false;
+      if (i + 1 < argc && argv[i + 1][0] != '-') {
+        e.family = argv[++i];
+      } else {
+        e.family = "custom (local)";
+      }
+      cli.custom.push_back(e);
+    } else if (arg == "--custom-planner" && i + 2 < argc) {
+      CustomEntry e;
+      e.label = argv[++i];
+      e.onnx_path = argv[++i];
+      e.is_planner = true;
+      e.family = "custom (global)";
+      if (i + 1 < argc && argv[i + 1][0] != '-') {
+        e.min_turn_radius = std::stod(argv[++i]);
+      }
+      cli.custom.push_back(e);
+    } else {
+      kept.push_back(argv[i]);
+    }
+  }
+  argc = static_cast<int>(kept.size());
+  for (int i = 0; i < argc; ++i) {
+    argv[i] = kept[i];
+  }
+  return cli;
+}
 
 // --- shared costmap helpers (mirror the benchmarks) ---
 
@@ -286,6 +387,7 @@ struct ModeBScenario
 
 int main(int argc, char ** argv)
 {
+  const BattleCli cli = parseBattleCli(argc, argv);
   rclcpp::init(argc, argv);
   auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("battle_trace");
 
@@ -309,10 +411,13 @@ int main(int argc, char ** argv)
 
   const std::string share = ament_index_cpp::get_package_share_directory("nav2_planner_benchmarks");
   const auto model = [&](const std::string & f) {return share + "/models/" + f;};
+  const auto resolveOnnx = [&](const std::string & f) {
+      return isAbsPath(f) ? f : model(f);
+    };
   auto onnxA = [&](const std::string & f, std::vector<rclcpp::Parameter> extra) {
       std::vector<rclcpp::Parameter> p = {
         rclcpp::Parameter("model_plugin", std::string("nav2_diffusion_onnx::OnnxTrajectoryModel")),
-        rclcpp::Parameter("model_path", model(f)),
+        rclcpp::Parameter("model_path", resolveOnnx(f)),
         rclcpp::Parameter("costmap_patch_size", 32),
         rclcpp::Parameter("lookahead_distance", 1.0),
         rclcpp::Parameter("max_linear_speed", 1.5)};
@@ -322,13 +427,13 @@ int main(int argc, char ** argv)
   auto onnxB = [&](const std::string & f, std::vector<rclcpp::Parameter> extra) {
       std::vector<rclcpp::Parameter> p = {
         rclcpp::Parameter("model_plugin", std::string("nav2_diffusion_onnx::OnnxPathModel")),
-        rclcpp::Parameter("model_path", model(f)),
+        rclcpp::Parameter("model_path", resolveOnnx(f)),
         rclcpp::Parameter("provide_costmap", true)};
       p.insert(p.end(), extra.begin(), extra.end());
       return p;
     };
 
-  const std::vector<Entry> controllers = {
+  std::vector<Entry> controllers = {
     {"VFH+", "nav2_vfh_controller::VFHController", "reactive", {}},
     {"ND", "nav2_nd_controller::NDController", "reactive", {}},
     {"learned", "nav2_diffusion_controller::DiffusionController", "generative flow",
@@ -366,7 +471,7 @@ int main(int argc, char ** argv)
         mazeDisplayRects(maze.name), false, 3.0});
   }
 
-  const std::vector<Entry> planners = {
+  std::vector<Entry> planners = {
     {"RRT*", "nav2_rrt_planner::RRTStarPlanner", "sampling (optimal)", {}},
     {"RRT-Connect", "nav2_rrt_planner::RRTConnectPlanner", "sampling (bidirectional)", {}},
     {"PRM", "nav2_prm_planner::PRMPlanner", "sampling (roadmap)", {}},
@@ -406,6 +511,34 @@ int main(int argc, char ** argv)
         {rclcpp::Parameter("min_turn_radius", 1.5)})},
   };
 
+  const bool custom_controllers = std::any_of(
+    cli.custom.begin(), cli.custom.end(), [](const CustomEntry & e) {return !e.is_planner;});
+  const bool custom_planners = std::any_of(
+    cli.custom.begin(), cli.custom.end(), [](const CustomEntry & e) {return e.is_planner;});
+  if (cli.custom_only) {
+    if (custom_controllers) {
+      controllers.clear();
+    }
+    if (custom_planners) {
+      planners.clear();
+    }
+  }
+  for (const auto & c : cli.custom) {
+    if (c.is_planner) {
+      std::vector<rclcpp::Parameter> extra;
+      if (c.min_turn_radius >= 0.0) {
+        extra.push_back(rclcpp::Parameter("min_turn_radius", c.min_turn_radius));
+      }
+      planners.push_back(
+        {c.label, "nav2_diffusion_global_planner::DiffusionGlobalPlanner", c.family,
+          onnxB(c.onnx_path, extra)});
+    } else {
+      controllers.push_back(
+        {c.label, "nav2_diffusion_controller::DiffusionController", c.family,
+          onnxA(c.onnx_path, {})});
+    }
+  }
+
   std::vector<ModeBScenario> bScenarios = {
     {"clear", "Empty map, off-axis goal", 1.0, 1.0, 5.0, 5.0, {}},
     {"centred gap", "Wall with a gap dead ahead", 1.0, 3.0, 5.0, 3.0, {{{3.0, 3.0, 0.5, 2}}}},
@@ -441,10 +574,22 @@ int main(int argc, char ** argv)
   std::cout.setf(std::ios::fixed);
   std::cout.precision(3);
 
+  const bool export_a = cli.export_mode != ExportMode::BOnly;
+  const bool export_b = cli.export_mode != ExportMode::AOnly;
+  if (export_a && controllers.empty()) {
+    std::cerr << "battle_trace: no Mode A fighters to run\n";
+    return 2;
+  }
+  if (export_b && planners.empty()) {
+    std::cerr << "battle_trace: no Mode B fighters to run\n";
+    return 2;
+  }
+
   std::cout << "{\n";
   std::cout << "\"arena\":{\"w\":" << kArena << ",\"h\":" << kArena << "},\n";
 
   // ---------- Mode A: arena race ----------
+  if (export_a) {
   std::cout << "\"modeA\":{\"title\":\"Mode A — local controller arena race\",\"dt\":" << kDt
             << ",\"scenarios\":[\n";
   for (std::size_t si = 0; si < aScenarios.size(); ++si) {
@@ -591,9 +736,16 @@ int main(int argc, char ** argv)
     }
     std::cout << "]}" << (si + 1 < aScenarios.size() ? ",\n" : "\n");
   }
-  std::cout << "]},\n";
+  std::cout << "]}";
+  if (export_b) {
+    std::cout << ",\n";
+  } else {
+    std::cout << "\n";
+  }
+  }
 
   // ---------- Mode B: path duel ----------
+  if (export_b) {
   std::cout << "\"modeB\":{\"title\":\"Mode B — global planner path duel\",\"scenarios\":[\n";
   for (std::size_t si = 0; si < bScenarios.size(); ++si) {
     const auto & sc = bScenarios[si];
@@ -687,7 +839,10 @@ int main(int argc, char ** argv)
     }
     std::cout << "]}" << (si + 1 < bScenarios.size() ? ",\n" : "\n");
   }
-  std::cout << "]}\n}\n";
+  std::cout << "]}\n";
+  }
+
+  std::cout << "}\n";
 
   rclcpp::shutdown();
   return 0;
