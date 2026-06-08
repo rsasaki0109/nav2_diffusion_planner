@@ -365,7 +365,12 @@ class GazeboRecorder:
         sdf = _recording_sdf(course)
         spec = gen_courses.COURSE_SPECS[course]
         waypoints = _waypoints(course)
-        sx, sy, syaw = spec['start']
+        sx, sy, _ = spec['start']
+        # Face the first waypoint so diff-drive motion matches the route direction.
+        if len(waypoints) > 1:
+            syaw = math.atan2(waypoints[1][1] - sy, waypoints[1][0] - sx)
+        else:
+            syaw = spec['start'][2]
         if self._gz is None:
             self.start(sdf)
         else:

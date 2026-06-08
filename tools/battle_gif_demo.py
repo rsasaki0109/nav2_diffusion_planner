@@ -14,9 +14,11 @@
 # limitations under the License.
 
 """
-Render Nav2 Planner Battle replays as GIFs from ``battle_data.json``.
+Render Nav2 Planner Battle README GIFs in a Lichtblick / RViz-style view.
 
-Honest frames only — every pose and path comes from ``battle_trace`` (real plugins).
+Every pose and path comes from ``battle_trace`` (real plugins). The look matches
+``tools/mcap_view_gif.py`` — dark viewer background, costmap-red obstacles,
+coloured plan traces, and **heading triangles** so motion direction reads clearly.
 
 Usage::
 
@@ -27,6 +29,7 @@ Usage::
 from __future__ import annotations
 
 import json
+import math
 import os
 
 import imageio.v2 as imageio
@@ -34,22 +37,26 @@ import matplotlib
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt  # noqa: E402
-from matplotlib.patches import Rectangle  # noqa: E402
+from matplotlib.patches import Polygon, Rectangle  # noqa: E402
 import numpy as np  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA_PATH = os.path.join(HERE, 'nav2_planner_battle', 'battle_data.json')
 DOCS = os.path.join(HERE, '..', 'docs')
 
-COLORS = [
-    '#5ad1ff', '#ff5d6c', '#37e09a', '#ffd34d', '#c08bff', '#ff9f43',
-    '#52e0e0', '#ff7bd5', '#9be15d', '#7aa2ff', '#ff6fae', '#d6e04d',
-]
+# Lichtblick / Foxglove palette (see tools/mcap_view_gif.py)
+BG = '#15151f'
+GRID = '#2a2a3a'
+OBST = '#e0544e'
+GOAL = '#f0c000'
+START = '#9aa7b2'
+TITLE = '#cfd3dc'
+SUB = '#7a8190'
 
-BG = '#0a1330'
-GRID = '#16224a'
-WALL = '#33406f'
-WALL_EDGE = '#5566a8'
+PATH_COLORS = [
+    '#3fb950', '#2f81f7', '#5ad1ff', '#ff5d6c', '#ffd34d', '#c08bff',
+    '#ff9f43', '#52e0e0', '#ff7bd5', '#9be15d', '#7aa2ff', '#d6e04d',
+]
 
 
 def _load():
@@ -57,43 +64,80 @@ def _load():
         return json.load(f)
 
 
-def _setup_ax(arena, title):
-    fig, ax = plt.subplots(figsize=(5.6, 5.6), dpi=100)
+def _heading_at(path, idx):
+    if idx + 1 < len(path):
+        dx = path[idx + 1][0] - path[idx][0]
+        dy = path[idx + 1][1] - path[idx][1]
+    elif idx > 0:
+        dx = path[idx][0] - path[idx - 1][0]
+        dy = path[idx][1] - path[idx - 1][1]
+    else:
+        return 0.0
+    if abs(dx) + abs(dy) < 1e-9:
+        return 0.0
+    return math.atan2(dy, dx)
+
+
+def _robot_wedge(ax, x, y, yaw, color, scale=0.22):
+    """RViz-style pose arrow (points along path tangent)."""
+    tip = (x + scale * math.cos(yaw), y + scale * math.sin(yaw))
+    back = 0.55 * scale
+    wing = 0.38 * scale
+    left = (
+        x - back * math.cos(yaw) + wing * math.cos(yaw + math.pi / 2),
+        y - back * math.sin(yaw) + wing * math.sin(yaw + math.pi / 2),
+    )
+    right = (
+        x - back * math.cos(yaw) + wing * math.cos(yaw - math.pi / 2),
+        y - back * math.sin(yaw) + wing * math.sin(yaw - math.pi / 2),
+    )
+    ax.add_patch(Polygon([tip, left, right], closed=True,
+                         facecolor=color, edgecolor='white', lw=0.6, zorder=6))
+
+
+def _setup_ax(arena, title, subtitle):
+    fig, ax = plt.subplots(figsize=(6.4, 4.8), dpi=100)
     fig.patch.set_facecolor(BG)
     ax.set_facecolor(BG)
     ax.set_xlim(0, arena['w'])
     ax.set_ylim(0, arena['h'])
     ax.set_aspect('equal')
-    ax.set_title(title, color='#e8ecff', fontsize=11, pad=8)
-    ax.tick_params(colors='#8b97c4', labelsize=7)
+    ax.set_title(title, color=TITLE, fontsize=11, pad=10, loc='left')
+    ax.text(0.0, 1.02, subtitle, transform=ax.transAxes, color=SUB, fontsize=8)
+    ax.tick_params(colors=SUB, labelsize=6)
     for spine in ax.spines.values():
-        spine.set_color('#25305c')
-    for i in range(int(arena['w']) + 1):
-        ax.axhline(i, color=GRID, lw=0.4, zorder=0)
-        ax.axvline(i, color=GRID, lw=0.4, zorder=0)
+        spine.set_color(GRID)
+    step = max(1, int(max(arena['w'], arena['h']) / 6))
+    for i in range(0, int(arena['w']) + 1, step):
+        ax.axvline(i, color=GRID, lw=0.35, zorder=0)
+    for i in range(0, int(arena['h']) + 1, step):
+        ax.axhline(i, color=GRID, lw=0.35, zorder=0)
     return fig, ax
 
 
-def _draw_obstacles(ax, obstacles):
+def _draw_costmap_obstacles(ax, obstacles, res=0.08):
+    """Rasterise obstacle rects into costmap-style red cells."""
     for r in obstacles:
-        ax.add_patch(Rectangle(
-            (r['x'], r['y']), r['w'], r['h'],
-            facecolor=WALL, edgecolor=WALL_EDGE, lw=0.8, zorder=1))
+        xs = np.arange(r['x'], r['x'] + r['w'], res)
+        ys = np.arange(r['y'], r['y'] + r['h'], res)
+        gx, gy = np.meshgrid(xs, ys)
+        ax.scatter(gx.ravel(), gy.ravel(), s=14, c=OBST, marker='s',
+                   alpha=0.9, edgecolors='none', zorder=1)
+
+
+def _maze_grid(ax, name):
+    if 'micro mouse' not in name.lower():
+        return
+    n, step = (4, 1.5) if 'easy' in name.lower() else (8, 0.75)
+    for i in range(n + 1):
+        c = i * step
+        ax.plot([c, c], [0, n * step], color=GRID, lw=0.4, zorder=0)
+        ax.plot([0, n * step], [c, c], color=GRID, lw=0.4, zorder=0)
 
 
 def _draw_start_goal(ax, start, goal):
-    ax.plot(start[0], start[1], 'o', color='#37e09a', ms=8, zorder=5)
-    ax.plot(goal[0], goal[1], 's', color='#ffd34d', ms=9, zorder=5)
-
-
-def _maze_grid(ax, name, arena):
-    n, step = (4, 1.5) if 'easy' in name.lower() else (8, 0.75)
-    if 'micro mouse' not in name.lower():
-        return
-    for i in range(n + 1):
-        c = i * step
-        ax.axhline(c, color='#1e2d5a', lw=0.5, zorder=0)
-        ax.axvline(c, color='#1e2d5a', lw=0.5, zorder=0)
+    ax.plot(start[0], start[1], 'o', color=START, ms=9, zorder=5)
+    ax.plot(goal[0], goal[1], '*', color=GOAL, ms=20, zorder=5)
 
 
 def _fig_to_array(fig):
@@ -110,23 +154,25 @@ def render_mode_a_race(data, sc_idx, out_path, fighter_idx=None, stride=2):
         fighters = [fighters[i] for i in fighter_idx]
     n_frames = max(len(f['path']) for f in fighters)
     images = []
+    title = 'Mode A · Race — {}'.format(sc['name'])
+    subtitle = 'Lichtblick-style view · battle_trace controllers'
     for t in range(0, n_frames, stride):
-        fig, ax = _setup_ax(arena, f"Mode A · Race — {sc['name']}")
-        _maze_grid(ax, sc['name'], arena)
-        _draw_obstacles(ax, sc.get('obstacles', []))
+        fig, ax = _setup_ax(arena, title, subtitle)
+        _maze_grid(ax, sc['name'])
+        _draw_costmap_obstacles(ax, sc.get('obstacles', []))
         _draw_start_goal(ax, sc['start'], sc['goal'])
         for i, f in enumerate(fighters):
-            col = COLORS[i % len(COLORS)]
+            col = PATH_COLORS[i % len(PATH_COLORS)]
             idx = min(t, len(f['path']) - 1)
             xs = [p[0] for p in f['path'][: idx + 1]]
             ys = [p[1] for p in f['path'][: idx + 1]]
-            ax.plot(xs, ys, '-', color=col, lw=1.8, alpha=0.65, zorder=2)
+            ax.plot(xs, ys, '-', color=col, lw=2.2, alpha=0.85, zorder=3)
             p = f['path'][idx]
-            ax.plot(p[0], p[1], 'o', color=col, ms=6, zorder=4)
+            _robot_wedge(ax, p[0], p[1], _heading_at(f['path'], idx), col)
         images.append(_fig_to_array(fig))
         plt.close(fig)
     imageio.mimsave(out_path, images, duration=0.09, loop=0)
-    print(f'wrote {out_path} ({len(images)} frames)')
+    print('wrote {} ({} frames)'.format(out_path, len(images)))
 
 
 def render_mode_b_duel(data, sc_idx, out_path, max_fighters=8, stride=3):
@@ -135,43 +181,44 @@ def render_mode_b_duel(data, sc_idx, out_path, max_fighters=8, stride=3):
     ok = [f for f in sc['fighters'] if f.get('success') and f.get('path')]
     ok.sort(key=lambda f: f['length'])
     ok = ok[:max_fighters]
-    n_frames = 45
+    n_frames = 48
     images = []
+    title = 'Mode B · Duel — {}'.format(sc['name'])
+    subtitle = 'Lichtblick-style view · battle_trace global planners'
     for t in range(0, n_frames, stride):
         frac = min(1.0, t / max(1, n_frames - 1))
-        fig, ax = _setup_ax(arena, f"Mode B · Duel — {sc['name']}")
-        _maze_grid(ax, sc['name'], arena)
-        _draw_obstacles(ax, sc.get('obstacles', []))
+        fig, ax = _setup_ax(arena, title, subtitle)
+        _maze_grid(ax, sc['name'])
+        _draw_costmap_obstacles(ax, sc.get('obstacles', []))
         _draw_start_goal(ax, sc['start'], sc['goal'])
         for i, f in enumerate(ok):
-            col = COLORS[i % len(COLORS)]
+            col = PATH_COLORS[i % len(PATH_COLORS)]
             upto = max(1, int(frac * len(f['path'])))
             xs = [p[0] for p in f['path'][:upto]]
             ys = [p[1] for p in f['path'][:upto]]
-            ax.plot(xs, ys, '-', color=col, lw=2.0, alpha=0.9, zorder=2)
-            ax.plot(xs[-1], ys[-1], 'o', color=col, ms=4, zorder=4)
+            ax.plot(xs, ys, '-', color=col, lw=2.4, alpha=0.9, zorder=3)
+            if upto > 1:
+                _robot_wedge(ax, xs[-1], ys[-1],
+                             _heading_at(f['path'], upto - 1), col, scale=0.16)
         images.append(_fig_to_array(fig))
         plt.close(fig)
     imageio.mimsave(out_path, images, duration=0.1, loop=0)
-    print(f'wrote {out_path} ({len(images)} frames)')
+    print('wrote {} ({} frames)'.format(out_path, len(images)))
 
 
 def main():
     data = _load()
     os.makedirs(DOCS, exist_ok=True)
-    # frontal: threading (5) vs learned (2) vs transformer (3)
     render_mode_a_race(
         data, sc_idx=1,
         out_path=os.path.join(DOCS, 'battle_race.gif'),
         fighter_idx=[2, 3, 5],
     )
-    # micro mouse easy: ND (1) vs threading (5)
     render_mode_a_race(
         data, sc_idx=4,
         out_path=os.path.join(DOCS, 'battle_maze.gif'),
         fighter_idx=[1, 5],
     )
-    # slalom duel: top planners by path length
     render_mode_b_duel(
         data, sc_idx=6,
         out_path=os.path.join(DOCS, 'battle_duel.gif'),

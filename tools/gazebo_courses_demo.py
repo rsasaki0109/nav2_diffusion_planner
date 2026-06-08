@@ -14,20 +14,19 @@
 # limitations under the License.
 
 """
-Render the closed-loop Gazebo obstacle courses as an animated GIF (matplotlib).
+Render the closed-loop obstacle courses as an RViz / Lichtblick-style GIF.
 
-**Prefer** ``tools/gazebo_gif_demo.py`` for README assets — it records the same
-courses in real Gazebo Sim (TB3 + overhead camera). This script is a fast
-offline fallback: grid A* on the occupancy map with matplotlib patches (no
-simulator).
+Grid A* routes on the generated occupancy maps (same geometry as gz-sim worlds).
+For optional 3D gz-sim footage see ``tools/gazebo_gif_demo.py``.
 
 Usage::
 
     PYTHONPATH=generative/nav2_diffusion_sim python3 tools/gazebo_courses_demo.py
-    # writes docs/sim_courses.gif (matplotlib; use gazebo_gif_demo.py for real sim)
+    # writes docs/sim_courses.gif
 """
 
 import heapq
+import math
 import os
 
 import imageio.v2 as imageio
@@ -35,7 +34,7 @@ import imageio.v2 as imageio
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt  # noqa: E402
-from matplotlib.patches import Rectangle  # noqa: E402
+from matplotlib.patches import Polygon, Rectangle  # noqa: E402
 
 import numpy as np  # noqa: E402
 
@@ -44,6 +43,44 @@ from nav2_diffusion_sim import gen_courses  # noqa: E402
 RES = 0.05
 ROBOT_RADIUS = 0.22  # TB3 waffle footprint radius (approx)
 ORDER = ['centred', 'gap', 'slalom', 'micro_mouse_easy', 'micro_mouse_hard']
+
+# RViz / Lichtblick palette (tools/mcap_view_gif.py)
+BG = '#15151f'
+GRID = '#2a2a3a'
+OBST = '#e0544e'
+PATH_DONE = '#3fb950'
+PATH_TODO = '#2f81f7'
+GOAL = '#f0c000'
+START = '#9aa7b2'
+TITLE = '#cfd3dc'
+SUB = '#7a8190'
+
+
+def _heading_at(route, k):
+    if k + 1 < len(route):
+        dx = route[k + 1, 0] - route[k, 0]
+        dy = route[k + 1, 1] - route[k, 1]
+    elif k > 0:
+        dx = route[k, 0] - route[k - 1, 0]
+        dy = route[k, 1] - route[k - 1, 1]
+    else:
+        return 0.0
+    return math.atan2(dy, dx)
+
+
+def _robot_wedge(ax, x, y, yaw, color, scale=0.2):
+    tip = (x + scale * math.cos(yaw), y + scale * math.sin(yaw))
+    back, wing = 0.55 * scale, 0.38 * scale
+    left = (
+        x - back * math.cos(yaw) + wing * math.cos(yaw + math.pi / 2),
+        y - back * math.sin(yaw) + wing * math.sin(yaw + math.pi / 2),
+    )
+    right = (
+        x - back * math.cos(yaw) + wing * math.cos(yaw - math.pi / 2),
+        y - back * math.sin(yaw) + wing * math.sin(yaw - math.pi / 2),
+    )
+    ax.add_patch(Polygon([tip, left, right], closed=True,
+                         facecolor=color, edgecolor='white', lw=0.6, zorder=5))
 
 
 def _occupancy(name):
@@ -115,31 +152,43 @@ def _route(name):
 
 
 def _draw(ax, name, route, k):
-    """Draw one course frame with the robot at route index k."""
+    """Draw one course frame — RViz / Lichtblick style with heading wedge."""
     ax.clear()
     spec = gen_courses.COURSE_SPECS[name]
     xmin, xmax, ymin, ymax = spec['extent']
+    ax.set_facecolor(BG)
     ax.set_xlim(xmin, xmax)
     ax.set_ylim(ymin, ymax)
     ax.set_aspect('equal')
     ax.set_xticks([])
     ax.set_yticks([])
-    # Walls (interior solid, perimeter thin) as grey boxes.
+    for spine in ax.spines.values():
+        spine.set_color(GRID)
+    # Costmap-style wall cells.
+    res = 0.06
     for cx, cy, sx, sy in gen_courses.all_walls(name):
-        ax.add_patch(Rectangle((cx - sx / 2, cy - sy / 2), sx, sy,
-                               facecolor='0.35', edgecolor='none'))
-    # Route travelled (solid) and remaining (dashed).
+        x0, x1 = cx - sx / 2, cx + sx / 2
+        y0, y1 = cy - sy / 2, cy + sy / 2
+        xs = np.arange(x0, x1, res)
+        ys = np.arange(y0, y1, res)
+        gx, gy = np.meshgrid(xs, ys)
+        ax.scatter(gx.ravel(), gy.ravel(), s=12, c=OBST, marker='s',
+                   alpha=0.88, edgecolors='none', zorder=1)
     if len(route):
-        ax.plot(route[:k + 1, 0], route[:k + 1, 1], '-', color='#1f77b4', lw=2.5)
-        ax.plot(route[k:, 0], route[k:, 1], '--', color='#9ecae1', lw=1.5)
+        ax.plot(route[:k + 1, 0], route[:k + 1, 1], '-', color=PATH_DONE,
+                lw=2.8, zorder=3)
+        ax.plot(route[k:, 0], route[k:, 1], '--', color=PATH_TODO,
+                lw=1.6, alpha=0.65, zorder=2)
         rx, ry = route[k]
-        ax.add_patch(plt.Circle((rx, ry), ROBOT_RADIUS, facecolor='#2ca02c',
-                                edgecolor='k', lw=1.0, alpha=0.9, zorder=5))
+        _robot_wedge(ax, rx, ry, _heading_at(route, k), PATH_DONE)
     sx_, sy_, _ = spec['start']
     g = spec['goals'][0]
-    ax.plot(sx_, sy_, 'o', color='#2ca02c', ms=9, zorder=4)
-    ax.plot(g[1], g[2], '*', color='#d62728', ms=18, zorder=4)
-    ax.set_title('Gazebo course: {}'.format(name), fontsize=13)
+    ax.plot(sx_, sy_, 'o', color=START, ms=9, zorder=4)
+    ax.plot(g[1], g[2], '*', color=GOAL, ms=18, zorder=4)
+    ax.set_title('RViz-style · {}'.format(name), color=TITLE, fontsize=11,
+                 loc='left', pad=8)
+    ax.text(0.0, 1.02, 'nav2_diffusion_sim course · grid A* route',
+            transform=ax.transAxes, color=SUB, fontsize=8)
 
 
 def main():
@@ -150,7 +199,8 @@ def main():
         if not len(routes[n]):
             raise RuntimeError("no route found for course '{}'".format(n))
 
-    fig, ax = plt.subplots(figsize=(4.2, 4.2))
+    fig, ax = plt.subplots(figsize=(5.6, 4.2))
+    fig.patch.set_facecolor(BG)
     frames = []
     steps = 26
     for name in ORDER:
