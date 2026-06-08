@@ -329,17 +329,35 @@ function drawModeA(){
     if(done && f.outcome==='collision'){
       ctx.font='16px system-ui'; ctx.fillText('💥',wx(p[0])-8,wy(p[1])+6);
     } else {
-      // robot triangle (heading = yaw)
-      ctx.save(); ctx.translate(wx(p[0]),wy(p[1])); ctx.rotate(-p[2]);
-      ctx.fillStyle=col; ctx.beginPath();
-      ctx.moveTo(8,0); ctx.lineTo(-5,5); ctx.lineTo(-5,-5); ctx.closePath(); ctx.fill();
-      ctx.restore();
+      drawRobotArrow(wx(p[0]), wy(p[1]), pathYaw(f.path, idx), col);
       if(done && f.outcome==='reached'){ ctx.font='14px system-ui'; ctx.fillText('🏁',wx(p[0])+7,wy(p[1])-7); }
     }
   });
   drawHud();
 }
 
+function drawRobotArrow(x, y, yaw, col, scale=1){
+  ctx.save();
+  ctx.shadowColor=col; ctx.shadowBlur=10*scale;
+  ctx.translate(x,y); ctx.rotate(-yaw);
+  ctx.fillStyle=col;
+  ctx.beginPath();
+  ctx.moveTo(9*scale,0); ctx.lineTo(-6*scale,6*scale); ctx.lineTo(-6*scale,-6*scale);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+function pathYaw(path, idx){
+  if(path[idx].length>2 && Math.abs(path[idx][2])>1e-6) return path[idx][2];
+  if(idx+1<path.length){
+    const dx=path[idx+1][0]-path[idx][0], dy=path[idx+1][1]-path[idx][1];
+    return Math.atan2(dy,dx);
+  }
+  if(idx>0){
+    const dx=path[idx][0]-path[idx-1][0], dy=path[idx][1]-path[idx-1][1];
+    return Math.atan2(dy,dx);
+  }
+  return 0;
+}
 function drawModeB(){
   drawArena();
   const fs = fighters();
@@ -348,12 +366,14 @@ function drawModeB(){
     if(!f.success || !f.path.length) return;
     const col = colorFor(i);
     const upto = Math.max(1, Math.floor(frac*f.path.length));
-    ctx.strokeStyle=col; ctx.lineWidth=2.4; ctx.globalAlpha=.92; ctx.beginPath();
+    ctx.strokeStyle=col; ctx.lineWidth=2.6; ctx.globalAlpha=.88; ctx.beginPath();
     for(let k=0;k<upto;k++){ const p=f.path[k]; (k?ctx.lineTo:ctx.moveTo).call(ctx,wx(p[0]),wy(p[1])); }
     ctx.stroke(); ctx.globalAlpha=1;
-    // head dot
-    const p=f.path[Math.min(upto,f.path.length)-1];
-    ctx.fillStyle=col; circle(wx(p[0]),wy(p[1]),3);
+    const hi = Math.min(upto, f.path.length)-1;
+    const p=f.path[hi];
+    const done = frac>=1;
+    drawRobotArrow(wx(p[0]), wy(p[1]), pathYaw(f.path, hi), col, done?1.15:1);
+    if(done){ ctx.font='14px system-ui'; ctx.fillText('🏁',wx(p[0])+8,wy(p[1])-8); }
   });
   drawHud();
 }
@@ -587,6 +607,22 @@ el('speed').oninput=e=>{ speed=+e.target.value; };
   reset();
   if(q.get('t')!==null){ t = Math.max(0, Math.min(maxFrames(), +q.get('t'))); draw(); buildBoard(); }
 })();
+
+// GIF recorder hook (tools/record_battle_gif.py)
+window.__battleGif = {
+  maxFrames(){ return maxFrames(); },
+  setFrame(n){ t = Math.max(0, Math.min(maxFrames(), n)); draw(); },
+  setup(m, s){
+    mode = m==='B' ? 'modeB' : 'modeA';
+    scIdx = Math.max(0, Math.min(DATA[mode].scenarios.length-1, s));
+    el('mA').classList.toggle('on', mode==='modeA');
+    el('mB').classList.toggle('on', mode==='modeB');
+    el('modeTag').textContent = mode==='modeA' ? 'Mode A' : 'Mode B';
+    fillScenarios();
+    el('scenario').value = scIdx;
+    reset();
+  },
+};
 </script>
 </body>
 </html>

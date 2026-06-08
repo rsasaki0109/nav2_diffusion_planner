@@ -44,8 +44,8 @@ DOCS = os.path.join(HERE, '..', 'docs')
 RES = 0.05
 
 _JOBS = [
-    ('battle_race.mcap', 'modeA', 1, [2, 3, 5]),
-    ('battle_maze.mcap', 'modeA', 4, [1, 5]),
+    ('battle_race.mcap', 'modeA', 1, None),
+    ('battle_maze.mcap', 'modeA', 4, None),
     ('battle_duel.mcap', 'modeB', 6, None),
 ]
 

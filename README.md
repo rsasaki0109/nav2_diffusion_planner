@@ -22,7 +22,7 @@
   <img src="docs/battle_duel.gif" width="310" alt="Mode B planner duel on slalom">
 </p>
 
-<p align="center"><em>GIFs above are <strong>screen recordings of real RViz2</strong> playing <code>battle_trace</code> MCAPs (coloured paths + heading arrows). Regenerate: <a href="tools/battle_mcap_demo.py">tools/battle_mcap_demo.py</a> → <a href="tools/record_rviz_gif.py">tools/record_rviz_gif.py</a> (needs <code>DISPLAY</code>). Optional Lichtblick: <a href="tools/record_lichtblick_gif.py">tools/record_lichtblick_gif.py</a>.</em></p>
+<p align="center"><em>GIFs above are <strong>screen recordings of the real Planner Battle UI</strong> — every controller / planner moves with coloured trails, heading arrows, and live HUD. Regenerate: <a href="tools/record_battle_gif.py">tools/record_battle_gif.py</a> (Playwright). RViz2 / Lichtblick capture: <a href="tools/record_rviz_gif.py">tools/record_rviz_gif.py</a>.</em></p>
 
 ---
 
@@ -34,7 +34,7 @@
 | **🧭 Duel** | RRT*, JPS, Lazy Theta*, Diffusion, … — `createPlan` paths drawn together | [slalom](https://rsasaki0109.github.io/Nav2PlannerBattle/?m=B&s=6) · [micro-mouse hard](https://rsasaki0109.github.io/Nav2PlannerBattle/?m=B&s=9) |
 | **🏆 Championship** | Aggregate points across all scenarios | [Race](https://rsasaki0109.github.io/Nav2PlannerBattle/?m=C) · [Duel](https://rsasaki0109.github.io/Nav2PlannerBattle/?m=C&sub=B) |
 
-No scripted winners — every fighter is the **actual** `nav2_core` plugin replayed from traces. Regenerate traces with `ros2 run nav2_planner_benchmarks battle_trace`; README battle GIFs with [`tools/battle_mcap_demo.py`](tools/battle_mcap_demo.py) + [`tools/record_rviz_gif.py`](tools/record_rviz_gif.py) (real RViz2 capture). Details: [`tools/nav2_planner_battle`](tools/nav2_planner_battle).
+No scripted winners — every fighter is the **actual** `nav2_core` plugin replayed from traces. Regenerate traces with `ros2 run nav2_planner_benchmarks battle_trace`; README battle GIFs with [`tools/record_battle_gif.py`](tools/record_battle_gif.py). Details: [`tools/nav2_planner_battle`](tools/nav2_planner_battle).
 
 ---
 

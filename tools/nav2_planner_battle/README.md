@@ -68,12 +68,14 @@ same real behaviour, only as JSON instead of Markdown. The Markdown reports rema
 canonical comparison ([docs/controller_comparison.md](../../docs/controller_comparison.md),
 [docs/planner_comparison.md](../../docs/planner_comparison.md)).
 
-Refresh the README battle GIFs (Lichtblick / RViz-style, from ``battle_trace``) with:
+Refresh the README battle GIFs (real browser UI — **all fighters move**) with:
 
 ```bash
-python3 tools/battle_gif_demo.py
+python3 tools/record_battle_gif.py
 # writes docs/battle_race.gif, battle_maze.gif, battle_duel.gif
 ```
+
+Matplotlib / RViz fallbacks: ``tools/battle_gif_demo.py``, ``tools/record_rviz_gif.py``.
 
 Optional gz-sim 3D capture: ``PYTHONPATH=generative/nav2_diffusion_sim python3 tools/gazebo_gif_demo.py``.
 Course montage (RViz-style): ``PYTHONPATH=generative/nav2_diffusion_sim python3 tools/gazebo_courses_demo.py``.
