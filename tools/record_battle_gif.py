@@ -22,7 +22,8 @@ canvas with coloured trails, heading arrows, LIVE HUD, collisions and goal flags
 Usage::
 
     python3 tools/record_battle_gif.py
-    # writes docs/battle_race.gif, battle_maze.gif, battle_duel.gif
+    # writes docs/battle_race.gif, battle_maze.gif, battle_duel.gif,
+    # battle_championship.gif
 """
 
 from __future__ import annotations
@@ -61,6 +62,7 @@ def _start_http(port):
     server = ThreadingHTTPServer(('127.0.0.1', port), _QuietHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
+    time.sleep(0.3)
     return server
 
 
@@ -99,6 +101,32 @@ def record_gif(mode, sc_idx, out_name, port, stride, duration, upscale, headless
         out_path, len(images), 'all'))
 
 
+def record_championship_gif(out_name, port, stride, duration, upscale, headless):
+    out_path = os.path.join(DOCS, out_name)
+    url = 'http://127.0.0.1:{}/'.format(port)
+    images = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=headless)
+        page = browser.new_page(viewport={'width': 900, 'height': 900})
+        page.goto(url, wait_until='networkidle', timeout=120000)
+        page.wait_for_function('window.__battleGif', timeout=120000)
+        for sub in ('A', 'B'):
+            page.evaluate(
+                '(s) => window.__battleGif.setupChampionship(s)', sub)
+            time.sleep(0.3)
+            max_f = page.evaluate('() => window.__battleGif.maxFrames()')
+            for i in range(0, max_f + 1, stride):
+                page.evaluate('(n) => window.__battleGif.setFrame(n)', i)
+                images.append(_capture_canvas(page, upscale))
+            for _ in range(10):
+                images.append(images[-1])
+        browser.close()
+    os.makedirs(DOCS, exist_ok=True)
+    imageio.mimsave(out_path, images, duration=duration, loop=0)
+    print('wrote {} ({} frames, race + duel championship)'.format(
+        out_path, len(images)))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--port', type=int, default=8766)
@@ -111,6 +139,9 @@ def main():
             record_gif(
                 mode, sc_idx, out_name, args.port, stride, duration, upscale,
                 headless=not args.headed)
+        record_championship_gif(
+            'battle_championship.gif', args.port, 1, 0.12, 1.0,
+            headless=not args.headed)
     finally:
         server.shutdown()
 

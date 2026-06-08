@@ -123,7 +123,7 @@ const wx = x => PAD + x*scale;
 const wy = y => H - PAD - y*scale;           // flip: world y up
 
 let mode = 'modeA', champSub = 'modeA', scIdx = 0, playing = false, t = 0, raf = null;
-let speed = 1;
+let speed = 1, champReveal = -1; // -1 = show full ranking; 0..N = GIF reveal
 
 const el = id => document.getElementById(id);
 function isChamp(){ return mode==='championship'; }
@@ -450,23 +450,41 @@ function drawChampionship(){
   const sub = champSub;
   const nSc = DATA[sub].scenarios.length;
   const kind = sub==='modeA' ? 'controllers (race)' : 'planners (duel)';
-  ctx.fillStyle='#8b97c4'; ctx.font='13px system-ui'; ctx.textAlign='center';
-  ctx.fillText(`🏆 Championship — ${kind}`, W/2, 32);
-  ctx.font='12px system-ui';
-  ctx.fillText(`${nSc} scenarios · toggle Race / Duel above`, W/2, 52);
-  ctx.fillText('Micro-mouse easy & hard included — pick a mode to watch one scenario live.', W/2, 70);
+  const topN = sub==='modeA' ? 7 : 8;
+  ctx.textAlign='center';
+  ctx.fillStyle='#ffd34d'; ctx.font='26px system-ui';
+  ctx.fillText('🏆', W/2, 38);
+  ctx.fillStyle='#e8ecff'; ctx.font='600 18px system-ui';
+  ctx.fillText('Championship', W/2, 62);
+  ctx.fillStyle='#8b97c4'; ctx.font='12px system-ui';
+  ctx.fillText(`${kind} · ${nSc} scenarios · points across all arenas`, W/2, 82);
   const stats = championshipStats(sub);
-  const top = stats.slice(0, sub==='modeA' ? 7 : 8);
+  const top = stats.slice(0, topN);
+  const reveal = champReveal < 0 ? top.length : Math.min(champReveal, top.length);
+  const maxPts = Math.max(1, top[0]?.pts || 1);
   const metric = sub==='modeA' ? 'reached' : 'solved';
+  const barLeft = 46, barMaxW = W - barLeft - 22, rowH = 58, startY = 98;
   ctx.textAlign='left';
-  top.forEach((r,i)=>{
-    const y=96+i*26;
-    ctx.fillStyle=colorFor(r.i);
-    circle(36,y,5);
-    ctx.fillStyle='#e8ecff';
-    ctx.fillText(r.f.label, 50, y+4);
-    ctx.fillStyle='#8b97c4';
-    ctx.fillText(`${r.pts} pts · ${r.wins} wins · ${r[metric]}/${nSc} ${metric}`, 50, y+17);
+  top.slice(0, reveal).forEach((r,i)=>{
+    const y = startY + i*rowH;
+    const col = colorFor(r.i);
+    const leader = i===0;
+    const crowned = leader && reveal>=top.length;
+    ctx.fillStyle = crowned ? '#ffd34d' : '#8b97c4';
+    ctx.font = crowned ? '15px system-ui' : '12px system-ui';
+    ctx.fillText(crowned ? '👑' : `${i+1}.`, 16, y+12);
+    circle(40, y+8, 5); ctx.fillStyle=col; ctx.fill();
+    ctx.fillStyle='#e8ecff'; ctx.font='13px system-ui';
+    ctx.fillText(r.f.label, 52, y+12);
+    const barY = y+20;
+    ctx.fillStyle='#141b34';
+    ctx.fillRect(barLeft, barY, barMaxW, 14);
+    const barW = Math.max(6, barMaxW * (r.pts / maxPts));
+    ctx.fillStyle=col; ctx.globalAlpha = leader ? 1 : .78;
+    ctx.fillRect(barLeft, barY, barW, 14);
+    ctx.globalAlpha=1;
+    ctx.fillStyle='#8b97c4'; ctx.font='11px system-ui';
+    ctx.fillText(`${r.pts} pts · ${r.wins} wins · ${r[metric]}/${nSc}`, 52, y+48);
   });
 }
 function draw(){
@@ -689,19 +707,51 @@ el('speed').oninput=e=>{ speed=+e.target.value; };
   if(q.get('t')!==null){ t = Math.max(0, Math.min(maxFrames(), +q.get('t'))); draw(); buildBoard(); }
 })();
 
+function champAnimFrames(){
+  const topN = champSub==='modeA' ? 7 : 8;
+  return topN + 14;
+}
+
 // GIF recorder hook (tools/record_battle_gif.py)
 window.__battleGif = {
-  maxFrames(){ return maxFrames(); },
-  setFrame(n){ t = Math.max(0, Math.min(maxFrames(), n)); draw(); },
+  maxFrames(){
+    if(mode==='championship') return champAnimFrames();
+    return maxFrames();
+  },
+  setFrame(n){
+    if(mode==='championship'){
+      const topN = champSub==='modeA' ? 7 : 8;
+      champReveal = Math.min(n + 1, topN);
+      draw();
+      return;
+    }
+    t = Math.max(0, Math.min(maxFrames(), n));
+    draw();
+  },
   setup(m, s){
     mode = m==='B' ? 'modeB' : 'modeA';
+    champReveal = -1;
     scIdx = Math.max(0, Math.min(DATA[mode].scenarios.length-1, s));
     el('mA').classList.toggle('on', mode==='modeA');
     el('mB').classList.toggle('on', mode==='modeB');
+    el('mC').classList.toggle('on', false);
     el('modeTag').textContent = mode==='modeA' ? 'Mode A' : 'Mode B';
     fillScenarios();
     el('scenario').value = scIdx;
     reset();
+  },
+  setupChampionship(sub){
+    mode = 'championship';
+    champSub = sub==='B' ? 'modeB' : 'modeA';
+    champReveal = 0;
+    el('mA').classList.toggle('on', false);
+    el('mB').classList.toggle('on', false);
+    el('mC').classList.toggle('on', true);
+    el('cA').classList.toggle('on', champSub==='modeA');
+    el('cB').classList.toggle('on', champSub==='modeB');
+    el('modeTag').textContent = 'Championship';
+    buildBoard();
+    draw();
   },
 };
 </script>

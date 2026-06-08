@@ -21,6 +21,10 @@
   <img src="docs/battle_duel.gif" width="310" alt="Planner duel">
 </p>
 
+<p align="center">
+  <a href="https://rsasaki0109.github.io/Nav2PlannerBattle/?m=C"><img src="docs/battle_championship.gif" width="420" alt="Championship — aggregate rankings"></a>
+</p>
+
 ---
 
 ## Planner Battle
