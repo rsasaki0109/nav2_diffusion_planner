@@ -68,11 +68,12 @@ same real behaviour, only as JSON instead of Markdown. The Markdown reports rema
 canonical comparison ([docs/controller_comparison.md](../../docs/controller_comparison.md),
 [docs/planner_comparison.md](../../docs/planner_comparison.md)).
 
-Refresh the README GIFs (real Gazebo Sim footage) with:
+Refresh the README GIFs (gz-sim 3D perspective + diff-drive physics) with:
 
 ```bash
 PYTHONPATH=generative/nav2_diffusion_sim python3 tools/gazebo_gif_demo.py
 # writes docs/battle_race.gif, battle_maze.gif, battle_duel.gif, sim_courses.gif
 ```
 
-Matplotlib trace replays (no simulator) remain in `tools/battle_gif_demo.py` if you need a quick offline preview from `battle_data.json`.
+The recorder drives TB3 with ``cmd_vel`` on the generated worlds (not ``set_pose`` teleport).
+Matplotlib trace replays remain in `tools/battle_gif_demo.py` for quick offline previews.

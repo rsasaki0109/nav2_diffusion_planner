@@ -22,7 +22,7 @@
   <img src="docs/battle_duel.gif" width="310" alt="Mode B planner duel on slalom">
 </p>
 
-<p align="center"><em>GIFs above are <strong>real Gazebo Sim</strong> course worlds (TB3 + overhead camera) — regenerate with <a href="tools/gazebo_gif_demo.py">tools/gazebo_gif_demo.py</a>. <strong>Mode A · Race</strong> / <strong>Mode B · Duel</strong> replays in the browser still come from <code>battle_trace</code>. Live HUD shows steps, path length &amp; planning ms.</em></p>
+<p align="center"><em>GIFs above are <strong>gz-sim 3D recordings</strong> — TB3 waffle drives each course with <code>cmd_vel</code> physics (perspective camera + shadows). Regenerate: <a href="tools/gazebo_gif_demo.py">tools/gazebo_gif_demo.py</a>. Browser <strong>Mode A · Race</strong> / <strong>Mode B · Duel</strong> replays still use <code>battle_trace</code>.</em></p>
 
 ---
 
@@ -172,7 +172,7 @@ This is the **Nav2 GlobalPlanner (Mode B)**, symmetric to the local controller (
   <img src="docs/sim_courses.gif" width="360" alt="nav2_diffusion_sim obstacle courses including micro-mouse mazes">
 </p>
 
-<p align="center"><em>The obstacle courses shipped in <a href="nav2_diffusion_sim">nav2_diffusion_sim</a>, recorded in <strong>Gazebo Sim</strong> (TB3 waffle on the generated gz-sim worlds). Each course is built from a <strong>single spec</strong> into world + map + goals. The GIF animates a footprint-valid A\* route through each maze. Reproduce with <a href="tools/gazebo_gif_demo.py">tools/gazebo_gif_demo.py</a>.</em></p>
+<p align="center"><em>Closed-loop course assets in <a href="nav2_diffusion_sim">nav2_diffusion_sim</a>, driven in <strong>gz-sim</strong> (diff-drive TB3 on the generated worlds — not a matplotlib overlay). Each course is one spec → world + map + goals. Reproduce: <a href="tools/gazebo_gif_demo.py">tools/gazebo_gif_demo.py</a>.</em></p>
 
 Drive a course closed-loop on a real ROS host with
 `ros2 launch nav2_diffusion_sim tb3_gazebo_course.launch.py course:=micro_mouse_easy` (or
