@@ -1,8 +1,5 @@
-# Fork of nav2_bringup/launch/tb3_simulation_launch.py (Jazzy).
-# Change: start ``gz sim`` only after the xacro world SDF is written (upstream
-# launches both in parallel, which races and can fail with "Unable to find file").
-
 # Copyright (C) 2023 Open Source Robotics Foundation
+# Copyright 2026 Nav2PlannerBattle contributors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,6 +12,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# Fork of nav2_bringup/launch/tb3_simulation_launch.py (Jazzy).
+# Change: start ``gz sim`` only after the xacro world SDF is written (upstream
+# launches both in parallel, which races and can fail with "Unable to find file").
 
 """This is all-in-one launch script intended for use by nav2 developers."""
 
