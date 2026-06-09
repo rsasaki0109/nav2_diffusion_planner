@@ -62,6 +62,7 @@ The traces come from a small ROS 2 exporter that runs the real plugins:
 tools/sync_battle_data.sh
 # CI regression gate (fresh export must match committed battle_data.json):
 python3 tools/check_battle_trace.py tools/nav2_planner_battle/battle_data.json /tmp/fresh.json
+# On failure prints a category summary (outcome / clearance / reach / metrics) before the full diff list.
 ```
 
 `battle_trace` ([src](../../benchmarks/nav2_planner_benchmarks/src/battle_trace.cpp))

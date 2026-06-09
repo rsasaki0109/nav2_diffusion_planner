@@ -249,6 +249,7 @@ edge-GPU での実時間性を確定。
    `battle_trace --custom-controller|--custom-planner`.
    段 2/3 の fleet learning と結びつく。
 5. **回帰の可視化**: CI で `battle_trace` を回し、トレースの差分（到達/クリアランスの劣化）を検出する軽い regression gate。
+   ✅ `tools/check_battle_trace.py` — outcome/success・length・**clearance** の劣化検出 + カテゴリ別サマリ（CI ログ向け）。
 
 > 原則: ゲームは**本物のプラグインの再生**であり続ける（スクリプト勝者を作らない）。
 > 数値の正本はあくまで Markdown ベンチ（`battle_trace` はそれを JSON でミラーするだけ）。
