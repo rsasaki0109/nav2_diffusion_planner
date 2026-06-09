@@ -112,7 +112,8 @@ inline MicroMouseLayout microMouseEasyLayout()
     "micro mouse easy",
     "Micro-mouse easy: 4×4 orthogonal grid (1.5 m cells), SW start, centre goal — "
     "training / exploration run (fewer branches than hard)",
-    0.75, 0.75, 2.25, 2.25, 1.5, 4, std::vector<WallSeg>(microMouseEasyWalls().begin(), microMouseEasyWalls().end())};
+    0.75, 0.75, 2.25, 2.25, 1.5, 4,
+    std::vector<WallSeg>(microMouseEasyWalls().begin(), microMouseEasyWalls().end())};
 }
 
 inline MicroMouseLayout microMouseHardLayout()

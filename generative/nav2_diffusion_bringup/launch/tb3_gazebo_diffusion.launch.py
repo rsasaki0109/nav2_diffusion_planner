@@ -31,7 +31,6 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    bringup_dir = get_package_share_directory('nav2_bringup')
     pkg_dir = get_package_share_directory('nav2_diffusion_bringup')
 
     default_params = os.path.join(pkg_dir, 'params', 'nav2_diffusion_tb3.yaml')
@@ -55,7 +54,10 @@ def generate_launch_description():
     )
     declare_use_composition_cmd = DeclareLaunchArgument(
         'use_composition', default_value='True',
-        description='Load Nav2 nodes into a single component container (False = separate processes)',
+        description=(
+            'Load Nav2 nodes into a single component container '
+            '(False = separate processes)'
+        ),
     )
     declare_candidates_topic_cmd = DeclareLaunchArgument(
         'candidates_topic',

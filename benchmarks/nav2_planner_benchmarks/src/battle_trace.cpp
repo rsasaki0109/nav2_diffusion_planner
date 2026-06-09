@@ -103,7 +103,8 @@ void printBattleHelp()
     "\n"
     "Optional flags (stripped before rclcpp init):\n"
     "  --custom-controller LABEL ONNX [FAMILY]\n"
-    "      Append a Mode A DiffusionController using ONNX at ONNX (absolute or share/models/ name).\n"
+    "      Append a Mode A DiffusionController using ONNX at ONNX\n"
+    "      (absolute path or share/models/ name).\n"
     "  --custom-planner LABEL ONNX [MIN_TURN_RADIUS]\n"
     "      Append a Mode B DiffusionGlobalPlanner using ONNX (default R=0 omni if omitted).\n"
     "  --custom-only          Run only --custom-* entries (skip the default roster).\n"
@@ -590,256 +591,256 @@ int main(int argc, char ** argv)
 
   // ---------- Mode A: arena race ----------
   if (export_a) {
-  std::cout << "\"modeA\":{\"title\":\"Mode A — local controller arena race\",\"dt\":" << kDt
-            << ",\"scenarios\":[\n";
-  for (std::size_t si = 0; si < aScenarios.size(); ++si) {
-    const auto & sc = aScenarios[si];
-    std::cout << "{\"name\":"; j.str(sc.name);
-    std::cout << ",\"description\":"; j.str(sc.description);
-    std::cout << ",\"start\":[" << sc.sx << "," << sc.sy << "],\"goal\":[" << sc.gx << ","
-              << sc.gy << "],\"obstacles\":[";
-    for (std::size_t oi = 0; oi < sc.obstacles.size(); ++oi) {
-      const auto & r = sc.obstacles[oi];
-      std::cout << "{\"x\":" << r.x << ",\"y\":" << r.y << ",\"w\":" << r.w << ",\"h\":" << r.h
-                << "}" << (oi + 1 < sc.obstacles.size() ? "," : "");
-    }
-    std::cout << "],\"metrics\":{";
-    if (sc.centering) {
-      std::cout << "\"centering\":true,\"centerline\":" << sc.centerline;
-    } else {
-      std::cout << "\"centering\":false";
-    }
-    std::cout << "},\"fighters\":[\n";
-
-    for (std::size_t ci = 0; ci < controllers.size(); ++ci) {
-      const auto & ce = controllers[ci];
-      const std::string name = sanitize(ce.label, "battleA_");
-      for (const auto & p : ce.params) {
-        const std::string key = name + "." + p.get_name();
-        if (node->has_parameter(key)) {
-          node->set_parameter(rclcpp::Parameter(key, p.get_parameter_value()));
-        } else {
-          node->declare_parameter(key, p.get_parameter_value());
-        }
+    std::cout << "\"modeA\":{\"title\":\"Mode A — local controller arena race\",\"dt\":" << kDt
+              << ",\"scenarios\":[\n";
+    for (std::size_t si = 0; si < aScenarios.size(); ++si) {
+      const auto & sc = aScenarios[si];
+      std::cout << "{\"name\":"; j.str(sc.name);
+      std::cout << ",\"description\":"; j.str(sc.description);
+      std::cout << ",\"start\":[" << sc.sx << "," << sc.sy << "],\"goal\":[" << sc.gx << ","
+                << sc.gy << "],\"obstacles\":[";
+      for (std::size_t oi = 0; oi < sc.obstacles.size(); ++oi) {
+        const auto & r = sc.obstacles[oi];
+        std::cout << "{\"x\":" << r.x << ",\"y\":" << r.y << ",\"w\":" << r.w << ",\"h\":" << r.h
+                  << "}" << (oi + 1 < sc.obstacles.size() ? "," : "");
       }
-      std::shared_ptr<nav2_core::Controller> controller;
-      std::string outcome = "reached";
-      std::vector<std::array<double, 3>> trace;
-      double path_len = 0.0;
-      double min_clear = std::numeric_limits<double>::max();
-      double sum_dw = 0.0;
-      double sum_off = 0.0;
-      double prev_w = 0.0;
-      int steps = 0;
-      try {
-        controller = cloader.createSharedInstance(ce.class_name);
-        controller->configure(node, name, tf, costmap_ros);
-        controller->activate();
+      std::cout << "],\"metrics\":{";
+      if (sc.centering) {
+        std::cout << "\"centering\":true,\"centerline\":" << sc.centerline;
+      } else {
+        std::cout << "\"centering\":false";
+      }
+      std::cout << "},\"fighters\":[\n";
 
-        clearCostmap(costmap);
-        if (sc.name == "frontal") {
-          markBlock(costmap, 3.0, 3.0, 4);
-        } else if (sc.name == "side") {
-          markBlock(costmap, 3.0, 3.3, 6);
-        } else if (sc.name == "corridor") {
-          markHWall(costmap, 2.1, 0.5, 5.5, 2);
-          markHWall(costmap, 3.9, 0.5, 5.5, 2);
-        } else if (isMicroMouseScenario(sc.name)) {
-          markMicroMouseScenario(costmap, sc.name);
+      for (std::size_t ci = 0; ci < controllers.size(); ++ci) {
+        const auto & ce = controllers[ci];
+        const std::string name = sanitize(ce.label, "battleA_");
+        for (const auto & p : ce.params) {
+          const std::string key = name + "." + p.get_name();
+          if (node->has_parameter(key)) {
+            node->set_parameter(rclcpp::Parameter(key, p.get_parameter_value()));
+          } else {
+            node->declare_parameter(key, p.get_parameter_value());
+          }
         }
-        controller->setPlan(straightPlan(sc.sx, sc.sy, sc.gx, sc.gy));
+        std::shared_ptr<nav2_core::Controller> controller;
+        std::string outcome = "reached";
+        std::vector<std::array<double, 3>> trace;
+        double path_len = 0.0;
+        double min_clear = std::numeric_limits<double>::max();
+        double sum_dw = 0.0;
+        double sum_off = 0.0;
+        double prev_w = 0.0;
+        int steps = 0;
+        try {
+          controller = cloader.createSharedInstance(ce.class_name);
+          controller->configure(node, name, tf, costmap_ros);
+          controller->activate();
 
-        double x = sc.sx, y = sc.sy, yaw = 0.0;
-        geometry_msgs::msg::Twist last_twist;
-        bool reached = false, collided = false;
-        trace.push_back({x, y, yaw});
-        for (int s = 0; s < kMaxSteps; ++s) {
-          geometry_msgs::msg::TransformStamped tfm;
-          tfm.header.frame_id = "map";
-          tfm.child_frame_id = "base_link";
-          tfm.transform.translation.x = x;
-          tfm.transform.translation.y = y;
-          tf2::Quaternion q;
-          q.setRPY(0.0, 0.0, yaw);
-          tfm.transform.rotation = tf2::toMsg(q);
-          tf->setTransform(tfm, "bench", true);
-
-          geometry_msgs::msg::PoseStamped pose;
-          pose.header.frame_id = "map";
-          pose.pose.position.x = x;
-          pose.pose.position.y = y;
-          pose.pose.orientation = tfm.transform.rotation;
-
-          geometry_msgs::msg::TwistStamped cmd;
-          try {
-            cmd = controller->computeVelocityCommands(pose, last_twist, nullptr);
-          } catch (const std::exception &) {
-            break;
+          clearCostmap(costmap);
+          if (sc.name == "frontal") {
+            markBlock(costmap, 3.0, 3.0, 4);
+          } else if (sc.name == "side") {
+            markBlock(costmap, 3.0, 3.3, 6);
+          } else if (sc.name == "corridor") {
+            markHWall(costmap, 2.1, 0.5, 5.5, 2);
+            markHWall(costmap, 3.9, 0.5, 5.5, 2);
+          } else if (isMicroMouseScenario(sc.name)) {
+            markMicroMouseScenario(costmap, sc.name);
           }
-          const double v = cmd.twist.linear.x;
-          const double w = cmd.twist.angular.z;
-          last_twist = cmd.twist;
-          min_clear = std::min(min_clear, nearestObstacle(costmap, x, y, 1.0));
-          if (sc.centering) {
-            sum_off += std::abs(y - sc.centerline);
-          }
-          sum_dw += std::abs(w - prev_w);
-          prev_w = w;
-          const double nx = x + v * std::cos(yaw) * kDt;
-          const double ny = y + v * std::sin(yaw) * kDt;
-          path_len += std::hypot(nx - x, ny - y);
-          x = nx;
-          y = ny;
-          yaw += w * kDt;
+          controller->setPlan(straightPlan(sc.sx, sc.sy, sc.gx, sc.gy));
+
+          double x = sc.sx, y = sc.sy, yaw = 0.0;
+          geometry_msgs::msg::Twist last_twist;
+          bool reached = false, collided = false;
           trace.push_back({x, y, yaw});
-          ++steps;
+          for (int s = 0; s < kMaxSteps; ++s) {
+            geometry_msgs::msg::TransformStamped tfm;
+            tfm.header.frame_id = "map";
+            tfm.child_frame_id = "base_link";
+            tfm.transform.translation.x = x;
+            tfm.transform.translation.y = y;
+            tf2::Quaternion q;
+            q.setRPY(0.0, 0.0, yaw);
+            tfm.transform.rotation = tf2::toMsg(q);
+            tf->setTransform(tfm, "bench", true);
 
-          unsigned int mx = 0, my = 0;
-          if (!costmap->worldToMap(x, y, mx, my) ||
-            costmap->getCost(mx, my) >= nav2_costmap_2d::LETHAL_OBSTACLE)
-          {
-            collided = true;
-            break;
+            geometry_msgs::msg::PoseStamped pose;
+            pose.header.frame_id = "map";
+            pose.pose.position.x = x;
+            pose.pose.position.y = y;
+            pose.pose.orientation = tfm.transform.rotation;
+
+            geometry_msgs::msg::TwistStamped cmd;
+            try {
+              cmd = controller->computeVelocityCommands(pose, last_twist, nullptr);
+            } catch (const std::exception &) {
+              break;
+            }
+            const double v = cmd.twist.linear.x;
+            const double w = cmd.twist.angular.z;
+            last_twist = cmd.twist;
+            min_clear = std::min(min_clear, nearestObstacle(costmap, x, y, 1.0));
+            if (sc.centering) {
+              sum_off += std::abs(y - sc.centerline);
+            }
+            sum_dw += std::abs(w - prev_w);
+            prev_w = w;
+            const double nx = x + v * std::cos(yaw) * kDt;
+            const double ny = y + v * std::sin(yaw) * kDt;
+            path_len += std::hypot(nx - x, ny - y);
+            x = nx;
+            y = ny;
+            yaw += w * kDt;
+            trace.push_back({x, y, yaw});
+            ++steps;
+
+            unsigned int mx = 0, my = 0;
+            if (!costmap->worldToMap(x, y, mx, my) ||
+              costmap->getCost(mx, my) >= nav2_costmap_2d::LETHAL_OBSTACLE)
+            {
+              collided = true;
+              break;
+            }
+            if (std::hypot(sc.gx - x, sc.gy - y) < kGoalTol) {
+              reached = true;
+              break;
+            }
           }
-          if (std::hypot(sc.gx - x, sc.gy - y) < kGoalTol) {
-            reached = true;
-            break;
-          }
+          controller->deactivate();
+          controller->cleanup();
+          outcome = reached ? "reached" : (collided ? "collision" : "timeout");
+        } catch (const std::exception &) {
+          outcome = "error";
         }
-        controller->deactivate();
-        controller->cleanup();
-        outcome = reached ? "reached" : (collided ? "collision" : "timeout");
-      } catch (const std::exception &) {
-        outcome = "error";
-      }
 
-      const double mean_dw = steps > 0 ? sum_dw / steps : 0.0;
-      const double mean_center = (sc.centering && steps > 0) ? sum_off / steps : -1.0;
+        const double mean_dw = steps > 0 ? sum_dw / steps : 0.0;
+        const double mean_center = (sc.centering && steps > 0) ? sum_off / steps : -1.0;
 
-      std::cout << "{\"label\":"; j.str(ce.label);
-      std::cout << ",\"family\":"; j.str(ce.family);
-      std::cout << ",\"outcome\":"; j.str(outcome);
-      std::cout << ",\"steps\":" << (trace.empty() ? 0 : static_cast<int>(trace.size()) - 1);
-      std::cout << ",\"length\":" << path_len;
-      std::cout << ",\"clearance\":"
-                << (min_clear == std::numeric_limits<double>::max() ? 0.0 : min_clear);
-      std::cout << ",\"mean_dw\":" << mean_dw;
-      if (mean_center >= 0.0) {
-        std::cout << ",\"centering\":" << mean_center;
+        std::cout << "{\"label\":"; j.str(ce.label);
+        std::cout << ",\"family\":"; j.str(ce.family);
+        std::cout << ",\"outcome\":"; j.str(outcome);
+        std::cout << ",\"steps\":" << (trace.empty() ? 0 : static_cast<int>(trace.size()) - 1);
+        std::cout << ",\"length\":" << path_len;
+        std::cout << ",\"clearance\":"
+                  << (min_clear == std::numeric_limits<double>::max() ? 0.0 : min_clear);
+        std::cout << ",\"mean_dw\":" << mean_dw;
+        if (mean_center >= 0.0) {
+          std::cout << ",\"centering\":" << mean_center;
+        }
+        std::cout << ",\"path\":[";
+        for (std::size_t k = 0; k < trace.size(); ++k) {
+          std::cout << "[" << trace[k][0] << "," << trace[k][1] << "," << trace[k][2] << "]"
+                    << (k + 1 < trace.size() ? "," : "");
+        }
+        std::cout << "]}" << (ci + 1 < controllers.size() ? ",\n" : "\n");
       }
-      std::cout << ",\"path\":[";
-      for (std::size_t k = 0; k < trace.size(); ++k) {
-        std::cout << "[" << trace[k][0] << "," << trace[k][1] << "," << trace[k][2] << "]"
-                  << (k + 1 < trace.size() ? "," : "");
-      }
-      std::cout << "]}" << (ci + 1 < controllers.size() ? ",\n" : "\n");
+      std::cout << "]}" << (si + 1 < aScenarios.size() ? ",\n" : "\n");
     }
-    std::cout << "]}" << (si + 1 < aScenarios.size() ? ",\n" : "\n");
-  }
-  std::cout << "]}";
-  if (export_b) {
-    std::cout << ",\n";
-  } else {
-    std::cout << "\n";
-  }
+    std::cout << "]}";
+    if (export_b) {
+      std::cout << ",\n";
+    } else {
+      std::cout << "\n";
+    }
   }
 
   // ---------- Mode B: path duel ----------
   if (export_b) {
-  std::cout << "\"modeB\":{\"title\":\"Mode B — global planner path duel\",\"scenarios\":[\n";
-  for (std::size_t si = 0; si < bScenarios.size(); ++si) {
-    const auto & sc = bScenarios[si];
-    std::cout << "{\"name\":"; j.str(sc.name);
-    std::cout << ",\"description\":"; j.str(sc.description);
-    std::cout << ",\"start\":[" << sc.sx << "," << sc.sy << "],\"goal\":[" << sc.gx << ","
-              << sc.gy << "],\"obstacles\":[";
-    bool first_rect = true;
-    if (isMicroMouseScenario(sc.name)) {
-      for (const auto & r : microMouseObstacleRects(sc.name)) {
-        std::cout << (first_rect ? "" : ",") << "{\"x\":" << r.x << ",\"y\":" << r.y
-                  << ",\"w\":" << r.w << ",\"h\":" << r.h << "}";
-        first_rect = false;
-      }
-    } else {
-      for (const auto & w : sc.walls) {
-        for (const auto & r : wallRects(w[0], w[1], w[2], static_cast<int>(w[3]))) {
+    std::cout << "\"modeB\":{\"title\":\"Mode B — global planner path duel\",\"scenarios\":[\n";
+    for (std::size_t si = 0; si < bScenarios.size(); ++si) {
+      const auto & sc = bScenarios[si];
+      std::cout << "{\"name\":"; j.str(sc.name);
+      std::cout << ",\"description\":"; j.str(sc.description);
+      std::cout << ",\"start\":[" << sc.sx << "," << sc.sy << "],\"goal\":[" << sc.gx << ","
+                << sc.gy << "],\"obstacles\":[";
+      bool first_rect = true;
+      if (isMicroMouseScenario(sc.name)) {
+        for (const auto & r : microMouseObstacleRects(sc.name)) {
           std::cout << (first_rect ? "" : ",") << "{\"x\":" << r.x << ",\"y\":" << r.y
                     << ",\"w\":" << r.w << ",\"h\":" << r.h << "}";
           first_rect = false;
         }
-      }
-    }
-    std::cout << "],\"fighters\":[\n";
-
-    for (std::size_t pi = 0; pi < planners.size(); ++pi) {
-      const auto & pe = planners[pi];
-      std::string name = sanitize(pe.label, "battleB_");
-      std::replace(name.begin(), name.end(), '*', 's');
-      for (const auto & p : pe.params) {
-        const std::string key = name + "." + p.get_name();
-        if (node->has_parameter(key)) {
-          node->set_parameter(rclcpp::Parameter(key, p.get_parameter_value()));
-        } else {
-          node->declare_parameter(key, p.get_parameter_value());
-        }
-      }
-      std::shared_ptr<nav2_core::GlobalPlanner> planner;
-      bool ok = true;
-      double length = 0.0;
-      nav_msgs::msg::Path best_plan;
-      std::vector<double> times_ms;
-      try {
-        planner = ploader.createSharedInstance(pe.class_name);
-        planner->configure(node, name, tf, costmap_ros);
-        planner->activate();
-        clearCostmap(costmap);
-        if (isMicroMouseScenario(sc.name)) {
-          markMicroMouseScenario(costmap, sc.name);
-        } else {
-          for (const auto & w : sc.walls) {
-            markWall(costmap, w[0], w[1], w[2], static_cast<int>(w[3]));
+      } else {
+        for (const auto & w : sc.walls) {
+          for (const auto & r : wallRects(w[0], w[1], w[2], static_cast<int>(w[3]))) {
+            std::cout << (first_rect ? "" : ",") << "{\"x\":" << r.x << ",\"y\":" << r.y
+                      << ",\"w\":" << r.w << ",\"h\":" << r.h << "}";
+            first_rect = false;
           }
         }
-        for (int r = 0; r < kRuns; ++r) {
-          const auto t0 = std::chrono::steady_clock::now();
-          const auto plan = planner->createPlan(
-            makePose(sc.sx, sc.sy), makePose(sc.gx, sc.gy), noCancel);
-          const auto t1 = std::chrono::steady_clock::now();
-          times_ms.push_back(std::chrono::duration<double, std::milli>(t1 - t0).count());
-          best_plan = plan;
-          length = pathLength(plan);
-        }
-        planner->deactivate();
-        planner->cleanup();
-        if (times_ms.empty() || best_plan.poses.empty()) {ok = false;}
-      } catch (const std::exception &) {
-        ok = false;
       }
-      double median = 0.0;
-      if (!times_ms.empty()) {
-        std::sort(times_ms.begin(), times_ms.end());
-        median = times_ms[times_ms.size() / 2];
-      }
+      std::cout << "],\"fighters\":[\n";
 
-      std::cout << "{\"label\":"; j.str(pe.label);
-      std::cout << ",\"family\":"; j.str(pe.family);
-      std::cout << ",\"success\":" << (ok ? "true" : "false");
-      std::cout << ",\"length\":" << length;
-      std::cout << ",\"poses\":" << best_plan.poses.size();
-      std::cout << ",\"time_ms\":" << median;
-      std::cout << ",\"path\":[";
-      if (ok) {
-        for (std::size_t k = 0; k < best_plan.poses.size(); ++k) {
-          std::cout << "[" << best_plan.poses[k].pose.position.x << ","
-                    << best_plan.poses[k].pose.position.y << "]"
-                    << (k + 1 < best_plan.poses.size() ? "," : "");
+      for (std::size_t pi = 0; pi < planners.size(); ++pi) {
+        const auto & pe = planners[pi];
+        std::string name = sanitize(pe.label, "battleB_");
+        std::replace(name.begin(), name.end(), '*', 's');
+        for (const auto & p : pe.params) {
+          const std::string key = name + "." + p.get_name();
+          if (node->has_parameter(key)) {
+            node->set_parameter(rclcpp::Parameter(key, p.get_parameter_value()));
+          } else {
+            node->declare_parameter(key, p.get_parameter_value());
+          }
         }
+        std::shared_ptr<nav2_core::GlobalPlanner> planner;
+        bool ok = true;
+        double length = 0.0;
+        nav_msgs::msg::Path best_plan;
+        std::vector<double> times_ms;
+        try {
+          planner = ploader.createSharedInstance(pe.class_name);
+          planner->configure(node, name, tf, costmap_ros);
+          planner->activate();
+          clearCostmap(costmap);
+          if (isMicroMouseScenario(sc.name)) {
+            markMicroMouseScenario(costmap, sc.name);
+          } else {
+            for (const auto & w : sc.walls) {
+              markWall(costmap, w[0], w[1], w[2], static_cast<int>(w[3]));
+            }
+          }
+          for (int r = 0; r < kRuns; ++r) {
+            const auto t0 = std::chrono::steady_clock::now();
+            const auto plan = planner->createPlan(
+            makePose(sc.sx, sc.sy), makePose(sc.gx, sc.gy), noCancel);
+            const auto t1 = std::chrono::steady_clock::now();
+            times_ms.push_back(std::chrono::duration<double, std::milli>(t1 - t0).count());
+            best_plan = plan;
+            length = pathLength(plan);
+          }
+          planner->deactivate();
+          planner->cleanup();
+          if (times_ms.empty() || best_plan.poses.empty()) {ok = false;}
+        } catch (const std::exception &) {
+          ok = false;
+        }
+        double median = 0.0;
+        if (!times_ms.empty()) {
+          std::sort(times_ms.begin(), times_ms.end());
+          median = times_ms[times_ms.size() / 2];
+        }
+
+        std::cout << "{\"label\":"; j.str(pe.label);
+        std::cout << ",\"family\":"; j.str(pe.family);
+        std::cout << ",\"success\":" << (ok ? "true" : "false");
+        std::cout << ",\"length\":" << length;
+        std::cout << ",\"poses\":" << best_plan.poses.size();
+        std::cout << ",\"time_ms\":" << median;
+        std::cout << ",\"path\":[";
+        if (ok) {
+          for (std::size_t k = 0; k < best_plan.poses.size(); ++k) {
+            std::cout << "[" << best_plan.poses[k].pose.position.x << ","
+                      << best_plan.poses[k].pose.position.y << "]"
+                      << (k + 1 < best_plan.poses.size() ? "," : "");
+          }
+        }
+        std::cout << "]}" << (pi + 1 < planners.size() ? ",\n" : "\n");
       }
-      std::cout << "]}" << (pi + 1 < planners.size() ? ",\n" : "\n");
+      std::cout << "]}" << (si + 1 < bScenarios.size() ? ",\n" : "\n");
     }
-    std::cout << "]}" << (si + 1 < bScenarios.size() ? ",\n" : "\n");
-  }
-  std::cout << "]}\n";
+    std::cout << "]}\n";
   }
 
   std::cout << "}\n";

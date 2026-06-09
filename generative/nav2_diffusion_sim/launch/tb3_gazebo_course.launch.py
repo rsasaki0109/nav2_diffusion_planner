@@ -13,9 +13,9 @@
 # limitations under the License.
 
 r"""
-Closed-loop Gazebo benchmark on an obstacle course (centred / gap / slalom /
-micro_mouse_easy / micro_mouse_hard).
+Gazebo obstacle-course closed-loop benchmark.
 
+Benchmark centred / gap / slalom / micro_mouse_easy / micro_mouse_hard courses.
 Loads the course's generated gz-sim world and matching occupancy map (built from
 one spec by nav2_diffusion_sim.gen_courses, so world+map+goals stay consistent),
 spawns TB3 at the course start, brings up Nav2 with the DiffusionController, and
@@ -112,7 +112,11 @@ def generate_launch_description():
     declare_args = [
         DeclareLaunchArgument(
             'course', default_value='gap',
-            description='Obstacle course: centred / gap / slalom / micro_mouse_easy / micro_mouse_hard'),
+            description=(
+                'Obstacle course: centred / gap / slalom / '
+                'micro_mouse_easy / micro_mouse_hard'
+            ),
+        ),
         DeclareLaunchArgument(
             'results_file', default_value='/tmp/course_result.md'),
     ]
