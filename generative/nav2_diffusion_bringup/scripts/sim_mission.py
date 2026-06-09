@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2026 Nav2PlannerBattle contributors
+# Copyright 2026 RobotEscapeRoom contributors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -168,8 +168,15 @@ def _run_node():
     from nav2_msgs.action import NavigateToPose
     from nav_msgs.msg import Odometry
     import rclpy
+    from rcl_interfaces.msg import ParameterDescriptor
     from rclpy.action import ActionClient
     from rclpy.node import Node
+
+    def _float_param(node, name, default):
+        """Declare a float param; launch may pass an integer (``180`` not ``180.0``)."""
+        node.declare_parameter(
+            name, default, ParameterDescriptor(dynamic_typing=True))
+        return float(node.get_parameter(name).value)
 
     class SimMission(Node):
         """Drive a sequence of NavigateToPose legs, record odom, write a report."""
@@ -182,16 +189,14 @@ def _run_node():
             self.declare_parameter('missions', [''])
             self.declare_parameter('course', '')
             self.declare_parameter('frame_id', 'map')
-            self.declare_parameter('timeout_sec', 120.0)
-            self.declare_parameter('server_wait_sec', 60.0)
+            self.timeout_sec = _float_param(self, 'timeout_sec', 120.0)
+            self.server_wait_sec = _float_param(self, 'server_wait_sec', 60.0)
             self.declare_parameter('odom_topic', '/odom')
             self.declare_parameter('stop_on_failure', False)
             self.declare_parameter('label', 'Diffusion (Mode A) in Gazebo')
             self.declare_parameter('results_file', '/tmp/sim_mission_result.md')
 
             self.frame_id = self.get_parameter('frame_id').value
-            self.timeout_sec = self.get_parameter('timeout_sec').value
-            self.server_wait_sec = self.get_parameter('server_wait_sec').value
             self.stop_on_failure = self.get_parameter('stop_on_failure').value
             self.results_file = self.get_parameter('results_file').value
 
@@ -233,6 +238,28 @@ def _run_node():
             while rclpy.ok() and self.cur_xy is None and time.time() < deadline:
                 rclpy.spin_once(self, timeout_sec=0.2)
             return self.cur_xy is not None
+
+        def _wait_for_lifecycle(self, node_name, timeout):
+            from lifecycle_msgs.msg import State
+            from lifecycle_msgs.srv import GetState
+
+            client = self.create_client(GetState, '{}/get_state'.format(node_name))
+            if not client.wait_for_service(timeout_sec=min(60.0, timeout)):
+                return False
+            deadline = time.time() + timeout
+            while rclpy.ok() and time.time() < deadline:
+                req = GetState.Request()
+                future = client.call_async(req)
+                rclpy.spin_until_future_complete(self, future, timeout_sec=2.0)
+                result = future.result()
+                if result and result.current_state.id == State.PRIMARY_STATE_ACTIVE:
+                    return True
+                rclpy.spin_once(self, timeout_sec=0.5)
+            return False
+
+        def _wait_for_localization(self, timeout):
+            """Wait until AMCL lifecycle is active (map loaded, ready for goals)."""
+            return self._wait_for_lifecycle('amcl', timeout)
 
         def _drive_leg(self, mission):
             """Send one goal, block to completion/timeout, return MissionOutcome."""
@@ -288,6 +315,10 @@ def _run_node():
                 return self._write([], 'navigate_to_pose action server unavailable')
             if not self._wait_for_odom(self.server_wait_sec):
                 return self._write([], 'no odometry received')
+            if not self._wait_for_localization(self.server_wait_sec):
+                return self._write([], 'amcl lifecycle inactive')
+            if not self._wait_for_lifecycle('bt_navigator', self.server_wait_sec):
+                return self._write([], 'bt_navigator lifecycle inactive')
 
             outcomes = []
             for mission in self.missions:

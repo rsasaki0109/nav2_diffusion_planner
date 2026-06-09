@@ -1,4 +1,4 @@
-# Copyright 2026 Nav2PlannerBattle contributors
+# Copyright 2026 RobotEscapeRoom contributors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,6 +39,7 @@ def generate_launch_description():
     params_file = LaunchConfiguration('params_file')
     use_rviz = LaunchConfiguration('use_rviz')
     headless = LaunchConfiguration('headless')
+    use_composition = LaunchConfiguration('use_composition')
     candidates_topic = LaunchConfiguration('candidates_topic')
 
     declare_params_file_cmd = DeclareLaunchArgument(
@@ -52,6 +53,10 @@ def generate_launch_description():
     declare_headless_cmd = DeclareLaunchArgument(
         'headless', default_value='True', description='Run Gazebo server without the GUI client'
     )
+    declare_use_composition_cmd = DeclareLaunchArgument(
+        'use_composition', default_value='True',
+        description='Load Nav2 nodes into a single component container (False = separate processes)',
+    )
     declare_candidates_topic_cmd = DeclareLaunchArgument(
         'candidates_topic',
         default_value='/FollowPath/trajectory_candidates',
@@ -60,12 +65,13 @@ def generate_launch_description():
 
     gazebo_sim = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(bringup_dir, 'launch', 'tb3_simulation_launch.py')
+            os.path.join(pkg_dir, 'launch', 'tb3_simulation_launch.py')
         ),
         launch_arguments={
             'params_file': params_file,
             'use_rviz': use_rviz,
             'headless': headless,
+            'use_composition': use_composition,
         }.items(),
     )
 
@@ -86,6 +92,7 @@ def generate_launch_description():
         declare_params_file_cmd,
         declare_use_rviz_cmd,
         declare_headless_cmd,
+        declare_use_composition_cmd,
         declare_candidates_topic_cmd,
         gazebo_sim,
         candidate_markers,

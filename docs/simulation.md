@@ -167,6 +167,25 @@ headless:=True`（`TURTLEBOT3_MODEL=waffle`）で:
 > 繰り返すとマシンが劣化し更に遅くなる。**結論: live 閉ループはこのセッションでも原理的に可能
 > （不通ではない）だが、クリーンで負荷の低いマシンと時間が要る**。実数値の取得は専用実行が筋。
 > 関連修正: mission 待機既定を延長（`tb3_gazebo_mission.launch.py` の `server_wait_sec`、既定 180 s）。
+>
+> **追記4（2026-06-09、launch 起動順の硬化）**: 実 ROS ホスト（Jazzy）で mission を再試行し、
+> upstream `tb3_simulation_launch.py` の **xacro→gz レース**（`Unable to find file`）と
+> **/clock ジャンプ**（bridge が gz より先に起動→`TF_OLD_DATA`・map_server configure 失敗）を
+> 修正した。`nav2_diffusion_bringup/launch/tb3_simulation_launch.py`（fork）で
+> xacro 完了後に gz を起動し、gz 起動後に bridge/spawn/Nav2 を起動。`sim_mission.py` は
+> AMCL/bt_navigator の lifecycle active を待ってから goal を送る（`server_wait_sec` は
+> **浮動小数**で渡す: `timeout_sec:=180.0`）。mission ノードは launch から 45 s 遅延起動。
+> コールド起動が重いマシンでは `server_wait_sec:=360.0` を推奨:
+>
+> ```bash
+> ros2 launch nav2_diffusion_bringup tb3_gazebo_mission.launch.py \\
+>     course:=default server_wait_sec:=360.0 results_file:=/tmp/sim_mission_result.md
+> ```
+>
+> 2026-06-09 の Cursor セッションでは Nav2 起動まで確認（localization active ログあり）したが、
+> 連続試行による負荷で AMCL active 待ちが 240 s 内に完了せず **実 sim 到達数値は未収集**
+>（`/tmp/sim_mission_result.md` は `amcl lifecycle inactive` で終了）。**専用の前景ターミナルで
+> 1 回だけ**回せば leaderboard が出る見込み——でっち上げ値は載せない。
 
 ### 完走に必要なもの（next_phase.md 段3 へ）
 

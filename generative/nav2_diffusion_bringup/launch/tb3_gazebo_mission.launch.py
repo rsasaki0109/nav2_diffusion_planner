@@ -1,4 +1,4 @@
-# Copyright 2026 Nav2PlannerBattle contributors
+# Copyright 2026 RobotEscapeRoom contributors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -47,7 +47,7 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument, EmitEvent, IncludeLaunchDescription, OpaqueFunction,
-    RegisterEventHandler,
+    RegisterEventHandler, TimerAction,
 )
 from launch.event_handlers import OnProcessExit
 from launch.events import Shutdown
@@ -99,7 +99,7 @@ def _launch_setup(context, *args, **kwargs):
         )
     )
 
-    return [sim, mission, shutdown_on_mission_exit]
+    return [sim, TimerAction(period=45.0, actions=[mission]), shutdown_on_mission_exit]
 
 
 def generate_launch_description():
